@@ -314,9 +314,6 @@ wait_for_install
 # Plan 25-02 builds the latency run block by block, one commit each. The names below are
 # defined with the first block (messbedingungen) and unit tested there; each leaves this list
 # with the block that reads it (datenaufbau, stufen, referenzen, kalt, ballast, schwelle).
-FILL_PREFIX
-FILL_TAGS
-BALLAST_LIMIT_SECONDS
 PREPARE_CONTEXT_BASELINE
 threshold_line
 prepare_context_medians

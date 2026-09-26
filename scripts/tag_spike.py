@@ -1864,11 +1864,50 @@ async def block_cold(lat: Latency) -> None:
     )
 
 
+async def block_ballast(lat: Latency) -> None:
+    """Owner decision Q3: does a large mapping table make the REPORT on our tag dearer.
+
+    35 public fill tags, each set on all 10,000 flat files, about 350,000 mappings. The build
+    is cut after BALLAST_LIMIT_SECONDS; a cut is a measured limit, not a failure, and the
+    measurements are repeated with whatever ballast stands.
+    """
+    if "stufe5000" not in lat.medians:
+        raise RunFailed("stage 5000 was not measured, the ballast would compare nothing")
+    user = lat.alice.user
+    docker_stats()
+    started = time.perf_counter()
+    built = 0
+    cut = False
+    for number in range(FILL_TAGS):
+        elapsed = time.perf_counter() - started
+        if elapsed > BALLAST_LIMIT_SECONDS:
+            cut = True
+            break
+        name = f"{FILL_PREFIX}{number:02d}"
+        fill_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", name, "public", "--output=json"))
+        mapped = php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, fill_id, str(FLAT_FILES), FLAT_DIR, user)
+        built += 1
+        note(f"BALLAST {name} id={fill_id} -> {mapped.split(' ')[0]} Zuordnungen ({elapsed:.0f} s)")
+    seconds = time.perf_counter() - started
+    mappings = php(NC_CONTAINER, PHP_COUNT_MAPPINGS)
+    if cut:
+        note(f"BALLAST abgebrochen nach {seconds:.0f} s bei {mappings} Zuordnungen")
+    else:
+        note(f"BALLAST aufgebaut: {built} Füll-Tags in {seconds:.0f} s, {mappings} Zuordnungen")
+    lat.medians["ballast_mappings"] = float(mappings) if mappings.isdigit() else -1.0
+    docker_stats()
+    lat.medians["stufe5000_ballast"] = await measure_report(lat, "STUFE 5000 (mit Ballast)")
+    lat.medians["ref_d_ballast"] = await measure_flat_with_tags(
+        lat, f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags (mit Ballast)"
+    )
+
+
 _LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = (
     ("datenaufbau", block_build),
     ("stufen", block_stages),
     ("referenzen", block_references),
     ("kalt", block_cold),
+    ("ballast", block_ballast),
 )
 
 
