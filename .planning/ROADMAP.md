@@ -123,7 +123,7 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
   4. Ob die Notiz-Id der fileid entspricht, ist mit Beleg aus einer echten Notiz beantwortet (ja oder nein), und das Ergebnis entscheidet ausdrücklich über den Notes-Weg in Phase 27
   5. Das Verhalten bei 412 nach gelöschter und neu angelegter Tag-Id, bei unsichtbarem Tag, bei gleichnamigen Varianten, beim REPORT-Zielpfad (Unterordner gegen Home-Wurzel) und bei geteiltem Unterordner mit getaggtem Vorfahr beim Eigentümer ist je als gemessener Einzelbefund festgehalten
 
-**Plans**: 4 plans
+**Plans**: 5 plans
 
 Plans:
 **Wave 1**
@@ -141,6 +141,10 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 25-04-PLAN.md , Messbericht und Owner-Checkpoint D-25-05 (Notes-Weg, Fail-closed-Auslöser, Batch-Strategie)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 25-05-PLAN.md , PostgreSQL-Gegenmessung (Stufen 1/100/5000, Ballast-Stufen, Vorfahren-PROPFIND, Varianten) plus SQLite-Kontrolle, Nachtrag Messbericht, Owner-Checkpoint E3 (EXCL-02)
 
 **Research flag**: ja (Live-Zugriff auf NC 32 bis 35, präparierte Testdaten mit großen Ordnern, vielen Tag-Zuordnungen und geteilten Unterordnern)
 
