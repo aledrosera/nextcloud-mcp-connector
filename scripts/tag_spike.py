@@ -25,6 +25,7 @@ stdin only, never as an argument (WR-06).
 import argparse
 import asyncio
 import base64
+import dataclasses
 import io
 import json
 import re
@@ -70,12 +71,33 @@ THRESHOLD_SECONDS = 1.0
 WARMUP = 3
 RUNS_WARM = 15
 RUNS_COLD = 3
+#: Pitfall 4: between these two values the owner is asked about a PostgreSQL counter check.
+NEAR_THRESHOLD_SECONDS = 0.6
+#: The pause after ``apachectl -k graceful`` before a cold run.
+COLD_PAUSE_SECONDS = 5
+
+#: Plan 25-02: the tag the latency run measures, the stages and the synthetic data set.
+LATENCY_TAG = f"{TAG_PREFIX}-lat"
+STAGES = (1, 100, 5000)
+TREE_DIR = f"{SPIKE_DIR}/tree"
+FLAT_DIR = f"{SPIKE_DIR}/flat"
+#: The folder tagged in stages 1 and 100, so the subtree case is part of the answer.
+STAGE_FOLDER = f"{TREE_DIR}/a3/b3"
+FLAT_FILES = 10_000
+#: The ballast tags (owner decision Q3): 35 public tags, each on all 10,000 flat files.
+FILL_PREFIX = "spike25-fill-"
+FILL_TAGS = 35
+#: The ballast build is cut after this many seconds (10 minutes) and reported as a limit.
+BALLAST_LIMIT_SECONDS = 600
 
 #: The phase folder the protocols live in (D-25-06: internal, nothing goes to docs/).
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PHASE_DIR = REPO_ROOT / ".planning" / "phases" / "25-mess-spike-tag-abfrage"
 RAW_DIR = PHASE_DIR / "raw"
 REPORT_FILE = PHASE_DIR / "25-MESSBERICHT.md"
+#: Counters only, no secret: the latency run leaves it for a teardown in another process.
+BASELINE_FILE = RAW_DIR / "nc35-baseline.json"
+PREPARE_CONTEXT_BASELINE = RAW_DIR / "nc35-prepare-context-baseline.txt"
 
 #: The header name whose value is base64 of ``user:APP_SECRET``; never in a protocol.
 APPAPI_HEADER = "AUTHORIZATION-APP-API"
@@ -87,7 +109,7 @@ SABRE = "http://sabredav.org/ns"
 DAV_FILES = "/remote.php/dav/files/"
 TIMEOUT = httpx.Timeout(60.0)
 
-BLOCKS = ("controls", "findings", "secret-scan")
+BLOCKS = ("controls", "findings", "latency", "secret-scan")
 
 # --- PHP one shot snippets ------------------------------------------------------------------
 # Handed to ``php --`` through stdin, arguments behind the ``--``; nothing of them lands in
@@ -561,6 +583,62 @@ def summarize(values: Sequence[float]) -> dict[str, float]:
         "p95_second_largest": ordered[-2],
         "max": ordered[-1],
     }
+
+
+def span(values: Sequence[int]) -> str:
+    """One number when all values agree, ``low..high`` when they do not, ``-`` for none."""
+    if not values:
+        return "-"
+    low, high = min(values), max(values)
+    return str(low) if low == high else f"{low}..{high}"
+
+
+def format_series(
+    label: str,
+    statuses: Sequence[int],
+    hits: Sequence[int],
+    sizes: Sequence[int],
+    seconds: Sequence[float],
+) -> str:
+    """One protocol line per measured series, wall clock in milliseconds.
+
+    Status, hits and bytes are shown as a span, so a series that changed its answer midway
+    cannot hide behind the value of its last run.
+    """
+    stats = {key: f"{value * 1000:.0f}" for key, value in summarize(seconds).items()}
+    status = "/".join(str(value) for value in sorted(set(statuses)))
+    return (
+        f"{label} status={status} treffer={span(hits)} bytes={span(sizes)} "
+        f"min={stats['min']} median={stats['median']} "
+        f"p95_zweitgroesster={stats['p95_second_largest']} max={stats['max']} "
+        f"(ms, n={len(seconds)})"
+    )
+
+
+def threshold_line(median_seconds: float, label: str = "") -> list[str]:
+    """The D-25-04 verdict for the warm median at 5000, plus the near threshold note.
+
+    Only a median above the threshold is ``ueber``; the verdict itself is decided by the
+    owner at checkpoint 25-04, this line only states the number against the limit.
+    """
+    verdict = "ueber" if median_seconds > THRESHOLD_SECONDS else "unter"
+    head = "SCHWELLE D-25-04" + (f" ({label})" if label else "")
+    first = (
+        f"{head} median_warm_5000={median_seconds:.3f} s "
+        f"schwelle={THRESHOLD_SECONDS:.1f} s ergebnis={verdict}"
+    )
+    lines = [first]
+    if NEAR_THRESHOLD_SECONDS <= median_seconds <= THRESHOLD_SECONDS:
+        lines.append("HINWEIS nahe Schwelle: PostgreSQL-Gegenmessung am Checkpoint fragen")
+    return lines
+
+
+_WALL_CLOCK = re.compile(r"wall clock detail='(\w+)':.*?median ([0-9.]+) s")
+
+
+def prepare_context_medians(text: str) -> dict[str, float]:
+    """The median wall clock per detail level out of a ``test_ctx_bundle.py -s`` output."""
+    return {match[1]: float(match[2]) for match in _WALL_CLOCK.finditer(text)}
 
 
 # --- HTTP -----------------------------------------------------------------------------------
@@ -1477,6 +1555,101 @@ async def findings(env: Mapping[str, str]) -> None:
                 note(line)
 
 
+# --- latency on nc35 (plan 25-02) -----------------------------------------------------------
+
+
+@dataclass
+class Latency:
+    """What one latency run carries from block to block."""
+
+    env: Mapping[str, str]
+    alice: Credentials
+    tag_id: str = ""
+    medians: dict[str, float] = dataclasses.field(default_factory=dict)
+
+
+def docker_stats() -> None:
+    """Memory and CPU of every container right now (Pitfall 7: the VM has 7.6 GiB)."""
+    note(
+        docker(
+            "stats",
+            "--no-stream",
+            "--format",
+            "{{.Name}}  mem {{.MemUsage}}  cpu {{.CPUPerc}}",
+            check=False,
+        ).strip()
+    )
+
+
+def spike_dir_exists(user: str) -> bool:
+    """Whether ``data/<user>/files/spike25`` is on disk inside the Nextcloud container."""
+    answer = docker(
+        "exec",
+        "-u",
+        "www-data",
+        NC_CONTAINER,
+        "sh",
+        "-c",
+        'if [ -e "$1" ]; then echo ja; else echo nein; fi',
+        "sh",
+        f"/var/www/html/data/{user}/files/{SPIKE_DIR}",
+        check=False,
+    ).strip()
+    return answer.endswith("ja")
+
+
+def save_baseline(before: Mapping[str, str]) -> None:
+    """Keep the start inventory for a teardown that may run in a later process.
+
+    An existing file is left alone: it belongs to an earlier run that was never torn down,
+    and its counters, not today's, describe the state nc35 has to return to.
+    """
+    if BASELINE_FILE.exists():
+        note(f"BASELINE-DATEI {BASELINE_FILE.name} besteht schon, bleibt massgeblich")
+        return
+    BASELINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    BASELINE_FILE.write_text(json.dumps(dict(before), sort_keys=True), encoding="utf-8")
+    note(f"BASELINE-DATEI {BASELINE_FILE.name} geschrieben (nur Zähler)")
+
+
+def conditions(user: str) -> dict[str, str]:
+    """The measuring conditions of the protocol head, and the start inventory."""
+    section("messbedingungen")
+    note(occ(NC_CONTAINER, "status", check=False))
+    note(f"dbtype: {occ(NC_CONTAINER, 'config:system:get', 'dbtype', check=False)}")
+    memcache = occ(NC_CONTAINER, "config:system:get", "memcache.local", check=False)
+    note(f"memcache.local: {memcache or '(leer, nicht gesetzt)'}")
+    docker_stats()
+    note("laufende Container (Mitläufer auf dem Host):")
+    note(docker("ps", "--format", "{{.Names}}  {{.Image}}  {{.Status}}", check=False).strip())
+    before = baseline(NC_CONTAINER, user)
+    for field, value in before.items():
+        note(f"BASELINE-START {field}={value}")
+    return before
+
+
+_LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = ()
+
+
+async def latency(env: Mapping[str, str], *, keep_data: bool) -> None:
+    """Success criterion 3: what the REPORT costs at 1, 100 and 5000 tagged nodes."""
+    user = env["NC_MCP_TEST_USER"]
+    if docker("ps", "-q", "--filter", f"name={SPIKE_CONTAINER}", check=False).strip():
+        raise RunFailed(f"{SPIKE_CONTAINER} is running; stop it first (D-25-01, Pitfall 7)")
+    if spike_dir_exists(user):
+        raise RunFailed(f"/{SPIKE_DIR} is still there; run --block teardown first")
+    before = conditions(user)
+    save_baseline(before)
+    lat = Latency(env=env, alice=basic_creds(env, user, env["NC_MCP_TEST_APP_PASSWORD"]))
+    try:
+        for name, work in _LATENCY_BLOCKS:
+            section(name)
+            await guarded(name, work(lat))
+    finally:
+        if keep_data:
+            note(f"RUECKBAU ausgesetzt (--keep-data): /{SPIKE_DIR} und die Spike-Tags stehen")
+
+
 def secret_scan(env_file: Path) -> int:
     """Scan every protocol of the phase folder for the secret values of ``env_file``."""
     env = read_env_file(env_file)
@@ -1502,6 +1675,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--env-file", default=".env.nc35", help="the file the bootstrap wrote")
     parser.add_argument("--block", required=True, choices=BLOCKS, help="the block to run")
     parser.add_argument("--out", help="the protocol file this run appends to")
+    parser.add_argument(
+        "--keep-data",
+        action="store_true",
+        help="latency: leave /spike25 and the spike tags for the prepare_context measurement",
+    )
     options = parser.parse_args(argv)
     if isinstance(sys.stdout, io.TextIOWrapper):
         # The protocol carries German prose; a Windows console code page must not garble it.
@@ -1521,6 +1699,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if options.block == "controls":
             asyncio.run(controls(env))
+        elif options.block == "latency":
+            asyncio.run(latency(env, keep_data=options.keep_data))
         else:
             asyncio.run(findings(env))
     except (RunFailed, ToolError, httpx.HTTPError) as failure:

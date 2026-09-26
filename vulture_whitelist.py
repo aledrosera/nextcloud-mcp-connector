@@ -307,12 +307,27 @@ _._decode_payload
 # leaves this list with the block that calls it: the findings block of plan 25-01 task 2, the
 # latency blocks of plan 25-02 (THRESHOLD_SECONDS, WARMUP, RUNS_*, summarize) and the version
 # matrix of plan 25-03 (SPIKE_*, wait_for_install).
-SPIKE_CONTAINER
 SPIKE_BASE_URL
 SPIKE_COMPOSE
-THRESHOLD_SECONDS
 WARMUP
 RUNS_WARM
 RUNS_COLD
 wait_for_install
-summarize
+
+# Plan 25-02 builds the latency run block by block, one commit each. The names below are
+# defined with the first block (messbedingungen) and unit tested there; each leaves this list
+# with the block that reads it (datenaufbau, stufen, referenzen, kalt, ballast, schwelle).
+COLD_PAUSE_SECONDS
+LATENCY_TAG
+STAGES
+FLAT_DIR
+STAGE_FOLDER
+FLAT_FILES
+FILL_PREFIX
+FILL_TAGS
+BALLAST_LIMIT_SECONDS
+PREPARE_CONTEXT_BASELINE
+format_series
+threshold_line
+prepare_context_medians
+medians

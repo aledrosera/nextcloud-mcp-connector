@@ -191,3 +191,62 @@ def test_compare_baseline_names_every_field_and_the_verdict() -> None:
         "BASELINE tags vorher=[] nachher=[] gleich=ja",
         "BASELINE dateien vorher=275 nachher=276 gleich=nein",
     ]
+
+
+# --- the latency block (plan 25-02) -------------------------------------------------------
+
+
+def test_threshold_line_near_the_threshold_adds_the_postgres_note() -> None:
+    lines = spike.threshold_line(0.8)
+    assert lines[0] == "SCHWELLE D-25-04 median_warm_5000=0.800 s schwelle=1.0 s ergebnis=unter"
+    assert any("nahe Schwelle" in line for line in lines)
+
+
+def test_threshold_line_above_the_threshold_says_ueber() -> None:
+    lines = spike.threshold_line(1.2)
+    assert "ergebnis=ueber" in lines[0]
+    assert not any("nahe Schwelle" in line for line in lines)
+
+
+def test_threshold_line_far_below_says_unter_without_a_note() -> None:
+    assert spike.threshold_line(0.3) == [
+        "SCHWELLE D-25-04 median_warm_5000=0.300 s schwelle=1.0 s ergebnis=unter"
+    ]
+
+
+def test_threshold_line_names_the_ballast_variant_and_counts_exactly_one_as_unter() -> None:
+    lines = spike.threshold_line(1.0, "mit Ballast")
+    assert lines[0].startswith("SCHWELLE D-25-04 (mit Ballast) median_warm_5000=1.000 s")
+    assert "ergebnis=unter" in lines[0]
+    assert len(lines) == 2
+
+
+def test_span_collapses_equal_values_and_shows_a_range_otherwise() -> None:
+    assert spike.span([]) == "-"
+    assert spike.span([5000, 5000]) == "5000"
+    assert spike.span([3, 1, 2]) == "1..3"
+
+
+def test_format_series_writes_the_stage_line_in_milliseconds() -> None:
+    seconds = [0.010 * (i + 1) for i in range(15)]
+    line = spike.format_series("STUFE 100", [207] * 15, [100] * 15, [12345] * 15, seconds)
+    assert line == (
+        "STUFE 100 status=207 treffer=100 bytes=12345 min=10 median=80 "
+        "p95_zweitgroesster=140 max=150 (ms, n=15)"
+    )
+
+
+def test_format_series_shows_a_status_change_inside_the_series() -> None:
+    line = spike.format_series("REFERENZ e", [200, 503, 200], [], [10, 10, 20], [0.1, 0.2, 0.3])
+    assert "status=200/503" in line
+    assert "treffer=-" in line
+    assert "bytes=10..20" in line
+
+
+def test_prepare_context_medians_reads_short_and_full() -> None:
+    text = (
+        "  wall clock detail='short': min 0.60 s, median 0.72 s, max 3.40 s (3 runs)\n"
+        "  wall clock detail='full': min 0.77 s, median 0.81 s, max 1.66 s (3 runs)\n"
+        "  leg search: median 0.72 s, max 0.88 s over 3 runs\n"
+    )
+    assert spike.prepare_context_medians(text) == {"short": 0.72, "full": 0.81}
