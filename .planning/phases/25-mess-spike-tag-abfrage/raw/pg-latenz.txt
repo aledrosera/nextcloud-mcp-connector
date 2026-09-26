@@ -1,0 +1,247 @@
+
+# Lauf block=gegenmessung start=2026-09-26T19:44:46Z (neue Datei)
+
+== gegenmessung db=pg start 2026-09-26T19:44:46Z ==
+
+== vorbedingungen ==
+VORBEDINGUNG Container nc-spike-tags* vorhanden: nein
+VORBEDINGUNG Volume nc-spike-tags* vorhanden: nein
+nc_app_mcp_connector  mem 107.1MiB / 7.603GiB  cpu 0.12%
+nc35-test-issuer  mem 25MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 113.1MiB / 7.603GiB  cpu 0.06%
+nc35-caddy  mem 18.56MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 86.98MiB / 7.603GiB  cpu 0.01%
+nc35-nc  mem 231.7MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 104.3MiB / 7.603GiB  cpu 0.13%
+n8n-mcp-test-loopback  mem 2.027MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 388.8MiB / 7.603GiB  cpu 0.39%
+nc-mcp-exapp-greenmail  mem 126.7MiB / 7.603GiB  cpu 0.07%
+nc-mcp-exapp-nc  mem 180.1MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 12.02MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 82.09MiB / 7.603GiB  cpu 0.01%
+nc-mcp-exapp-registry  mem 11.29MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 221.1MiB / 7.603GiB  cpu 0.00%
+laufende Container (Mitläufer auf dem Host):
+nc_app_mcp_connector  127.0.0.1:5000/mcp_connector:0.2.1  Up 33 hours (healthy)
+nc35-test-issuer  caddy:2  Up 33 hours
+nc35-greenmail  greenmail/standalone:2.1.12  Up 33 hours
+nc35-caddy  caddy:2  Up 33 hours
+nc35-harp  ghcr.io/nextcloud/nextcloud-appapi-harp:release  Up 33 hours (healthy)
+nc35-nc  nextcloud:35.0.0-apache-local  Up 33 hours (healthy)
+nc_app_mcp_connector_park34  127.0.0.1:5000/mcp_connector:0.1.11  Up 33 hours (healthy)
+n8n-mcp-test-loopback  alpine/socat  Up 33 hours
+n8n-mcp-test  n8nio/n8n:latest  Up 33 hours
+nc-mcp-exapp-greenmail  greenmail/standalone:2.1.12  Up 33 hours
+nc-mcp-exapp-nc  nextcloud:34.0.3-apache  Up 33 hours (healthy)
+nc-mcp-exapp-caddy  caddy:2  Up 33 hours
+nc-mcp-exapp-harp  ghcr.io/nextcloud/nextcloud-appapi-harp:release  Up 33 hours (healthy)
+nc-mcp-exapp-registry  registry:2  Up 33 hours
+findling-nextcloud  nextcloud:34.0.3-apache  Up 33 hours
+RAM belegt=1.67 GiB gesamt=7.60 GiB frei=5.93 GiB (Mindestwert 3.5 GiB)
+nc35-nc vorher startedat=2026-09-25T10:44:29.014735158Z restartcount=0
+
+== aufbau ==
+docker compose -f compose.spike-tags-pg.yml up -d --wait: 39.1 s
+Container nc-spike-tags-pgdb Waiting / Container nc-spike-tags-pg Waiting / Container nc-spike-tags-pgdb Healthy / Container nc-spike-tags-pg Healthy
+nc-spike-tags-pg: installed (attempt 1)
+bruteforce protection aus (Wegwerf-Instanz) -> System config value auth.bruteforce.protection.enabled set to boolean false
+- installed: true
+  - version: 35.0.0.10
+  - versionstring: 35.0.0
+  - edition: 
+  - maintenance: false
+  - needsDbUpgrade: false
+  - productname: Nextcloud
+  - extendedSupport: false
+VERSION OF RECORD 35.0.0
+dbtype: pgsql
+select version(): PostgreSQL 17.11 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+show shared_buffers: 128MB
+postgres-Image: postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+occ config:system:delete memcache.local -> System config value memcache.local deleted
+docker restart nc-spike-tags-pg -> nc-spike-tags-pg
+nc-spike-tags-pg: installed (attempt 1)
+memcache.local: (leer, nicht gesetzt)
+nc-spike-tags-pg  mem 22.48MiB / 2GiB  cpu 0.00%
+nc-spike-tags-pgdb  mem 45.3MiB / 1GiB  cpu 0.03%
+nc_app_mcp_connector  mem 107MiB / 7.603GiB  cpu 0.11%
+nc35-test-issuer  mem 25.06MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 113.1MiB / 7.603GiB  cpu 0.07%
+nc35-caddy  mem 18.56MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 87.24MiB / 7.603GiB  cpu 5.16%
+nc35-nc  mem 232MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 104.3MiB / 7.603GiB  cpu 0.13%
+n8n-mcp-test-loopback  mem 2.027MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 388.5MiB / 7.603GiB  cpu 1.07%
+nc-mcp-exapp-greenmail  mem 126.7MiB / 7.603GiB  cpu 0.06%
+nc-mcp-exapp-nc  mem 181.6MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 12.02MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 82.1MiB / 7.603GiB  cpu 5.22%
+nc-mcp-exapp-registry  mem 11.29MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 221.5MiB / 7.603GiB  cpu 0.00%
+occ user:add --password-from-env alice (password via stdin)
+occ user:auth-tokens:add alice --password-from-env --name spike25 (token kept)
+PROPFIND Depth 0 Home als alice (Dateisystem angelegt) -> HTTP 207
+
+== datenaufbau ==
+nc-spike-tags-pg  mem 74.56MiB / 2GiB  cpu 0.00%
+nc-spike-tags-pgdb  mem 45.75MiB / 1GiB  cpu 0.03%
+nc_app_mcp_connector  mem 107MiB / 7.603GiB  cpu 0.12%
+nc35-test-issuer  mem 25.06MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 113.1MiB / 7.603GiB  cpu 0.07%
+nc35-caddy  mem 18.56MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 86.98MiB / 7.603GiB  cpu 0.08%
+nc35-nc  mem 232MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 105MiB / 7.603GiB  cpu 2.71%
+n8n-mcp-test-loopback  mem 2.027MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 388.7MiB / 7.603GiB  cpu 0.17%
+nc-mcp-exapp-greenmail  mem 126.7MiB / 7.603GiB  cpu 0.06%
+nc-mcp-exapp-nc  mem 181.7MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 12.02MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 82.09MiB / 7.603GiB  cpu 0.01%
+nc-mcp-exapp-registry  mem 11.29MiB / 7.603GiB  cpu 0.02%
+findling-nextcloud  mem 221.7MiB / 7.603GiB  cpu 0.00%
+DATENAUFBAU dateien=20000 angelegt in 1.6 s
+DATENAUFBAU files:scan in 22.2 s (Annahme A1) | -------+---------+--------+--------------+ | Folders | Files | New | Updated | Removed | Errors | Elapsed time | +---------+-------+-----+---------+---------+--------+--------------+ | 1113 | 20000 | 0 | 21113 | 0 | 0 | 00:00:22 | +---------+-------+-----+---------+---------+--------+--------------+
+occ tag:add kein-ki-spike25-lat public -> id 1
+DATENAUFBAU PROPFIND Depth 1 /spike25/flat/: 10000 Kinder (erwartet 10000)
+
+== stufen ==
+SMOKE setObjectIdsForTag count=1 -> 1 1 0 116 (Annahme A2)
+STUFE 1 zusammensetzung: knoten=1 dateien=0 ordner=1 (getaggter Ordner: spike25/tree/a3/b3, Dateien aus /spike25/tree)
+STUFE 1 status=207 treffer=1 bytes=459 min=53 median=55 p95_zweitgroesster=61 max=66 (ms, n=15)
+STUFE 100 zusammensetzung: knoten=100 dateien=99 ordner=1 (getaggter Ordner: spike25/tree/a3/b3, Dateien aus /spike25/tree)
+STUFE 100 status=207 treffer=100 bytes=25706 min=56 median=58 p95_zweitgroesster=71 max=87 (ms, n=15)
+STUFE 5000 zusammensetzung: knoten=5000 dateien=5000 ordner=0 (getaggter Ordner: -, Dateien aus /spike25/tree)
+STUFE 5000 status=207 treffer=5000 bytes=1275313 min=174 median=182 p95_zweitgroesster=197 max=209 (ms, n=15)
+
+== referenzen ==
+REFERENZ a PROPFIND Depth 1 /remote.php/dav/systemtags/ status=207 treffer=2 bytes=570 min=51 median=53 p95_zweitgroesster=57 max=60 (ms, n=15)
+REFERENZ c PROPFIND Depth 1 /spike25/flat/ ohne nc:system-tags status=207 treffer=10001 bytes=2830498 min=267 median=282 p95_zweitgroesster=337 max=466 (ms, n=15)
+REFERENZ d PROPFIND Depth 1 /spike25/flat/ mit nc:system-tags status=207 treffer=10001 bytes=3000515 min=311 median=320 p95_zweitgroesster=398 max=2313 (ms, n=15)
+REFERENZ e GET /status.php status=200 treffer=- bytes=171 min=17 median=18 p95_zweitgroesster=22 max=25 (ms, n=15)
+REFERENZ Treffer bei a, c, d zählen alle d:response-Elemente (c und d: der Ordner selbst plus seine Kinder)
+
+== kalt ==
+KALT Definition: vor jedem Lauf apachectl -k graceful (neue mod_php-Worker, OPcache leer), dann 5 s Pause; der OS-Seitencache der SQLite-Datei bleibt warm (Annahme A5)
+KALT lauf=1 status=207 treffer=5000 bytes=1275313 ms=652 | graceful: AH00558: apache2: Could not reliably determine the server's fully qualified doma
+KALT lauf=2 status=207 treffer=5000 bytes=1275313 ms=447 | graceful: AH00558: apache2: Could not reliably determine the server's fully qualified doma
+KALT lauf=3 status=207 treffer=5000 bytes=1275313 ms=450 | graceful: AH00558: apache2: Could not reliably determine the server's fully qualified doma
+KALT STUFE 5000 min=447 median=450 max=652 (ms, n=3)
+
+== vorfahren ==
+VORFAHREN STUFE 100 zusammensetzung: knoten=100 dateien=99 ordner=1 (getaggter Ordner: spike25/tree/a3/b3)
+VORFAHREN REPORT-Menge status=207 treffer=100 ms=90 (Querprüfungs-Maßstab, ungezählt)
+VORFAHREN V1 anfragen=6 status=207 min=330 median=352 p95_zweitgroesster=432 max=2331 (ms, n=15)
+VORFAHREN V1 ausgeschlossen=10 erwartet_aus_report=10 gleich=ja (antwortknoten=10)
+VORFAHREN V2 anfragen=3 status=207 min=413 median=427 p95_zweitgroesster=524 max=526 (ms, n=15)
+VORFAHREN V2 ausgeschlossen=0 erwartet_aus_report=0 gleich=ja (antwortknoten=10000)
+VORFAHREN V3 anfragen=73 status=207 min=4241 median=4436 p95_zweitgroesster=6119 max=6503 (ms, n=15)
+VORFAHREN V3 ausgeschlossen=1 erwartet_aus_report=1 gleich=ja (antwortknoten=20)
+VORFAHREN V3p anfragen=73 status=207 min=1473 median=1567 p95_zweitgroesster=2237 max=3455 (ms, n=15)
+VORFAHREN V3p ausgeschlossen=1 erwartet_aus_report=1 gleich=ja (antwortknoten=20)
+VORFAHREN V4 anfragen=313 status=207 min=18709 median=19163 p95_zweitgroesster=21563 max=22716 (ms, n=15)
+VORFAHREN V4 ausgeschlossen=2 erwartet_aus_report=2 gleich=ja (antwortknoten=100)
+VORFAHREN V4p anfragen=313 status=207 min=6609 median=7316 p95_zweitgroesster=8814 max=8923 (ms, n=15)
+VORFAHREN V4p ausgeschlossen=2 erwartet_aus_report=2 gleich=ja (antwortknoten=100)
+
+== varianten ==
+occ tag:add kein-ki-spike25-var public -> id 2
+DB-Insert systemtag name=kein-ki-spike25-var visibility=1 editable=0 -> Y=3
+DB-Insert systemtag name=kein-ki-spike25-var visibility=0 editable=0 -> Z=4
+DB-Insert systemtag name=Kein-Ki-Spike25-Var visibility=1 editable=1 -> W=5
+setObjectIdsForTag X=2 -> 1 1 0 21198 (Datei 21198, /spike25/var/x)
+setObjectIdsForTag Y=3 -> 1 1 0 21200 (Datei 21200, /spike25/var/y)
+setObjectIdsForTag Z=4 -> 1 1 0 21202 (Datei 21202, /spike25/var/z)
+setObjectIdsForTag W=5 -> 1 1 0 21204 (Datei 21204, /spike25/var/w)
+2026-09-26T19:59:35Z | varianten | REPORT systemtag=2 als alice (basic) auf / [Variante X] | HTTP 207 | 57 ms | treffer=2 fileids=['21198', '21200'] pfade=['/spike25/var/x/fx.txt', '/spike25/var/y/fy.txt']
+2026-09-26T19:59:35Z | varianten | REPORT systemtag=3 als alice (basic) auf / [Variante Y] | HTTP 207 | 65 ms | treffer=2 fileids=['21198', '21200'] pfade=['/spike25/var/x/fx.txt', '/spike25/var/y/fy.txt']
+2026-09-26T19:59:35Z | varianten | REPORT systemtag=5 als alice (basic) auf / [Variante W] | HTTP 207 | 90 ms | treffer=1 fileids=['21204'] pfade=['/spike25/var/w/fw.txt']
+2026-09-26T19:59:35Z | varianten | REPORT systemtag=4 als alice (basic) auf / [Variante Z] | HTTP 412 | 62 ms | fehler=Cannot filter by non-existing tag
+VARIANTEN PROPFIND X status=207 nc:system-tags=['kein-ki-spike25-var']
+VARIANTEN PROPFIND Y status=207 nc:system-tags=['kein-ki-spike25-var']
+VARIANTEN PROPFIND W status=207 nc:system-tags=['Kein-Ki-Spike25-Var']
+VARIANTEN PROPFIND Z status=207 nc:system-tags=[]
+VARIANTEN dbtype=pgsql: Groß/Klein-Vergleich gilt für diese Datenbank (gemessen auf pgsql); MySQL/MariaDB-Kollation nicht gemessen (Annahme A3)
+
+== ballast ==
+nc-spike-tags-pg  mem 243.9MiB / 2GiB  cpu 0.01%
+nc-spike-tags-pgdb  mem 69.72MiB / 1GiB  cpu 0.02%
+nc_app_mcp_connector  mem 107.1MiB / 7.603GiB  cpu 0.15%
+nc35-test-issuer  mem 25MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 113.1MiB / 7.603GiB  cpu 0.10%
+nc35-caddy  mem 18.55MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 87.02MiB / 7.603GiB  cpu 0.92%
+nc35-nc  mem 232.1MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 104.4MiB / 7.603GiB  cpu 5.03%
+n8n-mcp-test-loopback  mem 2.027MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 388.7MiB / 7.603GiB  cpu 0.14%
+nc-mcp-exapp-greenmail  mem 126.7MiB / 7.603GiB  cpu 0.12%
+nc-mcp-exapp-nc  mem 181.9MiB / 7.603GiB  cpu 0.01%
+nc-mcp-exapp-caddy  mem 12.02MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 82.14MiB / 7.603GiB  cpu 0.23%
+nc-mcp-exapp-registry  mem 11.24MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 222.2MiB / 7.603GiB  cpu 0.00%
+BALLAST spike25-fill-00 id=6 -> 10000 Zuordnungen (0 s)
+BALLAST spike25-fill-01 id=7 -> 10000 Zuordnungen (84 s)
+BALLAST spike25-fill-02 id=8 -> 10000 Zuordnungen (176 s)
+BALLAST spike25-fill-03 id=9 -> 10000 Zuordnungen (270 s)
+BALLAST spike25-fill-04 id=10 -> 10000 Zuordnungen (358 s)
+BALLAST spike25-fill-05 id=11 -> 10000 Zuordnungen (439 s)
+BALLAST spike25-fill-06 id=12 -> 10000 Zuordnungen (520 s)
+BALLAST spike25-fill-07 id=13 -> 10000 Zuordnungen (596 s)
+BALLAST spike25-fill-08 id=14 -> 10000 Zuordnungen (672 s)
+BALLAST spike25-fill-09 id=15 -> 10000 Zuordnungen (750 s)
+BALLAST spike25-fill-10 id=16 -> 10000 Zuordnungen (835 s)
+BALLAST abgebrochen nach 926 s bei 110104 Zuordnungen
+nc-spike-tags-pg  mem 219.6MiB / 2GiB  cpu 0.00%
+nc-spike-tags-pgdb  mem 123.6MiB / 1GiB  cpu 0.11%
+nc_app_mcp_connector  mem 107.8MiB / 7.603GiB  cpu 2.44%
+nc35-test-issuer  mem 25.04MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 113.2MiB / 7.603GiB  cpu 0.06%
+nc35-caddy  mem 18.55MiB / 7.603GiB  cpu 0.22%
+nc35-harp  mem 87.04MiB / 7.603GiB  cpu 0.07%
+nc35-nc  mem 232.1MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 104.7MiB / 7.603GiB  cpu 0.13%
+n8n-mcp-test-loopback  mem 2.148MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 389.9MiB / 7.603GiB  cpu 0.17%
+nc-mcp-exapp-greenmail  mem 126.7MiB / 7.603GiB  cpu 0.06%
+nc-mcp-exapp-nc  mem 186.6MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 12.08MiB / 7.603GiB  cpu 0.02%
+nc-mcp-exapp-harp  mem 82.15MiB / 7.603GiB  cpu 0.03%
+nc-mcp-exapp-registry  mem 11.24MiB / 7.603GiB  cpu 0.10%
+findling-nextcloud  mem 222.2MiB / 7.603GiB  cpu 0.00%
+STUFE 1 (mit Ballast) zusammensetzung: knoten=1 dateien=0 ordner=1 zuordnungen_gesamt=110005
+STUFE 1 (mit Ballast) status=207 treffer=1 bytes=459 min=56 median=62 p95_zweitgroesster=66 max=79 (ms, n=15)
+STUFE 100 (mit Ballast) zusammensetzung: knoten=100 dateien=99 ordner=1 zuordnungen_gesamt=110104
+STUFE 100 (mit Ballast) status=207 treffer=100 bytes=25706 min=56 median=59 p95_zweitgroesster=69 max=167 (ms, n=15)
+VORFAHREN STUFE 100 (mit Ballast) zusammensetzung: knoten=100 dateien=99 ordner=1 (getaggter Ordner: spike25/tree/a3/b3)
+VORFAHREN REPORT-Menge status=207 treffer=100 ms=85 (Querprüfungs-Maßstab, ungezählt)
+VORFAHREN V1 (mit Ballast) anfragen=6 status=207 min=334 median=391 p95_zweitgroesster=560 max=2334 (ms, n=15)
+VORFAHREN V1 (mit Ballast) ausgeschlossen=10 erwartet_aus_report=10 gleich=ja (antwortknoten=10)
+VORFAHREN V2 (mit Ballast) anfragen=3 status=207 min=900 median=1003 p95_zweitgroesster=1196 max=1261 (ms, n=15)
+VORFAHREN V2 (mit Ballast) ausgeschlossen=0 erwartet_aus_report=0 gleich=ja (antwortknoten=10000)
+VORFAHREN V3 (mit Ballast) anfragen=73 status=207 min=4351 median=4545 p95_zweitgroesster=5336 max=5702 (ms, n=15)
+VORFAHREN V3 (mit Ballast) ausgeschlossen=1 erwartet_aus_report=1 gleich=ja (antwortknoten=20)
+VORFAHREN V3p (mit Ballast) anfragen=73 status=207 min=1523 median=1578 p95_zweitgroesster=1807 max=3565 (ms, n=15)
+VORFAHREN V3p (mit Ballast) ausgeschlossen=1 erwartet_aus_report=1 gleich=ja (antwortknoten=20)
+VORFAHREN V4 (mit Ballast) anfragen=313 status=207 min=18856 median=19144 p95_zweitgroesster=21172 max=26522 (ms, n=15)
+VORFAHREN V4 (mit Ballast) ausgeschlossen=2 erwartet_aus_report=2 gleich=ja (antwortknoten=100)
+VORFAHREN V4p (mit Ballast) anfragen=313 status=207 min=6605 median=6821 p95_zweitgroesster=8690 max=9114 (ms, n=15)
+VORFAHREN V4p (mit Ballast) ausgeschlossen=2 erwartet_aus_report=2 gleich=ja (antwortknoten=100)
+REFERENZ d PROPFIND Depth 1 /spike25/flat/ mit nc:system-tags (mit Ballast) status=207 treffer=10001 bytes=18410515 min=788 median=821 p95_zweitgroesster=859 max=895 (ms, n=15)
+STUFE 5000 (mit Ballast) zusammensetzung: knoten=5000 dateien=5000 ordner=0 zuordnungen_gesamt=115004
+STUFE 5000 (mit Ballast) status=207 treffer=5000 bytes=1275313 min=158 median=172 p95_zweitgroesster=200 max=222 (ms, n=15)
+
+== schwelle ==
+SCHWELLE D-25-04 (PostgreSQL 35.0.0) median_warm_5000=0.182 s schwelle=1.0 s ergebnis=unter
+SCHWELLE D-25-04 (mit Ballast) median_warm_5000=0.172 s schwelle=1.0 s ergebnis=unter
+VERGLEICH nc35-sqlite (raw/nc35-latenz.txt) 1=59 100=243 5000=8848 5000_ballast_einzellauf=249568 (ms)
+VERGLEICH diese Instanz (PostgreSQL 35.0.0) 1=55 100=58 5000=182 1_ballast=62 100_ballast=59 5000_ballast=172 (ms)
+
+== abbau ==
+Network nc-mcp-spike-tags-pg_default Removing / Network nc-mcp-spike-tags-pg_default Removed / Volume nc-mcp-spike-tags-pg_nc-spike-tags-pg-data Removed / Volume nc-mcp-spike-tags-pg_nc-spike-tags-pgdb-data Removed
+ABBAU Container vorhanden: nein
+ABBAU Volume vorhanden: nein
+NC35 UNBERUEHRT startedat=gleich restartcount=gleich gleich=ja
+ENDE 2026-09-26T20:27:38Z
