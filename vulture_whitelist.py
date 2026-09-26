@@ -309,13 +309,11 @@ _._decode_payload
 # matrix of plan 25-03 (SPIKE_*, wait_for_install).
 SPIKE_BASE_URL
 SPIKE_COMPOSE
-RUNS_COLD
 wait_for_install
 
 # Plan 25-02 builds the latency run block by block, one commit each. The names below are
 # defined with the first block (messbedingungen) and unit tested there; each leaves this list
 # with the block that reads it (datenaufbau, stufen, referenzen, kalt, ballast, schwelle).
-COLD_PAUSE_SECONDS
 FILL_PREFIX
 FILL_TAGS
 BALLAST_LIMIT_SECONDS

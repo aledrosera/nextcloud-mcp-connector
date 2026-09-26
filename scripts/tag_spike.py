@@ -1822,10 +1822,53 @@ async def block_references(lat: Latency) -> None:
     )
 
 
+def graceful_restart() -> str:
+    """``apachectl -k graceful`` in the Nextcloud container: fresh mod_php workers."""
+    try:
+        return docker("exec", NC_CONTAINER, "apachectl", "-k", "graceful").strip()
+    except RunFailed:
+        return docker("exec", NC_CONTAINER, "apache2ctl", "-k", "graceful").strip()
+
+
+async def block_cold(lat: Latency) -> None:
+    """RUNS_COLD single REPORTs at 5000, each after a graceful restart and a pause."""
+    if "stufe5000" not in lat.medians:
+        raise RunFailed("stage 5000 was not measured, a cold value would compare nothing")
+    note(
+        "KALT Definition: vor jedem Lauf apachectl -k graceful (neue mod_php-Worker, OPcache "
+        f"leer), dann {COLD_PAUSE_SECONDS} s Pause; der OS-Seitencache der SQLite-Datei "
+        "bleibt warm (Annahme A5)"
+    )
+    seconds: list[float] = []
+    for number in range(1, RUNS_COLD + 1):
+        restart = graceful_restart()
+        await asyncio.sleep(COLD_PAUSE_SECONDS)
+        async with new_client() as client:
+            result = await dav_request(
+                client,
+                lat.alice,
+                "REPORT",
+                home_url(lat.alice, "/"),
+                body=report_body(lat.tag_id),
+            )
+        hits = len(read_report(result.body)) if result.status == 207 else 0
+        seconds.append(result.seconds)
+        note(
+            f"KALT lauf={number} status={result.status} treffer={hits} bytes={result.size} "
+            f"ms={result.seconds * 1000:.0f} | graceful: {restart[:80] or 'ok'}"
+        )
+    stats = {key: f"{value * 1000:.0f}" for key, value in summarize(seconds).items()}
+    note(
+        f"KALT STUFE 5000 min={stats['min']} median={stats['median']} max={stats['max']} "
+        f"(ms, n={len(seconds)})"
+    )
+
+
 _LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = (
     ("datenaufbau", block_build),
     ("stufen", block_stages),
     ("referenzen", block_references),
+    ("kalt", block_cold),
 )
 
 
