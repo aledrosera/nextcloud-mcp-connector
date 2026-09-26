@@ -318,11 +318,8 @@ wait_for_install
 # defined with the first block (messbedingungen) and unit tested there; each leaves this list
 # with the block that reads it (datenaufbau, stufen, referenzen, kalt, ballast, schwelle).
 COLD_PAUSE_SECONDS
-LATENCY_TAG
 STAGES
-FLAT_DIR
 STAGE_FOLDER
-FLAT_FILES
 FILL_PREFIX
 FILL_TAGS
 BALLAST_LIMIT_SECONDS

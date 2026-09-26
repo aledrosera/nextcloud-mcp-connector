@@ -1628,7 +1628,70 @@ def conditions(user: str) -> dict[str, str]:
     return before
 
 
-_LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = ()
+#: Builds the synthetic data set inside the container as www-data, arguments behind ``sh``:
+#: a flat folder of 10,000 files (the extreme case of nextcloud/server PR #64298) and a tree
+#: of 1,000 folders with 10 files each. Prints the number of files it finds afterwards.
+BUILD_SCRIPT = r"""
+base="$1"
+mkdir -p "$base/flat"
+for n in $(seq -f %05g 0 9999); do printf 'spike25 %s\n' "$n" > "$base/flat/f$n.txt"; done
+for a in 0 1 2 3 4 5 6 7 8 9; do for b in 0 1 2 3 4 5 6 7 8 9; do for c in 0 1 2 3 4 5 6 7 8 9; do
+  d="$base/tree/a$a/b$b/c$c"
+  mkdir -p "$d"
+  for f in 0 1 2 3 4 5 6 7 8 9; do printf 'x\n' > "$d/f$f.txt"; done
+done; done; done
+find "$base" -type f | wc -l
+"""
+
+
+async def block_build(lat: Latency) -> None:
+    """20,000 files below /spike25, a files:scan, and the tag the stages are measured on."""
+    user = lat.alice.user
+    docker_stats()
+    started = time.perf_counter()
+    count = docker(
+        "exec",
+        "-u",
+        "www-data",
+        NC_CONTAINER,
+        "sh",
+        "-c",
+        BUILD_SCRIPT,
+        "sh",
+        f"/var/www/html/data/{user}/files/{SPIKE_DIR}",
+    ).strip()
+    note(f"DATENAUFBAU dateien={count} angelegt in {time.perf_counter() - started:.1f} s")
+    started = time.perf_counter()
+    scan = occ(NC_CONTAINER, "files:scan", f"--path=/{user}/files/{SPIKE_DIR}")
+    seconds = time.perf_counter() - started
+    note(
+        f"DATENAUFBAU files:scan in {seconds:.1f} s (Annahme A1) | {' '.join(scan.split())[-300:]}"
+    )
+    lat.tag_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", LATENCY_TAG, "public", "--output=json"))
+    note(f"occ tag:add {LATENCY_TAG} public -> id {lat.tag_id}")
+    flat = await file_count(lat, f"/{FLAT_DIR}/")
+    note(f"DATENAUFBAU PROPFIND Depth 1 /{FLAT_DIR}/: {flat} Kinder (erwartet {FLAT_FILES})")
+
+
+async def file_count(lat: Latency, folder: str) -> int:
+    """The number of children a PROPFIND Depth 1 lists for ``folder`` (itself excluded)."""
+    async with new_client() as client:
+        result = await dav_request(
+            client,
+            lat.alice,
+            "PROPFIND",
+            home_url(lat.alice, folder),
+            depth="1",
+            body=propfind_body([f"{{{xml.OC}}}fileid"]),
+        )
+    if result.status != 207:
+        raise RunFailed(f"PROPFIND {folder} answered {result.status}")
+    return max(0, len(read_report(result.body)) - 1)
+
+
+_LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = (
+    ("datenaufbau", block_build),
+)
 
 
 async def latency(env: Mapping[str, str], *, keep_data: bool) -> None:
