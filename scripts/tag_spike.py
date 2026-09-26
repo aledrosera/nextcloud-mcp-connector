@@ -1219,6 +1219,63 @@ async def block_zielpfad(run: Run) -> None:
     )
 
 
+async def share_with(run: Run, path: str, user: str) -> str:
+    """Share ``path`` of alice read-only with ``user``; the id is kept for the rollback."""
+    response = await ocs.ocs_post(
+        run.client,
+        run.alice,
+        SHARES_PATH,
+        {"path": path, "shareType": 0, "shareWith": user, "permissions": 1},
+    )
+    data = ocs.parse_ocs(response, what=f"the share of {path}")
+    share_id = str(data.get("id", "")) if isinstance(data, dict) else ""
+    if not share_id:
+        raise RunFailed(f"the share of {path} returned no id")
+    run.share_ids.append(share_id)
+    target = data.get("file_target", "") if isinstance(data, dict) else ""
+    row(
+        "freigabe",
+        f"POST shares path={path} shareWith={user} permissions=1",
+        response.status_code,
+        f"id={share_id} file_target={target}",
+    )
+    return share_id
+
+
+async def block_freigabe(run: Run) -> None:
+    """Where the share boundary lies: a tagged ancestor at the owner, and a tagged share."""
+    block = "freigabe"
+    alice, bob = run.alice, run.bob
+    try:
+        await put_file(run, alice, f"/{SPIKE_DIR}/share1/sub/s1.txt")
+        ancestor = await fileid_of(run, alice, f"/{SPIKE_DIR}/share1")
+        first_tag = tag_files_add(run, ancestor, f"{TAG_PREFIX}-share", "public")
+        await share_with(run, f"/{SPIKE_DIR}/share1/sub", bob.user)
+        await log_report(
+            run,
+            block,
+            "Fall 1: getaggter Vorfahr beim Eigentümer, Unterordner geteilt",
+            bob,
+            first_tag,
+        )
+        await log_report(run, block, "Fall 1 Gegenprobe beim Eigentümer", alice, first_tag)
+
+        await put_file(run, alice, f"/{SPIKE_DIR}/share2/s2.txt")
+        shared = await fileid_of(run, alice, f"/{SPIKE_DIR}/share2")
+        second_tag = tag_files_add(run, shared, f"{TAG_PREFIX}-share2", "public")
+        await share_with(run, f"/{SPIKE_DIR}/share2", bob.user)
+        await log_report(run, block, "Fall 2: geteilter Ordner selbst getaggt", bob, second_tag)
+    finally:
+        for share_id in list(run.share_ids):
+            response = await run.client.delete(
+                ocs.ocs_url(run.alice, f"{SHARES_PATH}/{share_id}"),
+                headers=dict(ocs.OCS_HEADERS),
+                auth=run.alice.auth(),
+            )
+            note(f"DELETE share {share_id} -> HTTP {response.status_code}")
+            run.share_ids.remove(share_id)
+
+
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "notes": block_notes,
     "impersonation": block_impersonation,
@@ -1226,6 +1283,7 @@ _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "unsichtbar": block_unsichtbar,
     "varianten": block_varianten,
     "zielpfad": block_zielpfad,
+    "freigabe": block_freigabe,
 }
 
 
