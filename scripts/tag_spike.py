@@ -1237,23 +1237,29 @@ def new_app_password(container: str, user: str, password: str, secret_name: str)
     """An app password for ``user`` (login password via stdin), remembered as a secret.
 
     Parsed like ``app_password`` in ``scripts/bootstrap_test_nc.sh``: the last non-empty
-    output line is the token.
+    output line is the token. Nextcloud 32 has no ``--name`` option yet (measured on
+    32.0.15); the command is then asked again without it.
     """
-    raw = occ_pw(
-        container,
-        password,
-        "user:auth-tokens:add",
-        user,
-        "--password-from-env",
-        "--name",
-        "spike25",
-    )
+    argv = ["user:auth-tokens:add", user, "--password-from-env"]
+    raw = occ_pw(container, password, *argv, "--name", "spike25", check=False)
+    named = "--name spike25"
+    if 'The "--name" option does not exist' in raw:
+        raw = occ_pw(container, password, *argv)
+        named = "(ohne --name, Option fehlt in dieser Version)"
     lines = [line.strip() for line in raw.splitlines() if line.strip()]
-    token = lines[-1] if lines else ""
-    if len(token) < 20:
-        raise RunFailed(f"no app password could be parsed for {user}")
+    # stdout and stderr arrive joined; a warning on stderr would otherwise pose as the
+    # token, so the line after the "app password:" label wins over the last line.
+    labels = [n for n, line in enumerate(lines) if line == "app password:"]
+    if labels and labels[-1] + 1 < len(lines):
+        token = lines[labels[-1] + 1]
+    else:
+        token = lines[-1] if lines else ""
+    if len(token) < 20 or " " in token:
+        # Only lines with a space are shown: a token never has one, so none can leak here.
+        prose = [line[:80] for line in lines if " " in line]
+        raise RunFailed(f"no app password could be parsed for {user}; output: {prose}")
     remember_secret(secret_name, token)
-    note(f"occ user:auth-tokens:add {user} --password-from-env --name spike25 (token kept)")
+    note(f"occ user:auth-tokens:add {user} --password-from-env {named} (token kept)")
     return token
 
 
@@ -1574,22 +1580,33 @@ async def block_app_aus(
     path: str = f"/{SPIKE_DIR}/app/h.txt",
     tag_name: str = f"{TAG_PREFIX}-app",
     compare: bool = False,
+    restart: bool = False,
 ) -> None:
     """What switching the systemtags app off changes, and that it comes back on.
 
     Every assignment is set before the app goes off: ``tag:files:*`` belongs to the app and
     is gone while it is disabled (source finding 2). With ``compare`` one line per
-    observation point sets before and after side by side.
+    observation point sets before and after side by side. With ``restart`` the container
+    is restarted while the app is off and all six points are measured once more: the
+    official image caches the app config in APCu of the web server, which ``occ`` on the
+    command line cannot clear (seen on 32.0.15: capability still there right after).
     """
     fileid = await put_file(run, run.alice, path)
     tag_id = tag_files_add(run, fileid, tag_name, "public")
     folder = path.rsplit("/", 1)[0] + "/"
     before = await measure_app_state(run, "App an", tag_id, fileid, block=block, folder=folder)
     after: dict[str, str] = {}
+    restarted: dict[str, str] = {}
     try:
         output = occ(run.container, "app:disable", "systemtags")
         note(f"occ app:disable systemtags -> {output[:120]}")
         after = await measure_app_state(run, "App aus", tag_id, fileid, block=block, folder=folder)
+        if restart:
+            seconds = await restart_container(run)
+            note(f"docker restart {run.container}, status.php wieder 200 nach {seconds:.1f} s")
+            restarted = await measure_app_state(
+                run, "App aus, nach Neustart", tag_id, fileid, block=block, folder=folder
+            )
     finally:
         output = occ(run.container, "app:enable", "systemtags", check=False)
         note(f"occ app:enable systemtags -> {output[:120]}")
@@ -1607,6 +1624,32 @@ async def block_app_aus(
                 f"APP-AUS REPORT nachher status={after.get('report_status', '?')} "
                 f"treffer={after.get('report_hits', '?')}"
             )
+        if compare and restart:
+            for point in APP_AUS_POINTS:
+                note(
+                    f"APP-AUS-NEUSTART {point} vorher={before.get(point, '?')} "
+                    f"nachher={restarted.get(point, '?')}"
+                )
+            note(
+                f"APP-AUS-NEUSTART REPORT nachher status={restarted.get('report_status', '?')} "
+                f"treffer={restarted.get('report_hits', '?')}"
+            )
+
+
+async def restart_container(run: Run) -> float:
+    """``docker restart`` of ``run.container``, then wait for ``status.php``; the seconds."""
+    started = time.perf_counter()
+    docker("restart", run.container)
+    url = f"{run.alice.base_url}/status.php"
+    for _ in range(60):
+        try:
+            response = await run.client.get(url)
+        except httpx.HTTPError:
+            response = None
+        if response is not None and response.status_code == 200:
+            return time.perf_counter() - started
+        await asyncio.sleep(2)
+    raise RunFailed(f"{url} did not answer 200 within two minutes after the restart")
 
 
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
@@ -2368,6 +2411,28 @@ async def matrix_grundform(run: Run) -> None:
     note(f"occ tag:list -> {list_tags(run.container)} (Tag-Id {MATRIX_TAG}={tag_id})")
 
 
+async def ocs_app_password(client: httpx.AsyncClient, user: str, password: str) -> str:
+    """An app password over ``GET /ocs/v2.php/core/getapppassword`` with the login password.
+
+    The fallback where ``occ user:auth-tokens:add`` is broken; the password travels in the
+    basic auth header of one loopback request, never as an argument.
+    """
+    response = await client.get(
+        f"{SPIKE_BASE_URL}/ocs/v2.php/core/getapppassword",
+        headers=dict(ocs.OCS_HEADERS),
+        auth=(user, password),
+    )
+    try:
+        token = str(response.json()["ocs"]["data"]["apppassword"])
+    except (ValueError, KeyError, TypeError):
+        token = ""
+    if len(token) < 20:
+        raise RunFailed(f"getapppassword for {user} answered {response.status_code}, no token")
+    remember_secret("SPIKE_ALICE_APP", token)
+    note(f"GET /ocs/v2.php/core/getapppassword als {user} -> HTTP {response.status_code} (kept)")
+    return token
+
+
 async def matrix(tag: str, *, other: bool) -> None:
     """One version from an empty machine to a removed volume, measured in between."""
     section(f"matrix nc-tag={tag}, start {now_stamp()}")
@@ -2401,6 +2466,8 @@ async def matrix(tag: str, *, other: bool) -> None:
         found = _VERSION.search(status)
         note(f"VERSION OF RECORD {found[1] if found else '(nicht lesbar)'}")
         note(f"dbtype: {occ(SPIKE_CONTAINER, 'config:system:get', 'dbtype', check=False)}")
+        memcache = occ(SPIKE_CONTAINER, "config:system:get", "memcache.local", check=False)
+        note(f"memcache.local: {memcache or '(leer, nicht gesetzt)'}")
         apps = [
             line.strip()
             for line in occ(SPIKE_CONTAINER, "app:list", check=False).splitlines()
@@ -2410,9 +2477,23 @@ async def matrix(tag: str, *, other: bool) -> None:
         docker_stats()
         occ_pw(SPIKE_CONTAINER, alice_password, "user:add", "--password-from-env", "alice")
         note("occ user:add --password-from-env alice (password via stdin)")
-        token = new_app_password(SPIKE_CONTAINER, "alice", alice_password, "SPIKE_ALICE_APP")
-        alice = Credentials(base_url=SPIKE_BASE_URL, user="alice", secret=token, mode=MODE_BASIC)
         async with new_client() as client:
+            try:
+                token = new_app_password(
+                    SPIKE_CONTAINER, "alice", alice_password, "SPIKE_ALICE_APP"
+                )
+            except RunFailed as failure:
+                if '"login-name" option does not exist' not in str(failure):
+                    raise
+                note(
+                    "BEFUND occ user:auth-tokens:add scheitert auf dieser Version: "
+                    'The "login-name" option does not exist (Option wird gelesen, nicht '
+                    "definiert); Rückfall GET /ocs/v2.php/core/getapppassword"
+                )
+                token = await ocs_app_password(client, "alice", alice_password)
+            alice = Credentials(
+                base_url=SPIKE_BASE_URL, user="alice", secret=token, mode=MODE_BASIC
+            )
             spike = Run(
                 env={},
                 client=client,
@@ -2439,6 +2520,7 @@ async def matrix(tag: str, *, other: bool) -> None:
                     path=f"/{SPIKE_DIR}/a.txt",
                     tag_name=MATRIX_TAG,
                     compare=True,
+                    restart=True,
                 ),
             )
     finally:
