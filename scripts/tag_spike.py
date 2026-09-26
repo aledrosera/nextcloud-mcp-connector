@@ -73,6 +73,20 @@ MATRIX_TAGS = ("32.0.15-apache", "33.0.9-apache", "34.0.4-apache")
 #: The tag of the matrix run on the throwaway instance.
 MATRIX_TAG = "kein-ki-spike25-m"
 
+#: The counter measurement of plan 25-05 (owner decision D-25-05). The same local image as
+#: nc35-nc, so the database is the only difference that matters; no pull, the same build.
+GEGEN_NC_TAG = "35.0.0-apache-local"
+GEGEN_PG_COMPOSE = "compose.spike-tags-pg.yml"
+GEGEN_PG_CONTAINER = "nc-spike-tags-pg"
+GEGEN_PG_DB_CONTAINER = "nc-spike-tags-pgdb"
+GEGEN_DBS = ("pg", "sqlite")
+#: 14 x 10,000 = 140,000 foreign mappings; with the 5000 of stage 5000 that is 145,000, the
+#: state measured on nc35.
+GEGEN_FILL_TAGS = 14
+GEGEN_BALLAST_LIMIT_SECONDS = 900
+#: Below this much free memory in the Docker VM the throwaway pair is not started.
+GEGEN_MIN_FREE_GIB = 3.5
+
 #: Every tag this run creates starts with this prefix, never the bare production name: a
 #: forgotten tag of that exact name would falsify the canary tests of phases 26 to 28.
 TAG_PREFIX = "kein-ki-spike25"
@@ -106,6 +120,12 @@ BALLAST_LIMIT_SECONDS = 600
 LONG_TIMEOUT_SECONDS = 300
 #: Below this CPU share the Nextcloud container counts as idle again.
 IDLE_CPU_PERCENT = 10.0
+
+#: Plan 25-05, the ancestor way: the small folder of V1, the two scatter sizes of V3 and V4
+#: and the parallelism of V3p and V4p.
+VORFAHREN_FOLDER = f"{STAGE_FOLDER}/c3"
+SCATTER_COUNTS = (20, 100)
+VORFAHREN_PARALLEL = 8
 
 #: The phase folder the protocols live in (D-25-06: internal, nothing goes to docs/).
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -2531,6 +2551,136 @@ async def matrix(tag: str, *, other: bool) -> None:
         note(f"ABBAU Container vorhanden: {'ja' if container else 'nein'}")
         note(f"ABBAU Volume vorhanden: {'ja' if volume else 'nein'}")
         note(f"ENDE {now_stamp()}")
+
+
+# --- counter measurement on PostgreSQL (plan 25-05) -----------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class GegenSetup:
+    """The compose file and the containers of one throwaway instance of the counter run."""
+
+    compose_file: str
+    container: str
+    #: Empty for SQLite: the database lives inside the Nextcloud container.
+    db_container: str
+
+
+def gegen_setup(db: str) -> GegenSetup:
+    """PostgreSQL pair of ``compose.spike-tags-pg.yml`` or the SQLite instance of 25-03."""
+    if db == "pg":
+        return GegenSetup(GEGEN_PG_COMPOSE, GEGEN_PG_CONTAINER, GEGEN_PG_DB_CONTAINER)
+    if db == "sqlite":
+        return GegenSetup(SPIKE_COMPOSE, SPIKE_CONTAINER, "")
+    raise ValueError(f"--db {db!r} is not one of {', '.join(GEGEN_DBS)}")
+
+
+def ancestors_of(path: str) -> list[str]:
+    """Every folder above ``path`` up to the home root ``/``, nearest first."""
+    parts = [part for part in path.split("/") if part]
+    return ["/" + "/".join(parts[:end]) for end in range(len(parts) - 1, 0, -1)] + (
+        ["/"] if parts else []
+    )
+
+
+def scatter_paths(count: int) -> list[str]:
+    """``count`` files spread evenly over the 10,000 files of the tree, always the same ones."""
+    paths = []
+    for index in range(0, 10_000, 10_000 // count):
+        a, b, c, f = index // 1000, (index // 100) % 10, (index // 10) % 10, index % 10
+        paths.append(f"/{TREE_DIR}/a{a}/b{b}/c{c}/f{f}.txt")
+    return paths
+
+
+def bundle_targets(answer_paths: Sequence[str]) -> list[str]:
+    """The answer nodes first, then their ancestors deduplicated in a stable order."""
+    seen = set(answer_paths)
+    targets = list(answer_paths)
+    for path in answer_paths:
+        for folder in ancestors_of(path):
+            if folder not in seen:
+                seen.add(folder)
+                targets.append(folder)
+    return targets
+
+
+def tags_by_path(body: bytes, home: str) -> dict[str, set[str]]:
+    """The ``nc:system-tags`` names per home relative path; no property is an empty set."""
+    root = xml.parse_root(body)
+    found: dict[str, set[str]] = {}
+    for response in root.findall(f"{{{xml.DAV}}}response"):
+        href_el = response.find(f"{{{xml.DAV}}}href")
+        path = home_path_of((href_el.text or "").strip() if href_el is not None else "", home)
+        if path is None:
+            continue
+        names = {
+            (tag.text or "").strip()
+            for tag in response.iterfind(f".//{{{xml.NC}}}system-tags/{{{xml.NC}}}system-tag")
+        }
+        found.setdefault(path, set()).update(names)
+    return found
+
+
+def _covered(path: str, tagged: str) -> bool:
+    """Segment rule: ``tagged`` covers ``path`` when equal or followed by ``/``."""
+    return tagged == "/" or path == tagged or path.startswith(tagged + "/")
+
+
+def expected_excluded(answer_paths: Iterable[str], tagged_paths: Iterable[str]) -> set[str]:
+    """The answers a REPORT hit set excludes: the node or one of its folders is tagged."""
+    tagged = list(tagged_paths)
+    return {path for path in answer_paths if any(_covered(path, hit) for hit in tagged)}
+
+
+def excluded_by_tags(
+    answer_paths: Iterable[str], tags: Mapping[str, set[str]], tag_name: str
+) -> set[str]:
+    """The answers whose node or one of whose ancestors carries ``tag_name``."""
+    return {
+        path
+        for path in answer_paths
+        if any(tag_name in tags.get(node, set()) for node in [path, *ancestors_of(path)])
+    }
+
+
+_STAGE_LINE = re.compile(
+    r"^STUFE (\d+)( \(mit Ballast\))? (?:status=\S+ .*?median=(\d+) |EINZELLAUF .*?ms=(\d+))",
+    re.MULTILINE,
+)
+
+
+def stage_medians(text: str) -> dict[str, int]:
+    """The warm median (ms) per STUFE line, and the long single run where a series broke."""
+    medians: dict[str, int] = {}
+    for match in _STAGE_LINE.finditer(text):
+        key = match[1] + ("_ballast" if match[2] else "")
+        if match[3] is not None:
+            medians[key] = int(match[3])
+        else:
+            medians[f"{key}_einzellauf"] = int(match[4])
+    return medians
+
+
+_MEM_FIELD = re.compile(r"mem ([0-9.]+)\s*(GiB|MiB|KiB|GB|MB|kB|B) /")
+_MEM_UNIT = {
+    "GiB": 1.0,
+    "GB": 1.0,
+    "MiB": 1 / 1024,
+    "MB": 1 / 1024,
+    "KiB": 1 / 1024**2,
+    "kB": 1 / 1024**2,
+    "B": 1 / 1024**3,
+}
+
+
+def used_memory_gib(lines: Iterable[str]) -> float:
+    """The sum of the ``mem`` fields of ``docker_stats`` lines, in GiB."""
+    total = 0.0
+    for line in lines:
+        match = _MEM_FIELD.search(line)
+        if match:
+            total += float(match[1]) * _MEM_UNIT[match[2]]
+    return total
 
 
 def secret_scan(env_file: Path) -> int:

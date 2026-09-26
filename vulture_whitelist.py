@@ -306,3 +306,26 @@ _._decode_payload
 # block that calls them, the findings block of plan 25-01 task 2, the latency blocks of plan
 # 25-02 (THRESHOLD_SECONDS, WARMUP, RUNS_*, summarize) and the version matrix of plan 25-03
 # (SPIKE_BASE_URL, SPIKE_COMPOSE, wait_for_install).
+
+# --- The counter measurement of plan 25-05 (scripts/tag_spike.py) -----------------------
+# Parked while plan 25-05 task 1 builds the tool section by section: the pure helpers and
+# constants below were written and unit tested (section C) before the blocks that call them,
+# block_vorfahren (section D) and gegenmessung (section E). Each name leaves this list with
+# the section that calls it; after section E this part of the file is empty again.
+GEGEN_NC_TAG
+GEGEN_FILL_TAGS
+GEGEN_BALLAST_LIMIT_SECONDS
+GEGEN_MIN_FREE_GIB
+VORFAHREN_FOLDER
+SCATTER_COUNTS
+VORFAHREN_PARALLEL
+_.compose_file
+_.db_container
+gegen_setup
+scatter_paths
+bundle_targets
+tags_by_path
+expected_excluded
+excluded_by_tags
+stage_medians
+used_memory_gib
