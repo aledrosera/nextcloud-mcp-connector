@@ -2728,6 +2728,205 @@ def used_memory_gib(lines: Iterable[str]) -> float:
     return total
 
 
+@dataclass(frozen=True, slots=True)
+class BundleRequest:
+    """One PROPFIND of an ancestor bundle: URL, depth and body."""
+
+    url: str
+    depth: str
+    body: bytes
+
+
+async def run_bundle(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    requests: Sequence[BundleRequest],
+    parallel: int,
+) -> list[DavResult]:
+    """Every request of one bundle, one after the other or ``parallel`` at a time."""
+    if parallel <= 1:
+        return [
+            await dav_request(
+                client, creds, "PROPFIND", request.url, depth=request.depth, body=request.body
+            )
+            for request in requests
+        ]
+    gate = asyncio.Semaphore(parallel)
+
+    async def one(request: BundleRequest) -> DavResult:
+        async with gate:
+            return await dav_request(
+                client, creds, "PROPFIND", request.url, depth=request.depth, body=request.body
+            )
+
+    return list(await asyncio.gather(*(one(request) for request in requests)))
+
+
+def format_bundle(
+    label: str, requests: int, statuses: Iterable[int], seconds: Sequence[float]
+) -> str:
+    """One protocol line per measured bundle series, wall clock of the whole bundle in ms."""
+    stats = {key: f"{value * 1000:.0f}" for key, value in summarize(seconds).items()}
+    status = "/".join(str(value) for value in sorted(set(statuses)))
+    return (
+        f"{label} anfragen={requests} status={status} min={stats['min']} "
+        f"median={stats['median']} p95_zweitgroesster={stats['p95_second_largest']} "
+        f"max={stats['max']} (ms, n={len(seconds)})"
+    )
+
+
+async def report_hit_paths(lat: Latency) -> set[str] | None:
+    """The home relative paths the REPORT on the home root returns right now, or ``None``.
+
+    The yardstick of the cross check: what the ancestor way excludes has to be exactly what
+    this hit set covers. A long single run, so a slow REPORT with ballast still answers.
+    """
+    timeout = httpx.Timeout(LONG_TIMEOUT_SECONDS)
+    async with httpx.AsyncClient(
+        follow_redirects=False, timeout=timeout, cookies=NoCookieJar()
+    ) as client:
+        try:
+            result = await dav_request(
+                client, lat.alice, "REPORT", home_url(lat.alice, "/"), body=report_body(lat.tag_id)
+            )
+        except httpx.TimeoutException as failure:
+            note(f"VORFAHREN REPORT-Menge keine Antwort binnen {LONG_TIMEOUT_SECONDS} s: {failure}")
+            return None
+    if result.status != 207:
+        note(f"VORFAHREN REPORT-Menge status={result.status} {describe_error(result.body)}")
+        return None
+    home = home_of(lat.alice)
+    paths = {home_path_of(href, home) or f"FREMD:{href}" for href, _, _ in read_report(result.body)}
+    note(
+        f"VORFAHREN REPORT-Menge status=207 treffer={len(paths)} "
+        f"ms={result.seconds * 1000:.0f} (Querprüfungs-Maßstab, ungezählt)"
+    )
+    return paths
+
+
+async def measure_bundle(
+    lat: Latency,
+    key: str,
+    label: str,
+    requests: Sequence[BundleRequest],
+    parallel: int,
+    *,
+    answers: Sequence[str] | None = None,
+    listing: str = "",
+    tagged: set[str] | None = None,
+) -> None:
+    """WARMUP discarded and RUNS_WARM measured runs of one bundle, then one cross check.
+
+    The wall clock spans the whole bundle. A request over the 60 s limit stops the series
+    (a measured outcome); the instance is then left to calm down and no cross check runs.
+    The cross check reads ``nc:system-tags`` of one more, uncounted bundle and compares the
+    excluded answers with what the REPORT hit set ``tagged`` covers. ``answers`` are the
+    answer nodes; without them they are the children of the Depth 1 ``listing``.
+    """
+    seconds: list[float] = []
+    statuses: list[int] = []
+    done = 0
+    async with new_client() as client:
+        try:
+            for number in range(WARMUP + RUNS_WARM):
+                started = time.perf_counter()
+                results = await run_bundle(client, lat.alice, requests, parallel)
+                elapsed = time.perf_counter() - started
+                done += 1
+                if number >= WARMUP:
+                    seconds.append(elapsed)
+                    statuses.extend(result.status for result in results)
+            check = await run_bundle(client, lat.alice, requests, parallel)
+        except httpx.TimeoutException as failure:
+            note(
+                f"{label} ZEITLIMIT {TIMEOUT.read:.0f} s je Anfrage überschritten "
+                f"({type(failure).__name__}) nach {done} von {WARMUP + RUNS_WARM} Durchläufen; "
+                "Reihe abgebrochen"
+            )
+            waited = await wait_until_idle(lat.load_containers())
+            note(f"  {label}: Instanz ruhte nach {waited:.0f} s wieder")
+            return
+    note(format_bundle(label, len(requests), statuses, seconds))
+    lat.medians[key] = summarize(seconds)["median"]
+    home = home_of(lat.alice)
+    tags: dict[str, set[str]] = {}
+    for result in check:
+        if result.status == 207:
+            for path, names in tags_by_path(result.body, home).items():
+                tags.setdefault(path, set()).update(names)
+    failed = [result.status for result in check if result.status != 207]
+    if answers is None:
+        answers = [path for path in tags_by_path(check[0].body, home) if path != listing]
+    if tagged is None or failed:
+        note(
+            f"{label} ausgeschlossen=nicht prüfbar erwartet_aus_report="
+            f"{'nicht prüfbar' if tagged is None else len(expected_excluded(answers, tagged))} "
+            f"gleich=nicht prüfbar (Status außer 207: {sorted(set(failed)) or '-'})"
+        )
+        return
+    got = excluded_by_tags(answers, tags, LATENCY_TAG)
+    expected = expected_excluded(answers, tagged)
+    note(
+        f"{label} ausgeschlossen={len(got)} erwartet_aus_report={len(expected)} "
+        f"gleich={'ja' if got == expected else 'nein'} (antwortknoten={len(answers)})"
+    )
+
+
+async def block_vorfahren(lat: Latency, *, ballast: bool = False) -> None:
+    """The PROPFIND way: ``nc:system-tags`` of the answer nodes plus their ancestor chain.
+
+    Stage 100 with the tagged folder a3/b3, so the subtree case is part of the answer. Six
+    variants: V1 a small folder listing, V2 the large flat listing, V3 and V4 20 and 100
+    scattered files with their deduplicated ancestors, V3p and V4p the same eight at a time.
+    """
+    suffix = " (mit Ballast)" if ballast else ""
+    parts = [*set_stage(lat, 100, STAGE_FOLDER).split(" "), "?", "?", "?"]
+    note(
+        f"VORFAHREN STUFE 100{suffix} zusammensetzung: knoten={parts[0]} dateien={parts[1]} "
+        f"ordner={parts[2]} (getaggter Ordner: {STAGE_FOLDER})"
+    )
+    tagged = await report_hit_paths(lat)
+    alice = lat.alice
+    tags_prop = f"{{{xml.NC}}}system-tags"
+    ancestor_body = propfind_body([tags_prop])
+    listing_body = propfind_body([*FLAT_PROPS, tags_prop])
+    node_body = propfind_body([f"{{{xml.OC}}}fileid", tags_prop])
+
+    def listing_bundle(folder: str) -> list[BundleRequest]:
+        head = BundleRequest(home_url(alice, f"{folder}/"), "1", listing_body)
+        chain = [
+            BundleRequest(home_url(alice, path), "0", ancestor_body)
+            for path in ancestors_of(folder)
+        ]
+        return [head, *chain]
+
+    for variant, folder in (("V1", f"/{VORFAHREN_FOLDER}"), ("V2", f"/{FLAT_DIR}")):
+        await measure_bundle(
+            lat,
+            f"vorfahren_{variant}{'_ballast' if ballast else ''}",
+            f"VORFAHREN {variant}{suffix}",
+            listing_bundle(folder),
+            1,
+            listing=folder,
+            tagged=tagged,
+        )
+    for variant, count in zip(("V3", "V4"), SCATTER_COUNTS, strict=True):
+        answers = scatter_paths(count)
+        requests = [
+            BundleRequest(home_url(alice, path), "0", node_body) for path in bundle_targets(answers)
+        ]
+        for name, parallel in ((variant, 1), (f"{variant}p", VORFAHREN_PARALLEL)):
+            await measure_bundle(
+                lat,
+                f"vorfahren_{name}{'_ballast' if ballast else ''}",
+                f"VORFAHREN {name}{suffix}",
+                requests,
+                parallel,
+                answers=answers,
+                tagged=tagged,
+            )
+
+
 def secret_scan(env_file: Path) -> int:
     """Scan every protocol of the phase folder for the secret values of ``env_file``."""
     env = read_env_file(env_file)

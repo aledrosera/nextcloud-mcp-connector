@@ -316,15 +316,9 @@ GEGEN_NC_TAG
 GEGEN_FILL_TAGS
 GEGEN_BALLAST_LIMIT_SECONDS
 GEGEN_MIN_FREE_GIB
-VORFAHREN_FOLDER
-SCATTER_COUNTS
-VORFAHREN_PARALLEL
 _.compose_file
 _.db_container
 gegen_setup
-scatter_paths
-bundle_targets
-expected_excluded
-excluded_by_tags
 stage_medians
 used_memory_gib
+block_vorfahren

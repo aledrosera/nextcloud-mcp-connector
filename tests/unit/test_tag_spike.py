@@ -443,6 +443,15 @@ def test_used_memory_gib_reads_kib_and_bytes_and_skips_other_lines() -> None:
     assert spike.used_memory_gib(lines) == pytest.approx(1.0)
 
 
+def test_format_bundle_names_the_request_count_and_the_bundle_wall_clock() -> None:
+    seconds = [0.010 * (i + 1) for i in range(15)]
+    line = spike.format_bundle("VORFAHREN V3", 73, [207, 207, 207], seconds)
+    assert line == (
+        "VORFAHREN V3 anfragen=73 status=207 min=10 median=80 "
+        "p95_zweitgroesster=140 max=150 (ms, n=15)"
+    )
+
+
 def test_gegen_setup_names_file_and_containers_per_database() -> None:
     pg = spike.gegen_setup("pg")
     assert pg.compose_file == "compose.spike-tags-pg.yml"
