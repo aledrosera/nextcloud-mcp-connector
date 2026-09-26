@@ -316,6 +316,5 @@ RUNS_WARM
 RUNS_COLD
 PHP_SET_TAG_OBJECTS
 PHP_INSERT_VARIANT
-occ_pw
 wait_for_install
 summarize

@@ -27,6 +27,7 @@ import asyncio
 import base64
 import json
 import re
+import secrets
 import statistics
 import subprocess
 import sys
@@ -44,6 +45,7 @@ from lxml import etree
 from mcp_connector.errors import ToolError
 from mcp_connector.nextcloud.clients import notes, ocs, xml
 from mcp_connector.nextcloud.credentials import MODE_APPAPI, MODE_BASIC, Credentials
+from mcp_connector.nextcloud.http import NoCookieJar
 
 #: The containers of the Nextcloud 35 topology this run measures against.
 NC_CONTAINER = "nc35-nc"
@@ -586,7 +588,14 @@ def _base_url(env: Mapping[str, str]) -> str:
 
 
 def new_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT)
+    """One client per block, with the production posture of ``nextcloud/http.py``.
+
+    ``NoCookieJar`` is load bearing here, not a copy of habit: this run speaks as alice, bob,
+    a temporary admin and as the impersonated alice through one client, and a session cookie
+    Nextcloud set for one of them would carry the next request under the wrong identity
+    (measured on 26.09.: the admin's PUT rode alice's session and got a 403).
+    """
+    return httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT, cookies=NoCookieJar())
 
 
 async def dav_request(
@@ -706,7 +715,8 @@ async def put_file(run: Run, creds: Credentials, path: str, content: str = "spik
         home_url(creds, path), content=content.encode(), auth=creds.auth()
     )
     if response.status_code not in (201, 204):
-        raise RunFailed(f"PUT {path} answered {response.status_code}")
+        detail = describe_error(response.content)
+        raise RunFailed(f"PUT {path} answered {response.status_code}: {detail}")
     return await fileid_of(run, creds, path)
 
 
@@ -1074,10 +1084,87 @@ async def block_412(run: Run) -> None:
     )
 
 
+async def create_temp_admin(run: Run) -> Credentials:
+    """A throwaway admin with a random password and an app password, both via stdin only."""
+    password = secrets.token_urlsafe(24)
+    remember_secret("TEMP_ADMIN_PASSWORD", password)
+    occ_pw(NC_CONTAINER, password, "user:add", "--password-from-env", TEMP_ADMIN)
+    run.admin_created = True
+    note(f"occ user:add --password-from-env {TEMP_ADMIN} (password via stdin)")
+    added = occ(NC_CONTAINER, "group:adduser", "admin", TEMP_ADMIN)
+    note(f"occ group:adduser admin {TEMP_ADMIN} -> {added[:80]}")
+    raw = occ_pw(
+        NC_CONTAINER,
+        password,
+        "user:auth-tokens:add",
+        TEMP_ADMIN,
+        "--password-from-env",
+        "--name",
+        "spike25",
+    )
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    token = lines[-1] if lines else ""
+    if len(token) < 20:
+        raise RunFailed(f"no app password could be parsed for {TEMP_ADMIN}")
+    remember_secret("TEMP_ADMIN_APP_PASSWORD", token)
+    note(f"occ user:auth-tokens:add {TEMP_ADMIN} --password-from-env --name spike25 (token kept)")
+    admin = basic_creds(run.env, TEMP_ADMIN, token)
+    # The home of a fresh account is set up by its first authenticated DAV request; it is
+    # asked for explicitly, so the PUT that follows does not depend on that side effect.
+    home = await dav_request(
+        run.client,
+        admin,
+        "PROPFIND",
+        home_url(admin, "/"),
+        depth="0",
+        body=propfind_body([f"{{{xml.OC}}}fileid", f"{{{xml.OC}}}permissions"]),
+    )
+    row("unsichtbar", f"PROPFIND Depth 0 home of {TEMP_ADMIN}", home.status, "home set up")
+    return admin
+
+
+async def block_unsichtbar(run: Run) -> None:
+    """An invisible tag: alice gets a 412, an admin gets an answer."""
+    block = "unsichtbar"
+    alice = run.alice
+    name = f"{TAG_PREFIX}-inv"
+    tag_id = tag_add(run, name, "invisible")
+    fileid = await put_file(run, alice, f"/{SPIKE_DIR}/inv/y.txt")
+    tag_files_add(run, fileid, name, "invisible")
+    await log_report(run, block, "unsichtbares Tag, Nicht-Admin", alice, tag_id)
+    listing, ids = await systemtag_listing(run, alice)
+    row(
+        block,
+        "PROPFIND Depth 1 /remote.php/dav/systemtags/ als alice",
+        listing.status,
+        f"Tag {tag_id} in alices Liste={'ja' if tag_id in ids else 'nein'}",
+        listing.seconds,
+    )
+    try:
+        admin = await create_temp_admin(run)
+        own = await put_file(run, admin, "/spike25-admin.txt")
+        tag_files_add(run, own, name, "invisible")
+        note(f"Gegenfall: {TEMP_ADMIN} taggt eigene Datei {own} mit demselben unsichtbaren Tag")
+        await log_report(run, block, "unsichtbares Tag, Admin (Gegenfall)", admin, tag_id)
+        listing, ids = await systemtag_listing(run, admin)
+        row(
+            block,
+            f"PROPFIND Depth 1 /remote.php/dav/systemtags/ als {TEMP_ADMIN}",
+            listing.status,
+            f"Tag {tag_id} in der Admin-Liste={'ja' if tag_id in ids else 'nein'}",
+            listing.seconds,
+        )
+    finally:
+        output = occ(NC_CONTAINER, "user:delete", TEMP_ADMIN, check=False)
+        note(f"occ user:delete {TEMP_ADMIN} -> {output[:120]}")
+        run.admin_created = False
+
+
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "notes": block_notes,
     "impersonation": block_impersonation,
     "412": block_412,
+    "unsichtbar": block_unsichtbar,
 }
 
 
