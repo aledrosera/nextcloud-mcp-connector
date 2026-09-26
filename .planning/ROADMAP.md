@@ -128,7 +128,7 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
 Plans:
 **Wave 1**
 
-- [ ] 25-01-PLAN.md , Messwerkzeug (compose.spike-tags.yml, scripts/tag_spike.py) und nc35-Einzelbefunde: Notes, Impersonation, 412, unsichtbar, Varianten, Zielpfad, Freigabe, App-aus 35, prepare_context-Baseline
+- [x] 25-01-PLAN.md , Messwerkzeug (compose.spike-tags.yml, scripts/tag_spike.py) und nc35-Einzelbefunde: Notes, Impersonation, 412, unsichtbar, Varianten, Zielpfad, Freigabe, App-aus 35, prepare_context-Baseline
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -241,7 +241,7 @@ Plans:
 | 22. Konfiguration, Kette und Drosselung | v1.6 | 3/3 | Complete   | 2026-09-19 |
 | 23. Konto-Mapping und Credential-Wege | v1.6 | 6/6 | Complete | 2026-09-23 |
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
-| 25. Mess-Spike Tag-Abfrage | v1.7 | 0/TBD | Not started | - |
+| 25. Mess-Spike Tag-Abfrage | v1.7 | 1/4 | In Progress|  |
 | 26. Guard-Kern | v1.7 | 0/TBD | Not started | - |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 0/TBD | Not started | - |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |

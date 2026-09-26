@@ -4,13 +4,13 @@ milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
 status: executing
 stopped_at: Phase 25 context gathered
-last_updated: "2026-09-26T17:06:51.226Z"
-last_activity: 2026-09-26 -- Phase 25 planning complete
+last_updated: "2026-09-26T17:39:03.236Z"
+last_activity: 2026-09-26 -- Phase 25 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-26)
 
 **Core value:** Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
-**Current focus:** Milestone v1.7 Ausschluss-Tag kein-ki (BL-16), Phasen 25-29; als Nächstes Phase 25 (Mess-Spike Tag-Abfrage). Nebenläufig extern: files_update als Community-PR (Design-Issue #9), F13-Spur ruht, Release 0.3.0 nur mit Owner-Freigabe.
+**Current focus:** Phase 25 — mess-spike-tag-abfrage
 
 ## Current Position
 
-Phase: 25 von 25-29 (Mess-Spike Tag-Abfrage)
-Plan: noch keiner (Phase nicht geplant)
-Status: Ready to execute
-Last activity: 2026-09-26 -- Phase 25 planning complete
+Phase: 25 (mess-spike-tag-abfrage) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 25
+Last activity: 2026-09-26 -- Phase 25 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
