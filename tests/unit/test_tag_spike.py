@@ -293,3 +293,37 @@ def test_prepare_context_medians_reads_short_and_full() -> None:
         "  leg search: median 0.72 s, max 0.88 s over 3 runs\n"
     )
     assert spike.prepare_context_medians(text) == {"short": 0.72, "full": 0.81}
+
+
+# --- validate_nc_tag (plan 25-03) ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("tag", ["32.0.15-apache", "33.0.9-apache", "34.0.4-apache"])
+def test_validate_nc_tag_accepts_the_three_matrix_tags(tag: str) -> None:
+    assert spike.validate_nc_tag(tag) == tag
+
+
+def test_validate_nc_tag_refuses_another_tag_without_the_fallback_flag() -> None:
+    with pytest.raises(ValueError, match="allow-other-tag"):
+        spike.validate_nc_tag("35.0.0-apache")
+
+
+def test_validate_nc_tag_accepts_a_local_fallback_only_with_the_flag() -> None:
+    assert spike.validate_nc_tag("33.0.7-apache", allow_other=True) == "33.0.7-apache"
+    with pytest.raises(ValueError, match="not one of"):
+        spike.validate_nc_tag("latest", allow_other=True)
+
+
+def test_describe_report_names_folders_only_when_asked() -> None:
+    body = (
+        b'<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">'
+        b"<d:response><d:href>/remote.php/dav/files/alice/spike25/p/tagged/</d:href>"
+        b"<d:propstat><d:prop><oc:fileid>7</oc:fileid><d:resourcetype><d:collection/>"
+        b"</d:resourcetype></d:prop></d:propstat></d:response></d:multistatus>"
+    )
+    creds = spike.Credentials(
+        base_url="http://127.0.0.1:8083", user="alice", secret="x", mode=spike.MODE_BASIC
+    )
+    result = spike.DavResult(207, len(body), 0.1, body)
+    assert "eintraege" not in spike.describe_report(result, creds)
+    assert "/spike25/p/tagged:7:ordner=ja" in spike.describe_report(result, creds, kinds=True)

@@ -302,11 +302,7 @@ _._decode_payload
 # it would. A whitelist entry that is no longer needed is a switched off check.
 
 # --- The measuring script of phase 25 (scripts/tag_spike.py) ----------------------------
-# The helpers below are built and unit tested in task 1 of plan 25-01 (tests/unit/
-# test_tag_spike.py loads the script from its path, which vulture does not follow). Each name
-# leaves this list with the block that calls it: the findings block of plan 25-01 task 2, the
-# latency blocks of plan 25-02 (THRESHOLD_SECONDS, WARMUP, RUNS_*, summarize) and the version
-# matrix of plan 25-03 (SPIKE_*, wait_for_install).
-SPIKE_BASE_URL
-SPIKE_COMPOSE
-wait_for_install
+# Empty again, as announced: the helpers of plan 25-01 parked here left the list with the
+# block that calls them, the findings block of plan 25-01 task 2, the latency blocks of plan
+# 25-02 (THRESHOLD_SECONDS, WARMUP, RUNS_*, summarize) and the version matrix of plan 25-03
+# (SPIKE_BASE_URL, SPIKE_COMPOSE, wait_for_install).
