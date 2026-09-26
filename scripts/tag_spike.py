@@ -1345,8 +1345,12 @@ async def block_unsichtbar(run: Run) -> None:
         run.admin_created = False
 
 
-async def block_varianten(run: Run) -> None:
-    """Source finding 1: same-named tags land in one REPORT, because it searches by name."""
+async def block_varianten(run: Run, *, with_propfind: bool = False) -> None:
+    """Source finding 1: same-named tags land in one REPORT, because it searches by name.
+
+    ``with_propfind`` (plan 25-05) adds one PROPFIND Depth 0 with ``nc:system-tags`` per
+    variant file, so the ancestor way can be compared with the REPORT on the same variants.
+    """
     block = "varianten"
     alice = run.alice
     name = f"{TAG_PREFIX}-var"
@@ -1357,7 +1361,7 @@ async def block_varianten(run: Run) -> None:
         "Z": (name, "0", "0"),
         "W": (upper, "1", "1"),
     }.items():
-        tag_id = php(NC_CONTAINER, PHP_INSERT_VARIANT, variant_name, visibility, editable)
+        tag_id = php(run.container, PHP_INSERT_VARIANT, variant_name, visibility, editable)
         if not re.fullmatch(r"[0-9]+", tag_id):
             raise RunFailed(f"variant insert gave no id: {tag_id[:200]}")
         run.tag_ids.append(tag_id)
@@ -1366,17 +1370,35 @@ async def block_varianten(run: Run) -> None:
             f"DB-Insert systemtag name={variant_name} visibility={visibility} "
             f"editable={editable} -> {key}={tag_id}"
         )
+    files: dict[str, str] = {}
     for key, tag_id in variants.items():
         sub = f"{SPIKE_DIR}/var/{key.lower()}"
-        fileid = await put_file(run, alice, f"/{sub}/f{key.lower()}.txt")
-        mapped = php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, tag_id, "1", sub, alice.user)
+        files[key] = f"/{sub}/f{key.lower()}.txt"
+        fileid = await put_file(run, alice, files[key])
+        mapped = php(run.container, PHP_SET_TAG_OBJECTS, tag_id, "1", sub, alice.user)
         note(f"setObjectIdsForTag {key}={tag_id} -> {mapped} (Datei {fileid}, /{sub})")
     for key in ("X", "Y", "W", "Z"):
         await log_report(run, block, f"Variante {key}", alice, variants[key])
-    dbtype = occ(NC_CONTAINER, "config:system:get", "dbtype", check=False)
+    if with_propfind:
+        for key in ("X", "Y", "W", "Z"):
+            result = await dav_request(
+                run.client,
+                alice,
+                "PROPFIND",
+                home_url(alice, files[key]),
+                depth="0",
+                body=propfind_body([f"{{{xml.NC}}}system-tags"]),
+            )
+            names: set[str] = set()
+            if result.status == 207:
+                for found in tags_by_path(result.body, home_of(alice)).values():
+                    names |= found
+            note(f"VARIANTEN PROPFIND {key} status={result.status} nc:system-tags={sorted(names)}")
+    dbtype = occ(run.container, "config:system:get", "dbtype", check=False)
+    how = "(SQLite vergleicht binär)" if dbtype == "sqlite3" else f"(gemessen auf {dbtype})"
     note(
         f"VARIANTEN dbtype={dbtype}: Groß/Klein-Vergleich gilt für diese Datenbank "
-        "(SQLite vergleicht binär); MySQL/MariaDB-Kollation nicht gemessen (Annahme A3)"
+        f"{how}; MySQL/MariaDB-Kollation nicht gemessen (Annahme A3)"
     )
 
 
@@ -1780,6 +1802,14 @@ class Latency:
     alice: Credentials
     tag_id: str = ""
     medians: dict[str, float] = dataclasses.field(default_factory=dict)
+    #: The Nextcloud container occ, php and exec talk to: nc35 unless a throwaway (25-05).
+    container: str = NC_CONTAINER
+    #: A separate database container (PostgreSQL), watched by wait_until_idle; else empty.
+    db_container: str = ""
+
+    def load_containers(self) -> tuple[str, ...]:
+        """Every container a request the client gave up on may still keep busy."""
+        return (self.container, self.db_container) if self.db_container else (self.container,)
 
 
 def docker_stats() -> None:
@@ -1795,13 +1825,13 @@ def docker_stats() -> None:
     )
 
 
-def spike_dir_exists(user: str) -> bool:
+def spike_dir_exists(user: str, container: str = NC_CONTAINER) -> bool:
     """Whether ``data/<user>/files/spike25`` is on disk inside the Nextcloud container."""
     answer = docker(
         "exec",
         "-u",
         "www-data",
-        NC_CONTAINER,
+        container,
         "sh",
         "-c",
         'if [ -e "$1" ]; then echo ja; else echo nein; fi',
@@ -1867,7 +1897,7 @@ async def block_build(lat: Latency) -> None:
         "exec",
         "-u",
         "www-data",
-        NC_CONTAINER,
+        lat.container,
         "sh",
         "-c",
         BUILD_SCRIPT,
@@ -1876,12 +1906,12 @@ async def block_build(lat: Latency) -> None:
     ).strip()
     note(f"DATENAUFBAU dateien={count} angelegt in {time.perf_counter() - started:.1f} s")
     started = time.perf_counter()
-    scan = occ(NC_CONTAINER, "files:scan", f"--path=/{user}/files/{SPIKE_DIR}")
+    scan = occ(lat.container, "files:scan", f"--path=/{user}/files/{SPIKE_DIR}")
     seconds = time.perf_counter() - started
     note(
         f"DATENAUFBAU files:scan in {seconds:.1f} s (Annahme A1) | {' '.join(scan.split())[-300:]}"
     )
-    lat.tag_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", LATENCY_TAG, "public", "--output=json"))
+    lat.tag_id = parse_tag_id(occ(lat.container, "tag:add", LATENCY_TAG, "public", "--output=json"))
     note(f"occ tag:add {LATENCY_TAG} public -> id {lat.tag_id}")
     flat = await file_count(lat, f"/{FLAT_DIR}/")
     note(f"DATENAUFBAU PROPFIND Depth 1 /{FLAT_DIR}/: {flat} Kinder (erwartet {FLAT_FILES})")
@@ -1910,16 +1940,16 @@ def cpu_percent(container: str) -> float | None:
     return float(match[1]) if match else None
 
 
-async def wait_until_idle() -> float:
-    """Seconds until the Nextcloud container is idle again, at most LONG_TIMEOUT_SECONDS.
+async def wait_until_idle(containers: Sequence[str] = (NC_CONTAINER,)) -> float:
+    """Seconds until every container is idle again, at most LONG_TIMEOUT_SECONDS.
 
-    A request the client gave up on keeps running in PHP; a run started next to it would
-    measure two REPORTs at once.
+    A request the client gave up on keeps running in PHP, and on PostgreSQL its query keeps
+    running in the database; a run started next to it would measure two REPORTs at once.
     """
     started = time.perf_counter()
     while time.perf_counter() - started < LONG_TIMEOUT_SECONDS:
-        load = cpu_percent(NC_CONTAINER)
-        if load is not None and load < IDLE_CPU_PERCENT:
+        loads = [cpu_percent(container) for container in containers]
+        if all(load is not None and load < IDLE_CPU_PERCENT for load in loads):
             break
         await asyncio.sleep(5)
     return time.perf_counter() - started
@@ -1999,10 +2029,11 @@ async def measure_series(
                 f"{len(results)} von {RUNS_WARM} Messläufen; Reihe abgebrochen"
             )
     if timed_out:
-        waited = await wait_until_idle()
+        waited = await wait_until_idle(lat.load_containers())
         note(
-            f"  {label}: der abgebrochene Lauf rechnete serverseitig weiter; nc35 ruhte nach "
-            f"{waited:.0f} s wieder (docker stats CPU unter {IDLE_CPU_PERCENT:.0f} %)"
+            f"  {label}: der abgebrochene Lauf rechnete serverseitig weiter; "
+            f"{'/'.join(lat.load_containers())} ruhte nach {waited:.0f} s wieder "
+            f"(docker stats CPU unter {IDLE_CPU_PERCENT:.0f} %)"
         )
         await long_single_run(lat, key, label, method, url, depth=depth, body=body)
     if len(results) < 2:
@@ -2042,7 +2073,7 @@ def set_stage(lat: Latency, count: int, folders: str = "") -> str:
     args = [lat.tag_id, str(count), TREE_DIR, lat.alice.user]
     if folders:
         args.append(folders)
-    return php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, *args)
+    return php(lat.container, PHP_SET_TAG_OBJECTS, *args)
 
 
 async def block_stages(lat: Latency) -> None:
@@ -2113,12 +2144,12 @@ async def block_references(lat: Latency) -> None:
     )
 
 
-def graceful_restart() -> str:
+def graceful_restart(container: str = NC_CONTAINER) -> str:
     """``apachectl -k graceful`` in the Nextcloud container: fresh mod_php workers."""
     try:
-        return docker("exec", NC_CONTAINER, "apachectl", "-k", "graceful").strip()
+        return docker("exec", container, "apachectl", "-k", "graceful").strip()
     except RunFailed:
-        return docker("exec", NC_CONTAINER, "apache2ctl", "-k", "graceful").strip()
+        return docker("exec", container, "apache2ctl", "-k", "graceful").strip()
 
 
 async def block_cold(lat: Latency) -> None:
@@ -2132,7 +2163,7 @@ async def block_cold(lat: Latency) -> None:
     )
     seconds: list[float] = []
     for number in range(1, RUNS_COLD + 1):
-        restart = graceful_restart()
+        restart = graceful_restart(lat.container)
         await asyncio.sleep(COLD_PAUSE_SECONDS)
         async with new_client() as client:
             result = await dav_request(
@@ -2155,12 +2186,19 @@ async def block_cold(lat: Latency) -> None:
     )
 
 
-async def block_ballast(lat: Latency) -> None:
+async def block_ballast(
+    lat: Latency,
+    *,
+    tags: int = FILL_TAGS,
+    limit: int = BALLAST_LIMIT_SECONDS,
+    measure: bool = True,
+) -> None:
     """Owner decision Q3: does a large mapping table make the REPORT on our tag dearer.
 
-    35 public fill tags, each set on all 10,000 flat files, about 350,000 mappings. The build
-    is cut after BALLAST_LIMIT_SECONDS; a cut is a measured limit, not a failure, and the
-    measurements are repeated with whatever ballast stands.
+    ``tags`` public fill tags, each set on all 10,000 flat files (35 on nc35, about 350,000
+    mappings). The build is cut after ``limit`` seconds; a cut is a measured limit, not a
+    failure, and the measurements are repeated with whatever ballast stands. With
+    ``measure=False`` (plan 25-05) the caller measures the stages with ballast itself.
     """
     if "stufe5000" not in lat.medians:
         raise RunFailed("stage 5000 was not measured, the ballast would compare nothing")
@@ -2169,23 +2207,24 @@ async def block_ballast(lat: Latency) -> None:
     started = time.perf_counter()
     built = 0
     cut = False
-    for number in range(FILL_TAGS):
+    for number in range(tags):
         elapsed = time.perf_counter() - started
-        if elapsed > BALLAST_LIMIT_SECONDS:
+        if elapsed > limit:
             cut = True
             break
         name = f"{FILL_PREFIX}{number:02d}"
-        fill_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", name, "public", "--output=json"))
-        mapped = php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, fill_id, str(FLAT_FILES), FLAT_DIR, user)
+        fill_id = parse_tag_id(occ(lat.container, "tag:add", name, "public", "--output=json"))
+        mapped = php(lat.container, PHP_SET_TAG_OBJECTS, fill_id, str(FLAT_FILES), FLAT_DIR, user)
         built += 1
         note(f"BALLAST {name} id={fill_id} -> {mapped.split(' ')[0]} Zuordnungen ({elapsed:.0f} s)")
     seconds = time.perf_counter() - started
-    mappings = php(NC_CONTAINER, PHP_COUNT_MAPPINGS)
+    mappings = php(lat.container, PHP_COUNT_MAPPINGS)
     if cut:
         note(f"BALLAST abgebrochen nach {seconds:.0f} s bei {mappings} Zuordnungen")
     else:
         note(f"BALLAST aufgebaut: {built} Füll-Tags in {seconds:.0f} s, {mappings} Zuordnungen")
-    await measure_with_ballast(lat)
+    if measure:
+        await measure_with_ballast(lat)
 
 
 async def measure_with_ballast(lat: Latency) -> None:
@@ -2381,9 +2420,15 @@ def validate_nc_tag(tag: str, *, allow_other: bool = False) -> str:
 _VERSION = re.compile(r"versionstring:\s*(\S+)")
 
 
-def compose(action: Sequence[str], compose_env: Mapping[str, str], *, check: bool = True) -> str:
-    """One ``docker compose`` call on the throwaway file; secrets only in ``compose_env``."""
-    argv = ["docker", "compose", "-f", str(REPO_ROOT / SPIKE_COMPOSE), *action]
+def compose(
+    action: Sequence[str],
+    compose_env: Mapping[str, str],
+    *,
+    check: bool = True,
+    file: str = SPIKE_COMPOSE,
+) -> str:
+    """One ``docker compose`` call on a throwaway file; secrets only in ``compose_env``."""
+    argv = ["docker", "compose", "-f", str(REPO_ROOT / file), *action]
     return run(argv, env=compose_env, check=check)
 
 

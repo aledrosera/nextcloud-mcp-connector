@@ -324,7 +324,6 @@ _.db_container
 gegen_setup
 scatter_paths
 bundle_targets
-tags_by_path
 expected_excluded
 excluded_by_tags
 stage_medians
