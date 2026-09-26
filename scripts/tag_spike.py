@@ -19,8 +19,12 @@ ballast of fill tags; ``--keep-data`` leaves the data for the prepare_context me
 ``ballast-remeasure`` (only the measurements with ballast, on standing ``--keep-data``
 data), ``teardown`` (takes the latency data back, idempotent), ``matrix`` (one throwaway
 instance of ``compose.spike-tags.yml`` per ``--nc-tag``, from ``up`` to ``down -v``: basic
-form and target path, 412, app off) and ``secret-scan`` (the gate over every protocol of
-the phase folder before a commit).
+form and target path, 412, app off), ``gegenmessung`` (plan 25-05: one throwaway 35.0.0
+with ``--db pg`` from ``compose.spike-tags-pg.yml`` or ``--db sqlite`` from
+``compose.spike-tags.yml``, from ``up`` to ``down -v``: stages, references, cold runs, the
+ancestor way V1 to V4p, variants and 140,000 foreign mappings of ballast; the protocols are
+``raw/pg-latenz.txt`` and ``raw/sqlite35-kontrolle-latenz.txt``, ``--out`` decides) and
+``secret-scan`` (the gate over every protocol of the phase folder before a commit).
 
 **No secret reaches a protocol.** The values of the environment file, every password and
 token generated during a run and the ``AUTHORIZATION-APP-API`` header name are scanned for
@@ -153,6 +157,7 @@ BLOCKS = (
     "ballast-remeasure",
     "teardown",
     "matrix",
+    "gegenmessung",
     "secret-scan",
 )
 
@@ -2927,6 +2932,237 @@ async def block_vorfahren(lat: Latency, *, ballast: bool = False) -> None:
             )
 
 
+async def gegen_ballast(lat: Latency) -> None:
+    """140,000 foreign mappings, then stages 1, 100, the ancestor way, reference d, 5000.
+
+    Stage 5000 comes last because it is the run that may break the 60 s limit and leave the
+    instance busy for minutes.
+    """
+    await block_ballast(lat, tags=GEGEN_FILL_TAGS, limit=GEGEN_BALLAST_LIMIT_SECONDS, measure=False)
+    docker_stats()
+    for count in (1, 100):
+        parts = [*set_stage(lat, count, STAGE_FOLDER).split(" "), "?", "?", "?"]
+        mappings = php(lat.container, PHP_COUNT_MAPPINGS)
+        note(
+            f"STUFE {count} (mit Ballast) zusammensetzung: knoten={parts[0]} dateien={parts[1]} "
+            f"ordner={parts[2]} zuordnungen_gesamt={mappings}"
+        )
+        await measure_report(lat, f"stufe{count}_ballast", f"STUFE {count} (mit Ballast)")
+    await block_vorfahren(lat, ballast=True)
+    await measure_flat_with_tags(
+        lat,
+        "ref_d_ballast",
+        f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags (mit Ballast)",
+    )
+    parts = [*set_stage(lat, 5000).split(" "), "?", "?", "?"]
+    mappings = php(lat.container, PHP_COUNT_MAPPINGS)
+    note(
+        f"STUFE 5000 (mit Ballast) zusammensetzung: knoten={parts[0]} dateien={parts[1]} "
+        f"ordner={parts[2]} zuordnungen_gesamt={mappings}"
+    )
+    await measure_report(lat, "stufe5000_ballast", "STUFE 5000 (mit Ballast)")
+
+
+def gegen_threshold(lat: Latency, label: str) -> None:
+    """D-25-04 on this instance, without and with ballast, next to the nc35 values."""
+    median = lat.medians.get("stufe5000")
+    if median is None:
+        note(f"SCHWELLE D-25-04 ({label}) nicht prüfbar: Stufe 5000 wurde nicht gemessen")
+    else:
+        for line in threshold_line(median, label):
+            note(line)
+    for line in ballast_threshold(lat):
+        note(line)
+    nc35_file = RAW_DIR / "nc35-latenz.txt"
+    nc35 = stage_medians(nc35_file.read_text(encoding="utf-8")) if nc35_file.is_file() else {}
+    ours = {key.removeprefix("stufe"): value for key, value in lat.medians.items()}
+    ours = {key: round(value * 1000) for key, value in ours.items() if key[:1].isdigit()}
+    note(
+        f"VERGLEICH nc35-sqlite (raw/nc35-latenz.txt) "
+        f"{' '.join(f'{key}={value}' for key, value in nc35.items()) or '(nicht lesbar)'} (ms)"
+    )
+    note(
+        f"VERGLEICH diese Instanz ({label}) "
+        f"{' '.join(f'{key}={value}' for key, value in ours.items()) or '(keine Werte)'} (ms)"
+    )
+
+
+def gegen_leftovers() -> tuple[str, str]:
+    """Container and volume ids of any throwaway instance (matrix or counter run)."""
+    container = docker("ps", "-a", "-q", "--filter", "name=nc-spike-tags", check=False)
+    volume = docker("volume", "ls", "-q", "--filter", "name=nc-spike-tags", check=False)
+    return container.strip(), volume.strip()
+
+
+def gegen_preconditions() -> None:
+    """No throwaway instance, no old volume, and enough free memory in the Docker VM."""
+    section("vorbedingungen")
+    container, volume = gegen_leftovers()
+    note(f"VORBEDINGUNG Container nc-spike-tags* vorhanden: {'ja' if container else 'nein'}")
+    note(f"VORBEDINGUNG Volume nc-spike-tags* vorhanden: {'ja' if volume else 'nein'}")
+    if container or volume:
+        raise RunFailed("a throwaway container or volume is still there; take it down first")
+    stats = docker(
+        "stats", "--no-stream", "--format", "{{.Name}}  mem {{.MemUsage}}  cpu {{.CPUPerc}}"
+    ).strip()
+    note(stats)
+    note("laufende Container (Mitläufer auf dem Host):")
+    note(docker("ps", "--format", "{{.Names}}  {{.Image}}  {{.Status}}", check=False).strip())
+    used = used_memory_gib(stats.splitlines())
+    total = int(docker("info", "--format", "{{.MemTotal}}").strip()) / 1024**3
+    free = total - used
+    note(
+        f"RAM belegt={used:.2f} GiB gesamt={total:.2f} GiB frei={free:.2f} GiB "
+        f"(Mindestwert {GEGEN_MIN_FREE_GIB} GiB)"
+    )
+    if free < GEGEN_MIN_FREE_GIB:
+        raise RunFailed(f"RAM-Deckel: only {free:.2f} GiB free, {GEGEN_MIN_FREE_GIB} needed")
+
+
+def align_memcache(container: str) -> None:
+    """memcache.local as on nc35 (not set): the official image sets APCu in a config file."""
+    output = occ(container, "config:system:delete", "memcache.local", check=False)
+    note(f"occ config:system:delete memcache.local -> {output[:120]}")
+    value = occ(container, "config:system:get", "memcache.local", check=False)
+    if value:
+        docker(
+            "exec", "-u", "www-data", container, "rm", "-f", "/var/www/html/config/apcu.config.php"
+        )
+        note(f"memcache.local war {value} aus config/apcu.config.php, Datei entfernt")
+    note(f"docker restart {container} -> {docker('restart', container).strip()}")
+    wait_for_install(container)
+    value = occ(container, "config:system:get", "memcache.local", check=False)
+    if value:
+        note(f"memcache.local nicht angleichbar: {value}")
+    else:
+        note("memcache.local: (leer, nicht gesetzt)")
+
+
+async def gegenmessung(db: str) -> None:
+    """Plan 25-05: the latency blocks on a throwaway 35.0.0 with PostgreSQL or SQLite.
+
+    From an empty machine to a removed volume, like the matrix; nc35 is never touched, only
+    its start time and restart count are read before and after, to prove exactly that.
+    """
+    setup = gegen_setup(db)
+    label = "PostgreSQL 35.0.0" if db == "pg" else "SQLite-Kontrolle 35.0.0"
+    section(f"gegenmessung db={db} start {now_stamp()}")
+    gegen_preconditions()
+    inspect_format = "{{.State.StartedAt}} {{.RestartCount}}"
+    nc35_before = docker("inspect", "--format", inspect_format, NC_CONTAINER).strip().split(" ")
+    note(f"nc35-nc vorher startedat={nc35_before[0]} restartcount={nc35_before[-1]}")
+    admin_password = secrets.token_urlsafe(24)
+    alice_password = secrets.token_urlsafe(24)
+    remember_secret("SPIKE_ADMIN_PASSWORD", admin_password)
+    remember_secret("SPIKE_ALICE_PASSWORD", alice_password)
+    compose_env = {"NC_SPIKE_TAG": GEGEN_NC_TAG, "NC_SPIKE_ADMIN_PASSWORD": admin_password}
+    if db == "pg":
+        db_password = secrets.token_urlsafe(24)
+        remember_secret("SPIKE_DB_PASSWORD", db_password)
+        compose_env["NC_SPIKE_DB_PASSWORD"] = db_password
+    container = setup.container
+    section("aufbau")
+    try:
+        started = time.perf_counter()
+        output = compose(["up", "-d", "--wait"], compose_env, file=setup.compose_file)
+        elapsed = time.perf_counter() - started
+        note(f"docker compose -f {setup.compose_file} up -d --wait: {elapsed:.1f} s")
+        note(" / ".join(line.strip() for line in output.splitlines()[-4:] if line.strip()))
+        wait_for_install(container)
+        switched = occ(
+            container,
+            "config:system:set",
+            "auth.bruteforce.protection.enabled",
+            "--value=false",
+            "--type=boolean",
+        )
+        note(f"bruteforce protection aus (Wegwerf-Instanz) -> {switched[:120]}")
+        status = occ(container, "status")
+        note(status)
+        found = _VERSION.search(status)
+        version = found[1] if found else "(nicht lesbar)"
+        note(f"VERSION OF RECORD {version}")
+        if version != "35.0.0":
+            raise RunFailed(f"version of record is {version}, not 35.0.0")
+        dbtype = occ(container, "config:system:get", "dbtype", check=False)
+        note(f"dbtype: {dbtype}")
+        wanted = "pgsql" if db == "pg" else "sqlite3"
+        if dbtype != wanted:
+            raise RunFailed(f"dbtype is {dbtype!r}, not {wanted}")
+        if setup.db_container:
+            psql = ["exec", setup.db_container, "psql", "-U", "nextcloud", "-d", "nextcloud"]
+            note(f"select version(): {docker(*psql, '-tAc', 'select version()').strip()}")
+            note(f"show shared_buffers: {docker(*psql, '-tAc', 'show shared_buffers').strip()}")
+            digest = docker(
+                "image", "inspect", "--format", "{{index .RepoDigests 0}}", "postgres:17-alpine"
+            ).strip()
+            note(f"postgres-Image: {digest}")
+        align_memcache(container)
+        docker_stats()
+        occ_pw(container, alice_password, "user:add", "--password-from-env", "alice")
+        note("occ user:add --password-from-env alice (password via stdin)")
+        async with new_client() as client:
+            try:
+                token = new_app_password(container, "alice", alice_password, "SPIKE_ALICE_APP")
+            except RunFailed as failure:
+                note(f"BEFUND occ user:auth-tokens:add scheitert: {str(failure)[:160]}")
+                token = await ocs_app_password(client, "alice", alice_password)
+            alice = Credentials(
+                base_url=SPIKE_BASE_URL, user="alice", secret=token, mode=MODE_BASIC
+            )
+            home = await dav_request(
+                client,
+                alice,
+                "PROPFIND",
+                home_url(alice, "/"),
+                depth="0",
+                body=propfind_body([f"{{{xml.OC}}}fileid"]),
+            )
+            note(f"PROPFIND Depth 0 Home als alice (Dateisystem angelegt) -> HTTP {home.status}")
+            lat = Latency(env={}, alice=alice, container=container, db_container=setup.db_container)
+            spike = Run(
+                env={},
+                client=client,
+                alice=alice,
+                bob=alice,
+                note_ids=[],
+                share_ids=[],
+                tag_ids=[],
+                container=container,
+            )
+            for name, work in (
+                ("datenaufbau", block_build),
+                ("stufen", block_stages),
+                ("referenzen", block_references),
+                ("kalt", block_cold),
+                ("vorfahren", block_vorfahren),
+            ):
+                section(name)
+                await guarded(name, work(lat))
+            section("varianten")
+            await guarded("varianten", block_varianten(spike, with_propfind=True))
+            section("ballast")
+            await guarded("ballast", gegen_ballast(lat))
+            section("schwelle")
+            gegen_threshold(lat, label)
+    finally:
+        section("abbau")
+        output = compose(["down", "-v"], compose_env, file=setup.compose_file, check=False)
+        note(" / ".join(line.strip() for line in output.splitlines()[-4:] if line.strip()))
+        left_container, left_volume = gegen_leftovers()
+        note(f"ABBAU Container vorhanden: {'ja' if left_container else 'nein'}")
+        note(f"ABBAU Volume vorhanden: {'ja' if left_volume else 'nein'}")
+        nc35_after = docker("inspect", "--format", inspect_format, NC_CONTAINER).strip().split(" ")
+        started_same = nc35_after[0] == nc35_before[0]
+        restart_same = nc35_after[-1] == nc35_before[-1]
+        note(
+            f"NC35 UNBERUEHRT startedat={'gleich' if started_same else 'anders'} "
+            f"restartcount={'gleich' if restart_same else 'anders'} "
+            f"gleich={'ja' if started_same and restart_same else 'nein'}"
+        )
+        note(f"ENDE {now_stamp()}")
+
+
 def secret_scan(env_file: Path) -> int:
     """Scan every protocol of the phase folder for the secret values of ``env_file``."""
     env = read_env_file(env_file)
@@ -2966,6 +3202,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="matrix: accept another patch tag (local fallback when a pull fails)",
     )
+    parser.add_argument(
+        "--db",
+        choices=GEGEN_DBS,
+        default="pg",
+        help="gegenmessung: PostgreSQL pair (pg) or the SQLite control instance (sqlite)",
+    )
     options = parser.parse_args(argv)
     nc_tag = ""
     if options.block == "matrix":
@@ -3001,6 +3243,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             teardown(env["NC_MCP_TEST_USER"])
         elif options.block == "matrix":
             asyncio.run(matrix(nc_tag, other=nc_tag not in MATRIX_TAGS))
+        elif options.block == "gegenmessung":
+            asyncio.run(gegenmessung(options.db))
         else:
             asyncio.run(findings(env))
     except (RunFailed, ToolError, httpx.HTTPError) as failure:
