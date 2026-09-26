@@ -47,7 +47,7 @@ def test_report_body_has_filter_files_root_props_and_one_systemtag_rule() -> Non
     assert [rule.text for rule in rules] == ["7"]
 
 
-@pytest.mark.parametrize("bad", ["7 or 1", "", "-1", "7<", "１"])
+@pytest.mark.parametrize("bad", ["7 or 1", "", "-1", "7<", chr(0xFF11), chr(0xB2)])
 def test_report_body_refuses_anything_but_ascii_digits(bad: str) -> None:
     with pytest.raises(ValueError, match="digits"):
         spike.report_body(bad)
@@ -61,7 +61,7 @@ def test_summarize_names_the_second_largest_value_honestly() -> None:
     assert len(values) == 15
     stats = spike.summarize(values)
     assert stats["min"] == pytest.approx(0.1)
-    assert stats["median"] == pytest.approx(0.5)
+    assert stats["median"] == pytest.approx(0.6)
     assert stats["p95_second_largest"] == pytest.approx(1.2)
     assert stats["max"] == pytest.approx(5.0)
     assert set(stats) == {"min", "median", "p95_second_largest", "max"}

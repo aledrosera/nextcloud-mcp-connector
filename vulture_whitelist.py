@@ -300,3 +300,34 @@ _._decode_payload
 # one outgoing key set request a run pays, and limit_sentence is what a green run does not
 # mean. All three left the list with the plan that reads them, exactly as the entry announced
 # it would. A whitelist entry that is no longer needed is a switched off check.
+
+# --- The measuring script of phase 25 (scripts/tag_spike.py) ----------------------------
+# The helpers below are built and unit tested in task 1 of plan 25-01 (tests/unit/
+# test_tag_spike.py loads the script from its path, which vulture does not follow). Each name
+# leaves this list with the block that calls it: the findings block of plan 25-01 task 2, the
+# latency blocks of plan 25-02 (THRESHOLD_SECONDS, WARMUP, RUNS_*, summarize) and the version
+# matrix of plan 25-03 (SPIKE_*, wait_for_install).
+SPIKE_CONTAINER
+SPIKE_BASE_URL
+SPIKE_COMPOSE
+TAG_PREFIX
+SPIKE_DIR
+THRESHOLD_SECONDS
+WARMUP
+RUNS_WARM
+RUNS_COLD
+PHP_SET_TAG_OBJECTS
+PHP_INSERT_VARIANT
+occ_pw
+wait_for_install
+compare_baseline
+report_body
+propfind_body
+home_url
+home_of
+home_path_of
+read_report
+describe_error
+summarize
+basic_creds
+dav_request
