@@ -13,8 +13,11 @@ Run it against the Nextcloud 35 topology of ``compose.nc35.yml``::
     uv run --no-sync python scripts/tag_spike.py --env-file .env.nc35 --block <name> --out <file>
 
 The blocks are ``controls`` (topology, baseline inventory, the impersonation controls),
-``findings`` (the single findings on nc35, each rolled back in a ``finally``) and
-``secret-scan`` (the gate over every protocol of the phase folder before a commit).
+``findings`` (the single findings on nc35, each rolled back in a ``finally``), ``latency``
+(what the REPORT costs at 1, 100 and 5000 tagged nodes, with references, cold runs and a
+ballast of fill tags; ``--keep-data`` leaves the data for the prepare_context measurement),
+``teardown`` (takes the latency data back, idempotent) and ``secret-scan`` (the gate over
+every protocol of the phase folder before a commit).
 
 **No secret reaches a protocol.** The values of the environment file, every password and
 token generated during a run and the ``AUTHORIZATION-APP-API`` header name are scanned for
@@ -109,7 +112,7 @@ SABRE = "http://sabredav.org/ns"
 DAV_FILES = "/remote.php/dav/files/"
 TIMEOUT = httpx.Timeout(60.0)
 
-BLOCKS = ("controls", "findings", "latency", "secret-scan")
+BLOCKS = ("controls", "findings", "latency", "teardown", "secret-scan")
 
 # --- PHP one shot snippets ------------------------------------------------------------------
 # Handed to ``php --`` through stdin, arguments behind the ``--``; nothing of them lands in
@@ -1953,6 +1956,62 @@ async def latency(env: Mapping[str, str], *, keep_data: bool) -> None:
     finally:
         if keep_data:
             note(f"RUECKBAU ausgesetzt (--keep-data): /{SPIKE_DIR} und die Spike-Tags stehen")
+        else:
+            teardown(user)
+
+
+def is_spike_tag(name: str) -> bool:
+    """Whether a tag belongs to this phase: ``kein-ki-spike25*`` or ``spike25-fill-*``."""
+    return name.lower().startswith(TAG_PREFIX) or name.startswith(FILL_PREFIX)
+
+
+def load_baseline() -> dict[str, str] | None:
+    """The start inventory the latency run left behind, or ``None`` when there is none."""
+    if not BASELINE_FILE.is_file():
+        return None
+    data = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+    return {str(key): str(value) for key, value in data.items()} if isinstance(data, dict) else None
+
+
+def teardown(user: str) -> None:
+    """Take back every trace of the latency run; idempotent, also as a block of its own.
+
+    Tags first (``tag:delete`` drops their mappings), then the files without the trash, then
+    ``files:cleanup``; the last lines compare against the stored baseline, which is deleted
+    afterwards (the protocol keeps its counters).
+    """
+    section("teardown")
+    spike_tags = [
+        (tag_id, name) for tag_id, name, _ in list_tags(NC_CONTAINER) if is_spike_tag(name)
+    ]
+    for tag_id, name in sorted(spike_tags, key=lambda item: _as_int(item[0])):
+        output = occ(NC_CONTAINER, "tag:delete", tag_id, check=False)
+        note(f"occ tag:delete {tag_id} ({name}) -> {output[:120]}")
+    note(f"Spike-Tags gelöscht: {len(spike_tags)}")
+    output = occ(
+        NC_CONTAINER,
+        "files:delete",
+        "--force",
+        "--skip-trash",
+        f"{user}/files/{SPIKE_DIR}",
+        check=False,
+    )
+    note(f"occ files:delete --force --skip-trash {user}/files/{SPIKE_DIR} -> {output[:160]}")
+    note(f"occ files:cleanup -> {occ(NC_CONTAINER, 'files:cleanup', check=False)[:160]}")
+    left = [name for _, name, _ in list_tags(NC_CONTAINER) if is_spike_tag(name)]
+    note(f"RUECKBAU /{SPIKE_DIR} vorhanden: {'ja' if spike_dir_exists(user) else 'nein'}")
+    note(f"RUECKBAU Spike-Tags vorhanden: {left or 'keine'}")
+    after = baseline(NC_CONTAINER, user)
+    before = load_baseline()
+    if before is None:
+        note(f"BASELINE-DATEI {BASELINE_FILE.name} fehlt, kein Vergleich möglich")
+        for field, value in after.items():
+            note(f"BASELINE-ENDE {field}={value}")
+        return
+    for line in compare_baseline(before, after):
+        note(line)
+    BASELINE_FILE.unlink()
+    note(f"BASELINE-DATEI {BASELINE_FILE.name} nach dem Vergleich gelöscht")
 
 
 def secret_scan(env_file: Path) -> int:
@@ -2006,6 +2065,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             asyncio.run(controls(env))
         elif options.block == "latency":
             asyncio.run(latency(env, keep_data=options.keep_data))
+        elif options.block == "teardown":
+            teardown(env["NC_MCP_TEST_USER"])
         else:
             asyncio.run(findings(env))
     except (RunFailed, ToolError, httpx.HTTPError) as failure:

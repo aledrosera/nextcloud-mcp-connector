@@ -243,6 +243,21 @@ def test_format_series_shows_a_status_change_inside_the_series() -> None:
     assert "bytes=10..20" in line
 
 
+@pytest.mark.parametrize(
+    ("name", "ours"),
+    [
+        ("kein-ki-spike25-lat", True),
+        ("Kein-Ki-Spike25-Var", True),
+        ("spike25-fill-07", True),
+        ("kein-ki", False),
+        ("Projekt spike25-fill", False),
+        ("fill-spike25", False),
+    ],
+)
+def test_is_spike_tag_covers_both_prefixes_and_nothing_else(name: str, ours: bool) -> None:
+    assert spike.is_spike_tag(name) is ours
+
+
 def test_prepare_context_medians_reads_short_and_full() -> None:
     text = (
         "  wall clock detail='short': min 0.60 s, median 0.72 s, max 3.40 s (3 runs)\n"
