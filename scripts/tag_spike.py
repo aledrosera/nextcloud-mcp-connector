@@ -1902,12 +1902,37 @@ async def block_ballast(lat: Latency) -> None:
     )
 
 
+async def block_threshold(lat: Latency) -> None:
+    """D-25-04 as a number: the warm median at 5000 against 1 s, and against prepare_context."""
+    median = lat.medians.get("stufe5000")
+    if median is None:
+        note("SCHWELLE D-25-04 nicht prüfbar: Stufe 5000 wurde nicht gemessen")
+        return
+    for line in threshold_line(median):
+        note(line)
+    with_ballast = lat.medians.get("stufe5000_ballast")
+    if with_ballast is not None:
+        for line in threshold_line(with_ballast, "mit Ballast"):
+            note(line)
+    if PREPARE_CONTEXT_BASELINE.is_file():
+        medians = prepare_context_medians(PREPARE_CONTEXT_BASELINE.read_text(encoding="utf-8"))
+        parts = [f"{detail} {value:.2f} s" for detail, value in medians.items()]
+        note(
+            f"VERGLEICH prepare_context-Baseline (Plan 25-01, ohne Spike-Daten): median "
+            f"{', '.join(parts) or '(nicht lesbar)'}; REPORT median_warm_5000={median:.3f} s "
+            "(der REPORT startet laut ARCHITECTURE parallel zu den Beinen)"
+        )
+    else:
+        note(f"VERGLEICH prepare_context: {PREPARE_CONTEXT_BASELINE.name} fehlt")
+
+
 _LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = (
     ("datenaufbau", block_build),
     ("stufen", block_stages),
     ("referenzen", block_references),
     ("kalt", block_cold),
     ("ballast", block_ballast),
+    ("schwelle", block_threshold),
 )
 
 
