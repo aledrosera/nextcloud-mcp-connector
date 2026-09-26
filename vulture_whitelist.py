@@ -319,5 +319,4 @@ PHP_INSERT_VARIANT
 occ_pw
 wait_for_install
 summarize
-put_file
 tag_add

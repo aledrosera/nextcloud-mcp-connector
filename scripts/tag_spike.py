@@ -927,8 +927,108 @@ async def _list_folder(run: Run, creds: Credentials, folder: str) -> list[tuple[
     return children
 
 
+#: The REPORT from inside the ExApp container, the exact production way (http://caddy).
+#: Fed to ``/app/.venv/bin/python -`` through stdin with the user and the tag id as
+#: arguments. It reads APP_SECRET from its own environment and prints nothing but the
+#: status, the number of hits and the sorted fileids (T-25-03).
+EXAPP_REPORT_PROGRAM = r"""
+import base64, os, sys
+import httpx
+from lxml import etree
+
+user, tag = sys.argv[1], sys.argv[2]
+DAV, OC = "DAV:", "http://owncloud.org/ns"
+root = etree.Element("{%s}filter-files" % OC, nsmap={"d": DAV, "oc": OC})
+prop = etree.SubElement(root, "{%s}prop" % DAV)
+etree.SubElement(prop, "{%s}fileid" % OC)
+rules = etree.SubElement(root, "{%s}filter-rules" % OC)
+etree.SubElement(rules, "{%s}systemtag" % OC).text = tag
+body = etree.tostring(root, xml_declaration=True, encoding="utf-8")
+token = base64.b64encode(("%s:%s" % (user, os.environ["APP_SECRET"])).encode()).decode()
+headers = {
+    "AA-VERSION": os.environ.get("AA_VERSION", ""),
+    "EX-APP-ID": os.environ.get("APP_ID", ""),
+    "EX-APP-VERSION": os.environ.get("APP_VERSION", ""),
+    "AUTHORIZATION-APP-API": token,
+    "Content-Type": "application/xml",
+}
+base = os.environ.get("NEXTCLOUD_URL", "http://caddy").rstrip("/")
+response = httpx.request(
+    "REPORT", base + "/remote.php/dav/files/" + user + "/", headers=headers, content=body,
+    timeout=60.0,
+)
+ids = []
+if response.status_code == 207:
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)
+    tree = etree.fromstring(response.content, parser=parser)
+    ids = sorted((el.text or "") for el in tree.iter("{%s}fileid" % OC))
+print(response.status_code, len(ids), ",".join(sorted(ids, key=lambda v: int(v or 0))))
+"""
+
+
+async def block_impersonation(run: Run) -> None:
+    """Success criterion 2: the same REPORT under an app password and under AppAPI."""
+    block = "impersonation"
+    alice = run.alice
+    base = f"/{SPIKE_DIR}/imp"
+    first = await put_file(run, alice, f"{base}/a.txt")
+    second = await put_file(run, alice, f"{base}/b.txt")
+    await put_file(run, alice, f"{base}/dir/c.txt")
+    folder = await fileid_of(run, alice, f"{base}/dir")
+    name = f"{TAG_PREFIX}-imp"
+    tag_id = ""
+    for fileid in (first, second, folder):
+        tag_id = tag_files_add(run, fileid, name, "public")
+    note(f"getaggt: a.txt={first} b.txt={second} dir={folder} (dir enthaelt c.txt)")
+
+    since = now_stamp()
+    await asyncio.sleep(1)
+    basic = await log_report(run, block, "App-Passwort", alice, tag_id)
+    appapi = await log_report(run, block, "AppAPI", appapi_creds(run.env, alice.user), tag_id)
+    ids_basic = report_fileids(basic)
+    ids_appapi = report_fileids(appapi)
+    same = ids_basic == ids_appapi and basic.status == appapi.status == 207
+    note(
+        f"IMPERSONATION fileids_basic={len(ids_basic)} fileids_appapi={len(ids_appapi)} "
+        f"gleich={'ja' if same else 'nein'} | basic={ids_basic} appapi={ids_appapi}"
+    )
+    if not same:
+        note(f"BEFUND Rohantwort basic: {basic.body.decode(errors='replace')[:2000]}")
+        note(f"BEFUND Rohantwort appapi: {appapi.body.decode(errors='replace')[:2000]}")
+
+    lines = impersonation_lines(NC_CONTAINER, since)
+    note(
+        f"KONTROLLE c: exapp_impersonation.log, REPORT-Zeilen von alice seit {since}: {len(lines)}"
+    )
+    for line in lines[-2:]:
+        note(f"  {line[:300]}")
+
+    output = docker(
+        "exec",
+        "-i",
+        EXAPP_CONTAINER,
+        "/app/.venv/bin/python",
+        "-",
+        alice.user,
+        tag_id,
+        stdin=EXAPP_REPORT_PROGRAM,
+        check=False,
+    ).strip()
+    last = output.splitlines()[-1] if output else ""
+    parts = last.split(" ")
+    status = parts[0] if parts else "?"
+    count = parts[1] if len(parts) > 1 else "?"
+    ids = [value for value in (parts[2] if len(parts) > 2 else "").split(",") if value]
+    row(block, "REPORT aus dem ExApp-Container gegen http://caddy (AppAPI)", status, last)
+    note(
+        f"IMPERSONATION produktionsweg fileids={count} "
+        f"gleich_basic={'ja' if ids == ids_basic and status == '207' else 'nein'}"
+    )
+
+
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "notes": block_notes,
+    "impersonation": block_impersonation,
 }
 
 
