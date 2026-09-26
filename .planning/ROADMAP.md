@@ -132,7 +132,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 25-02-PLAN.md , Kostenmessung REPORT bei 1/100/5000 plus 10k-Ordner und Ballast, Schwelle D-25-04, prepare_context mit Daten, Rückbau
+- [x] 25-02-PLAN.md , Kostenmessung REPORT bei 1/100/5000 plus 10k-Ordner und Ballast, Schwelle D-25-04, prepare_context mit Daten, Rückbau
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -241,7 +241,7 @@ Plans:
 | 22. Konfiguration, Kette und Drosselung | v1.6 | 3/3 | Complete   | 2026-09-19 |
 | 23. Konto-Mapping und Credential-Wege | v1.6 | 6/6 | Complete | 2026-09-23 |
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
-| 25. Mess-Spike Tag-Abfrage | v1.7 | 1/4 | In Progress|  |
+| 25. Mess-Spike Tag-Abfrage | v1.7 | 2/4 | In Progress|  |
 | 26. Guard-Kern | v1.7 | 0/TBD | Not started | - |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 0/TBD | Not started | - |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
