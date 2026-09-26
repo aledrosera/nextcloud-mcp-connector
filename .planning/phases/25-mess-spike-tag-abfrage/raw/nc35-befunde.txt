@@ -1,0 +1,222 @@
+# Rohprotokoll der nc35-Einzelbefunde, Phase 25, Plan 25-01 (intern, D-25-06)
+# Inhalt: Vorlauf --block controls, danach --block findings, vom Skript an dieselbe Datei angehängt
+# (je Lauf eine Kopfzeile "# Lauf block=... start=..."). Erzeugt mit scripts/tag_spike.py gegen nc35 (http://127.0.0.1:8082).
+# Keine Secrets: das Skript schreibt erst nach bestandenem scan_for_secrets.
+
+# Lauf block=controls start=2026-09-26T17:28:26Z (neue Datei)
+
+== topology, 2026-09-26T17:28:26Z ==
+nc_app_mcp_connector  127.0.0.1:5000/mcp_connector:0.2.1  Up 31 hours (healthy)
+nc35-caddy  caddy:2  Up 31 hours
+nc35-harp  ghcr.io/nextcloud/nextcloud-appapi-harp:release  Up 31 hours (healthy)
+nc35-nc  nextcloud:35.0.0-apache-local  Up 31 hours (healthy)
+- installed: true
+  - version: 35.0.0.10
+  - versionstring: 35.0.0
+  - edition: 
+  - maintenance: false
+  - needsDbUpgrade: false
+  - productname: Nextcloud
+  - extendedSupport: false
+dbtype: sqlite3
+nc_app_mcp_connector  mem 103.8MiB / 7.603GiB  cpu 0.16%
+nc35-test-issuer  mem 10.93MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 110.8MiB / 7.603GiB  cpu 0.09%
+nc35-caddy  mem 14.88MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 70.98MiB / 7.603GiB  cpu 0.64%
+nc35-nc  mem 252.3MiB / 7.603GiB  cpu 6.47%
+nc_app_mcp_connector_park34  mem 84.75MiB / 7.603GiB  cpu 3.42%
+n8n-mcp-test-loopback  mem 1.969MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 341.1MiB / 7.603GiB  cpu 0.21%
+nc-mcp-exapp-greenmail  mem 113.2MiB / 7.603GiB  cpu 0.08%
+nc-mcp-exapp-nc  mem 181.7MiB / 7.603GiB  cpu 6.76%
+nc-mcp-exapp-caddy  mem 10.83MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 72.63MiB / 7.603GiB  cpu 0.02%
+nc-mcp-exapp-registry  mem 5.609MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 216.7MiB / 7.603GiB  cpu 0.00%
+
+== baseline ==
+BASELINE-START tags=[]
+BASELINE-START dateien=275
+BASELINE-START papierkorb=0
+BASELINE-START mappings=0
+
+== controls ==
+2026-09-26T17:28:30Z | controls | a: GET /ocs/v2.php/cloud/user (AppAPI) | HTTP 200 | id=alice erwartet=alice gleich=ja
+2026-09-26T17:28:30Z | controls | b: GET /ocs/v2.php/cloud/user (AppAPI, wrong APP_SECRET) | HTTP 401 | abgelehnt=ja
+
+# Lauf block=findings start=2026-09-26T17:29:47Z (angehängt an bestehende Datei)
+
+== topology, 2026-09-26T17:29:47Z ==
+nc_app_mcp_connector  127.0.0.1:5000/mcp_connector:0.2.1  Up 31 hours (healthy)
+nc35-caddy  caddy:2  Up 31 hours
+nc35-harp  ghcr.io/nextcloud/nextcloud-appapi-harp:release  Up 31 hours (healthy)
+nc35-nc  nextcloud:35.0.0-apache-local  Up 31 hours (healthy)
+- installed: true
+  - version: 35.0.0.10
+  - versionstring: 35.0.0
+  - edition: 
+  - maintenance: false
+  - needsDbUpgrade: false
+  - productname: Nextcloud
+  - extendedSupport: false
+dbtype: sqlite3
+nc_app_mcp_connector  mem 103.8MiB / 7.603GiB  cpu 0.15%
+nc35-test-issuer  mem 10.94MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 112.3MiB / 7.603GiB  cpu 0.09%
+nc35-caddy  mem 16.02MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 70.98MiB / 7.603GiB  cpu 0.75%
+nc35-nc  mem 301.7MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 84.76MiB / 7.603GiB  cpu 3.34%
+n8n-mcp-test-loopback  mem 1.969MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 342MiB / 7.603GiB  cpu 0.19%
+nc-mcp-exapp-greenmail  mem 113.2MiB / 7.603GiB  cpu 0.10%
+nc-mcp-exapp-nc  mem 181.6MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 10.86MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 72.63MiB / 7.603GiB  cpu 0.01%
+nc-mcp-exapp-registry  mem 5.605MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 216.8MiB / 7.603GiB  cpu 0.01%
+BASELINE-START tags=[]
+BASELINE-START dateien=275
+BASELINE-START papierkorb=0
+BASELINE-START mappings=0
+
+== notes ==
+2026-09-26T17:29:51Z | notes | GET notes/api/v1/settings | HTTP 200 | notesPath=Notes
+2026-09-26T17:29:52Z | notes | POST notes/api/v1/notes title='spike25 Notiz' category=spike25 | HTTP 2xx | id=933 title=spike25 Notiz category=spike25
+2026-09-26T17:29:52Z | notes | PROPFIND Depth 1 /Notes/spike25/ | HTTP 207 | eintraege=[('spike25 Notiz.md', '933', False)]
+NOTES id=933 fileid=933 datei=spike25 Notiz.md gleich=ja
+2026-09-26T17:29:52Z | notes | GET notes/api/v1/notes/933 | HTTP 2xx | id=933 title=spike25 Notiz dieselbe_notiz=ja
+2026-09-26T17:29:52Z | notes | POST notes/api/v1/notes (same title again) | HTTP 2xx | id=934 title=spike25 Notiz (2) neue_dateien=[('spike25 Notiz (2).md', '934')]
+NOTES id=934 fileid=934 datei=spike25 Notiz (2).md gleich=ja
+occ tag:files:add 932 kein-ki-spike25-notes public -> public tag named kein-ki-spike25-notes created.
+public tag named kein-ki-spike25-notes added.
+2026-09-26T17:29:53Z | notes | REPORT systemtag=59 als alice (basic) auf / [Notes-Kategorieordner getaggt] | HTTP 207 | 81 ms | treffer=1 fileids=['932'] pfade=['/Notes/spike25']
+NOTES REPORT ordner_fileid=932 im_treffer=ja notiz_ids_im_treffer=[]
+NOTIZ-ID GLEICH FILEID: ja
+
+== impersonation ==
+occ tag:files:add 937 kein-ki-spike25-imp public -> public tag named kein-ki-spike25-imp created.
+public tag named kein-ki-spike25-imp added.
+occ tag:files:add 938 kein-ki-spike25-imp public -> public tag named kein-ki-spike25-imp added.
+occ tag:files:add 939 kein-ki-spike25-imp public -> public tag named kein-ki-spike25-imp added.
+getaggt: a.txt=937 b.txt=938 dir=939 (dir enthaelt c.txt)
+2026-09-26T17:29:59Z | impersonation | REPORT systemtag=60 als alice (basic) auf / [App-Passwort] | HTTP 207 | 65 ms | treffer=3 fileids=['937', '938', '939'] pfade=['/spike25/imp/a.txt', '/spike25/imp/b.txt', '/spike25/imp/dir']
+2026-09-26T17:29:59Z | impersonation | REPORT systemtag=60 als alice (appapi) auf / [AppAPI] | HTTP 207 | 47 ms | treffer=3 fileids=['937', '938', '939'] pfade=['/spike25/imp/a.txt', '/spike25/imp/b.txt', '/spike25/imp/dir']
+IMPERSONATION fileids_basic=3 fileids_appapi=3 gleich=ja | basic=['937', '938', '939'] appapi=['937', '938', '939']
+KONTROLLE c: exapp_impersonation.log, REPORT-Zeilen von alice seit 2026-09-26T17:29:58Z: 1
+  {"reqId":"cdwrcE5sH06N7YHu0Rix","level":2,"time":"2026-09-26T17:29:59+00:00","remoteAddr":"172.30.42.128","user":"alice","app":"mcp_connector","method":"REPORT","url":"/remote.php/dav/files/alice/","scriptName":"/remote.php","message":"impersonation request","userAgent":"python-httpx/0.28.1","versio
+2026-09-26T17:30:00Z | impersonation | REPORT aus dem ExApp-Container gegen http://caddy (AppAPI) | HTTP 207 | 207 3 937,938,939
+IMPERSONATION produktionsweg fileids=3 gleich_basic=ja
+
+== 412 ==
+2026-09-26T17:30:00Z | 412 | REPORT systemtag=999999 als alice (basic) auf / [unbekannte Id] | HTTP 412 | 102 ms | fehler=Cannot filter by non-existing tag
+occ tag:add kein-ki-spike25-412 public -> id 61
+occ tag:files:add 942 kein-ki-spike25-412 public -> public tag named kein-ki-spike25-412 added.
+2026-09-26T17:30:02Z | 412 | REPORT systemtag=61 als alice (basic) auf / [Id A=61 vor dem Loeschen] | HTTP 207 | 113 ms | treffer=1 fileids=['942'] pfade=['/spike25/t412/x.txt']
+occ tag:delete 61 -> The specified tag was deleted
+occ tag:add kein-ki-spike25-412 public -> id 62
+occ tag:files:add 942 kein-ki-spike25-412 public -> public tag named kein-ki-spike25-412 added.
+2026-09-26T17:30:04Z | 412 | REPORT systemtag=61 als alice (basic) auf / [Id A=61 nach Loeschen und Neuanlage] | HTTP 412 | 85 ms | fehler=Cannot filter by non-existing tag
+2026-09-26T17:30:04Z | 412 | REPORT systemtag=62 als alice (basic) auf / [Id B=62 (gleicher Name, neu)] | HTTP 207 | 75 ms | treffer=1 fileids=['942'] pfade=['/spike25/t412/x.txt']
+2026-09-26T17:30:04Z | 412 | PROPFIND Depth 1 /remote.php/dav/systemtags/ als alice | HTTP 207 | 44 ms | A=61 gelistet=nein B=62 gelistet=ja
+
+== unsichtbar ==
+occ tag:add kein-ki-spike25-inv invisible -> id 63
+occ tag:files:add 944 kein-ki-spike25-inv invisible -> invisible tag named kein-ki-spike25-inv added.
+2026-09-26T17:30:06Z | unsichtbar | REPORT systemtag=63 als alice (basic) auf / [unsichtbares Tag, Nicht-Admin] | HTTP 412 | 61 ms | fehler=Cannot filter by non-existing tag
+2026-09-26T17:30:06Z | unsichtbar | PROPFIND Depth 1 /remote.php/dav/systemtags/ als alice | HTTP 207 | 58 ms | Tag 63 in alices Liste=nein
+occ user:add --password-from-env spike25admin (password via stdin)
+occ group:adduser admin spike25admin -> user spike25admin added
+occ user:auth-tokens:add spike25admin --password-from-env --name spike25 (token kept)
+2026-09-26T17:30:11Z | unsichtbar | PROPFIND Depth 0 home of spike25admin | HTTP 207 | home set up
+occ tag:files:add 952 kein-ki-spike25-inv invisible -> invisible tag named kein-ki-spike25-inv added.
+Gegenfall: spike25admin taggt eigene Datei 952 mit demselben unsichtbaren Tag
+2026-09-26T17:30:13Z | unsichtbar | REPORT systemtag=63 als spike25admin (basic) auf / [unsichtbares Tag, Admin (Gegenfall)] | HTTP 207 | 41 ms | treffer=1 fileids=['952'] pfade=['/spike25-admin.txt']
+2026-09-26T17:30:13Z | unsichtbar | PROPFIND Depth 1 /remote.php/dav/systemtags/ als spike25admin | HTTP 207 | 40 ms | Tag 63 in der Admin-Liste=ja
+occ user:delete spike25admin -> The specified user was deleted
+
+== varianten ==
+occ tag:add kein-ki-spike25-var public -> id 64
+DB-Insert systemtag name=kein-ki-spike25-var visibility=1 editable=0 -> Y=65
+DB-Insert systemtag name=kein-ki-spike25-var visibility=0 editable=0 -> Z=66
+DB-Insert systemtag name=Kein-Ki-Spike25-Var visibility=1 editable=1 -> W=67
+setObjectIdsForTag X=64 -> 1 955 (Datei 955, /spike25/var/x)
+setObjectIdsForTag Y=65 -> 1 957 (Datei 957, /spike25/var/y)
+setObjectIdsForTag Z=66 -> 1 959 (Datei 959, /spike25/var/z)
+setObjectIdsForTag W=67 -> 1 961 (Datei 961, /spike25/var/w)
+2026-09-26T17:30:17Z | varianten | REPORT systemtag=64 als alice (basic) auf / [Variante X] | HTTP 207 | 41 ms | treffer=2 fileids=['955', '957'] pfade=['/spike25/var/x/fx.txt', '/spike25/var/y/fy.txt']
+2026-09-26T17:30:17Z | varianten | REPORT systemtag=65 als alice (basic) auf / [Variante Y] | HTTP 207 | 41 ms | treffer=2 fileids=['955', '957'] pfade=['/spike25/var/x/fx.txt', '/spike25/var/y/fy.txt']
+2026-09-26T17:30:17Z | varianten | REPORT systemtag=67 als alice (basic) auf / [Variante W] | HTTP 207 | 41 ms | treffer=1 fileids=['961'] pfade=['/spike25/var/w/fw.txt']
+2026-09-26T17:30:17Z | varianten | REPORT systemtag=66 als alice (basic) auf / [Variante Z] | HTTP 412 | 40 ms | fehler=Cannot filter by non-existing tag
+VARIANTEN dbtype=sqlite3: Groß/Klein-Vergleich gilt für diese Datenbank (SQLite vergleicht binär); MySQL/MariaDB-Kollation nicht gemessen (Annahme A3)
+
+== zielpfad ==
+occ tag:files:add 963 kein-ki-spike25-ziel public -> public tag named kein-ki-spike25-ziel created.
+public tag named kein-ki-spike25-ziel added.
+2026-09-26T17:30:19Z | zielpfad | REPORT systemtag=68 als alice (basic) auf / [Home-Wurzel] | HTTP 207 | 46 ms | treffer=1 fileids=['963'] pfade=['/spike25/p/tagged']
+2026-09-26T17:30:19Z | zielpfad | REPORT systemtag=68 als alice (basic) auf /spike25/p/tagged/sub/ [Unterordner des getaggten Ordners] | HTTP 207 | 42 ms | treffer=1 fileids=['963'] pfade=['/spike25/p/tagged']
+2026-09-26T17:30:19Z | zielpfad | REPORT systemtag=68 als alice (basic) auf /spike25/q/ [fremder ungetaggter Ordner] | HTTP 207 | 40 ms | treffer=1 fileids=['963'] pfade=['/spike25/p/tagged']
+ZIELPFAD filtert=nein (getaggter Ordner fileid=963, Antworten je Zielpfad={'/': (207, ['963']), '/spike25/p/tagged/sub/': (207, ['963']), '/spike25/q/': (207, ['963'])})
+
+== freigabe ==
+occ tag:files:add 968 kein-ki-spike25-share public -> public tag named kein-ki-spike25-share created.
+public tag named kein-ki-spike25-share added.
+2026-09-26T17:30:21Z | freigabe | POST shares path=/spike25/share1/sub shareWith=bob permissions=1 | HTTP 200 | id=9 file_target=/sub
+2026-09-26T17:30:21Z | freigabe | REPORT systemtag=69 als bob (basic) auf / [Fall 1: getaggter Vorfahr beim Eigentümer, Unterordner geteilt] | HTTP 207 | 54 ms | treffer=0 fileids=[] pfade=[]
+2026-09-26T17:30:21Z | freigabe | REPORT systemtag=69 als alice (basic) auf / [Fall 1 Gegenprobe beim Eigentümer] | HTTP 207 | 47 ms | treffer=1 fileids=['968'] pfade=['/spike25/share1']
+occ tag:files:add 971 kein-ki-spike25-share2 public -> public tag named kein-ki-spike25-share2 created.
+public tag named kein-ki-spike25-share2 added.
+2026-09-26T17:30:24Z | freigabe | POST shares path=/spike25/share2 shareWith=bob permissions=1 | HTTP 200 | id=10 file_target=/share2
+2026-09-26T17:30:24Z | freigabe | REPORT systemtag=70 als bob (basic) auf / [Fall 2: geteilter Ordner selbst getaggt] | HTTP 207 | 41 ms | treffer=1 fileids=['971'] pfade=['/share2']
+DELETE share 9 -> HTTP 200
+DELETE share 10 -> HTTP 200
+
+== app-aus-35 ==
+occ tag:files:add 974 kein-ki-spike25-app public -> public tag named kein-ki-spike25-app created.
+public tag named kein-ki-spike25-app added.
+2026-09-26T17:30:25Z | app-aus-35 | [App an] GET /ocs/v1.php/cloud/capabilities | HTTP 200 | systemtags={"enabled": true}
+2026-09-26T17:30:25Z | app-aus-35 | [App an] GET /ocs/v2.php/search/providers | HTTP 200 | systemtags=ja provider=['appstore', 'notes', 'files', 'systemtags', 'circles', 'comments', 'search-deck-card-board', 'search-deck-comment', 'talk-message', 'mail', 'tables-search-tables', 'talk-conversations', 'settings']
+2026-09-26T17:30:25Z | app-aus-35 | [App an] PROPFIND Depth 1 /remote.php/dav/systemtags/ | HTTP 207 | 42 ms | eintraege=10 tag 71 gelistet=ja
+2026-09-26T17:30:25Z | app-aus-35 | REPORT systemtag=71 als alice (basic) auf / [App an] | HTTP 207 | 43 ms | treffer=1 fileids=['974'] pfade=['/spike25/app/h.txt']
+2026-09-26T17:30:25Z | app-aus-35 | [App an] PROPFIND Depth 1 /spike25/app/ mit nc:system-tags | HTTP 207 | 41 ms | datei 974: nc:system-tags=['kein-ki-spike25-app']
+[App an] occ list | tag: -> ['tag:add', 'tag:delete', 'tag:edit', 'tag:files:add', 'tag:files:delete', 'tag:files:delete-all', 'tag:list']
+occ app:disable systemtags -> systemtags 2.0.0-dev.0 disabled
+2026-09-26T17:30:26Z | app-aus-35 | [App aus] GET /ocs/v1.php/cloud/capabilities | HTTP 200 | systemtags=fehlt
+2026-09-26T17:30:26Z | app-aus-35 | [App aus] GET /ocs/v2.php/search/providers | HTTP 200 | systemtags=nein provider=['appstore', 'notes', 'files', 'circles', 'comments', 'search-deck-card-board', 'search-deck-comment', 'talk-message', 'mail', 'tables-search-tables', 'talk-conversations', 'settings']
+2026-09-26T17:30:26Z | app-aus-35 | [App aus] PROPFIND Depth 1 /remote.php/dav/systemtags/ | HTTP 207 | 42 ms | eintraege=10 tag 71 gelistet=ja
+2026-09-26T17:30:26Z | app-aus-35 | REPORT systemtag=71 als alice (basic) auf / [App aus] | HTTP 207 | 41 ms | treffer=1 fileids=['974'] pfade=['/spike25/app/h.txt']
+2026-09-26T17:30:26Z | app-aus-35 | [App aus] PROPFIND Depth 1 /spike25/app/ mit nc:system-tags | HTTP 207 | 42 ms | datei 974: nc:system-tags=['kein-ki-spike25-app']
+[App aus] occ list | tag: -> ['tag:add', 'tag:delete', 'tag:edit', 'tag:list']
+occ app:enable systemtags -> systemtags 2.0.0-dev.0 enabled
+2026-09-26T17:30:29Z | app-aus-35 | [nach Lauf] GET /ocs/v1.php/cloud/capabilities | HTTP 200 | systemtags={"enabled": true}
+CAPABILITY systemtags nach Lauf vorhanden: ja
+
+== rueckbau ==
+occ app:enable systemtags -> systemtags already enabled
+occ tag:delete 59 -> The specified tag was deleted
+occ tag:delete 60 -> The specified tag was deleted
+occ tag:delete 61 -> Tag not found
+occ tag:delete 62 -> The specified tag was deleted
+occ tag:delete 63 -> The specified tag was deleted
+occ tag:delete 64 -> The specified tag was deleted
+occ tag:delete 65 -> The specified tag was deleted
+occ tag:delete 66 -> The specified tag was deleted
+occ tag:delete 67 -> The specified tag was deleted
+occ tag:delete 68 -> The specified tag was deleted
+occ tag:delete 69 -> The specified tag was deleted
+occ tag:delete 70 -> The specified tag was deleted
+occ tag:delete 71 -> The specified tag was deleted
+DELETE note 933 -> HTTP 200
+DELETE note 934 -> HTTP 200
+occ files:delete --force --skip-trash alice/files/spike25 -> 
+DELETE /Notes/spike25 -> HTTP 404
+occ trashbin:cleanup alice -> Remove deleted files of   alice
+occ files:cleanup -> 0 orphaned file cache entries deleted
+0 orphaned file cache extended entries deleted
+0 orphaned mount entries deleted
+RUECKBAU spike25admin vorhanden: nein
+BASELINE tags vorher=[] nachher=[] gleich=ja
+BASELINE dateien vorher=275 nachher=275 gleich=ja
+BASELINE papierkorb vorher=0 nachher=0 gleich=ja
+BASELINE mappings vorher=0 nachher=0 gleich=ja
