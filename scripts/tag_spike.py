@@ -1276,6 +1276,110 @@ async def block_freigabe(run: Run) -> None:
             run.share_ids.remove(share_id)
 
 
+async def capability_systemtags(run: Run) -> tuple[int, str]:
+    """GET /ocs/v1.php/cloud/capabilities as alice: status and the systemtags entry."""
+    response = await run.client.get(
+        f"{run.alice.base_url}/ocs/v1.php/cloud/capabilities",
+        headers=dict(ocs.OCS_HEADERS),
+        auth=run.alice.auth(),
+    )
+    try:
+        capabilities = response.json()["ocs"]["data"]["capabilities"]
+    except (ValueError, KeyError, TypeError):
+        return response.status_code, "(no capabilities)"
+    if not isinstance(capabilities, dict) or "systemtags" not in capabilities:
+        return response.status_code, "fehlt"
+    return response.status_code, json.dumps(capabilities["systemtags"], sort_keys=True)
+
+
+async def measure_app_state(run: Run, state: str, tag_id: str, fileid: str) -> None:
+    """The six observations of pattern 6 for one state of the systemtags app."""
+    block = "app-aus-35"
+    alice = run.alice
+    status, entry = await capability_systemtags(run)
+    row(block, f"[{state}] GET /ocs/v1.php/cloud/capabilities", status, f"systemtags={entry}")
+
+    response = await ocs.ocs_get(run.client, alice, ocs.SEARCH_PROVIDERS_PATH)
+    try:
+        providers = ocs.parse_ocs(response, what="the search providers")
+    except ToolError as failure:
+        providers = []
+        note(f"search providers unreadable: {failure.message}")
+    ids = [str(item.get("id", "")) for item in providers or [] if isinstance(item, dict)]
+    row(
+        block,
+        f"[{state}] GET /ocs/v2.php/search/providers",
+        response.status_code,
+        f"systemtags={'ja' if 'systemtags' in ids else 'nein'} provider={ids}",
+    )
+
+    listing, listed = await systemtag_listing(run, alice)
+    row(
+        block,
+        f"[{state}] PROPFIND Depth 1 /remote.php/dav/systemtags/",
+        listing.status,
+        f"eintraege={len(listed)} tag {tag_id} gelistet={'ja' if tag_id in listed else 'nein'}",
+        listing.seconds,
+    )
+
+    await log_report(run, block, state, alice, tag_id)
+
+    folder = f"/{SPIKE_DIR}/app/"
+    result = await dav_request(
+        run.client,
+        alice,
+        "PROPFIND",
+        home_url(alice, folder),
+        depth="1",
+        body=propfind_body([f"{{{xml.OC}}}fileid", f"{{{xml.NC}}}system-tags"]),
+    )
+    tags_of_file = "?"
+    if result.status == 207:
+        root = xml.parse_root(result.body)
+        for response_el in root.findall(f"{{{xml.DAV}}}response"):
+            fileid_el = response_el.find(f".//{{{xml.OC}}}fileid")
+            if fileid_el is None or (fileid_el.text or "").strip() != fileid:
+                continue
+            tags_el = response_el.find(f".//{{{xml.NC}}}system-tags")
+            if tags_el is None:
+                tags_of_file = "(Eigenschaft fehlt)"
+            else:
+                tags_of_file = str([(child.text or "").strip() for child in tags_el])
+    row(
+        block,
+        f"[{state}] PROPFIND Depth 1 {folder} mit nc:system-tags",
+        result.status,
+        f"datei {fileid}: nc:system-tags={tags_of_file}",
+        result.seconds,
+    )
+
+    commands = [
+        line.strip()
+        for line in occ(NC_CONTAINER, "list", check=False).splitlines()
+        if line.strip().startswith("tag:")
+    ]
+    note(f"[{state}] occ list | tag: -> {[command.split()[0] for command in commands]}")
+
+
+async def block_app_aus(run: Run) -> None:
+    """What switching the systemtags app off changes on 35, and that it comes back on."""
+    block = "app-aus-35"
+    fileid = await put_file(run, run.alice, f"/{SPIKE_DIR}/app/h.txt")
+    tag_id = tag_files_add(run, fileid, f"{TAG_PREFIX}-app", "public")
+    await measure_app_state(run, "App an", tag_id, fileid)
+    try:
+        output = occ(NC_CONTAINER, "app:disable", "systemtags")
+        note(f"occ app:disable systemtags -> {output[:120]}")
+        await measure_app_state(run, "App aus", tag_id, fileid)
+    finally:
+        output = occ(NC_CONTAINER, "app:enable", "systemtags", check=False)
+        note(f"occ app:enable systemtags -> {output[:120]}")
+        status, entry = await capability_systemtags(run)
+        row(block, "[nach Lauf] GET /ocs/v1.php/cloud/capabilities", status, f"systemtags={entry}")
+        present = "ja" if entry not in ("fehlt", "(no capabilities)") else "nein"
+        note(f"CAPABILITY systemtags nach Lauf vorhanden: {present}")
+
+
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "notes": block_notes,
     "impersonation": block_impersonation,
@@ -1284,6 +1388,7 @@ _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "varianten": block_varianten,
     "zielpfad": block_zielpfad,
     "freigabe": block_freigabe,
+    "app-aus-35": block_app_aus,
 }
 
 
