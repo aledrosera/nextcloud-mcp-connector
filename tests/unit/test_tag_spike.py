@@ -258,6 +258,34 @@ def test_is_spike_tag_covers_both_prefixes_and_nothing_else(name: str, ours: boo
     assert spike.is_spike_tag(name) is ours
 
 
+def _lat(medians: dict[str, float]) -> object:
+    creds = spike.Credentials(base_url="http://x", user="alice", secret="s", mode=spike.MODE_BASIC)
+    lat = spike.Latency(env={}, alice=creds)
+    lat.medians.update(medians)
+    return lat
+
+
+def test_ballast_threshold_prefers_the_warm_median() -> None:
+    lines = spike.ballast_threshold(_lat({"stufe5000_ballast": 0.4}))
+    assert lines == [
+        "SCHWELLE D-25-04 (mit Ballast) median_warm_5000=0.400 s schwelle=1.0 s ergebnis=unter"
+    ]
+
+
+def test_ballast_threshold_falls_back_to_the_long_single_run() -> None:
+    lines = spike.ballast_threshold(_lat({"stufe5000_ballast_einzellauf": 71.5}))
+    assert len(lines) == 1
+    assert lines[0].startswith("SCHWELLE D-25-04 (mit Ballast) median_warm_5000=nicht messbar")
+    assert "einzellauf=71.500 s" in lines[0]
+    assert lines[0].endswith("ergebnis=ueber")
+
+
+def test_ballast_threshold_without_any_answer_is_still_ueber() -> None:
+    lines = spike.ballast_threshold(_lat({}))
+    assert "nicht messbar" in lines[0]
+    assert lines[0].endswith("ergebnis=ueber")
+
+
 def test_prepare_context_medians_reads_short_and_full() -> None:
     text = (
         "  wall clock detail='short': min 0.60 s, median 0.72 s, max 3.40 s (3 runs)\n"

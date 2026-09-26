@@ -16,7 +16,8 @@ The blocks are ``controls`` (topology, baseline inventory, the impersonation con
 ``findings`` (the single findings on nc35, each rolled back in a ``finally``), ``latency``
 (what the REPORT costs at 1, 100 and 5000 tagged nodes, with references, cold runs and a
 ballast of fill tags; ``--keep-data`` leaves the data for the prepare_context measurement),
-``teardown`` (takes the latency data back, idempotent) and ``secret-scan`` (the gate over
+``ballast-remeasure`` (only the measurements with ballast, on standing ``--keep-data``
+data), ``teardown`` (takes the latency data back, idempotent) and ``secret-scan`` (the gate over
 every protocol of the phase folder before a commit).
 
 **No secret reaches a protocol.** The values of the environment file, every password and
@@ -92,6 +93,8 @@ FILL_PREFIX = "spike25-fill-"
 FILL_TAGS = 35
 #: The ballast build is cut after this many seconds (10 minutes) and reported as a limit.
 BALLAST_LIMIT_SECONDS = 600
+#: After a series ran into the 60 s client limit: one single run with this limit.
+LONG_TIMEOUT_SECONDS = 300
 
 #: The phase folder the protocols live in (D-25-06: internal, nothing goes to docs/).
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -112,7 +115,7 @@ SABRE = "http://sabredav.org/ns"
 DAV_FILES = "/remote.php/dav/files/"
 TIMEOUT = httpx.Timeout(60.0)
 
-BLOCKS = ("controls", "findings", "latency", "teardown", "secret-scan")
+BLOCKS = ("controls", "findings", "latency", "ballast-remeasure", "teardown", "secret-scan")
 
 # --- PHP one shot snippets ------------------------------------------------------------------
 # Handed to ``php --`` through stdin, arguments behind the ``--``; nothing of them lands in
@@ -1701,8 +1704,44 @@ async def file_count(lat: Latency, folder: str) -> int:
     return max(0, len(read_report(result.body)) - 1)
 
 
+async def long_single_run(
+    lat: Latency,
+    key: str,
+    label: str,
+    method: str,
+    url: str,
+    *,
+    depth: str | None,
+    body: bytes | None,
+) -> None:
+    """One run with LONG_TIMEOUT_SECONDS after a series hit the 60 s limit.
+
+    Not a warm value and never a median: it only says how long the answer really takes,
+    so the owner sees a number instead of "more than 60 s".
+    """
+    timeout = httpx.Timeout(LONG_TIMEOUT_SECONDS)
+    async with httpx.AsyncClient(
+        follow_redirects=False, timeout=timeout, cookies=NoCookieJar()
+    ) as client:
+        try:
+            result = await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+        except httpx.TimeoutException as failure:
+            note(
+                f"{label} EINZELLAUF zeitlimit={LONG_TIMEOUT_SECONDS} s: keine Antwort "
+                f"({type(failure).__name__})"
+            )
+            return
+    hits = len(read_report(result.body)) if result.status == 207 else 0
+    lat.medians[f"{key}_einzellauf"] = result.seconds
+    note(
+        f"{label} EINZELLAUF zeitlimit={LONG_TIMEOUT_SECONDS} s status={result.status} "
+        f"treffer={hits} bytes={result.size} ms={result.seconds * 1000:.0f}"
+    )
+
+
 async def measure_series(
     lat: Latency,
+    key: str,
     label: str,
     method: str,
     url: str,
@@ -1710,19 +1749,42 @@ async def measure_series(
     depth: str | None = None,
     body: bytes | None = None,
     count_hits: bool = True,
-) -> float:
+) -> None:
     """WARMUP discarded runs, then RUNS_WARM measured ones, one client per series.
 
-    Writes one ``format_series`` line and returns the warm median in seconds. A status of
+    Writes one ``format_series`` line and keeps the warm median under ``key``. A status of
     400 or above is never counted as zero hits: its Sabre message goes into the protocol.
+    A run over the 60 s client limit is a measured outcome, not a tool failure: the series
+    stops there (every further run would cost another minute), the protocol names the limit
+    and one long single run says how long the answer really takes.
     """
+    results: list[DavResult] = []
+    warm_done = 0
+    timed_out = False
     async with new_client() as client:
-        for _ in range(WARMUP):
-            await dav_request(client, lat.alice, method, url, depth=depth, body=body)
-        results = [
-            await dav_request(client, lat.alice, method, url, depth=depth, body=body)
-            for _ in range(RUNS_WARM)
-        ]
+        try:
+            for _ in range(WARMUP):
+                await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+                warm_done += 1
+            for _ in range(RUNS_WARM):
+                results.append(
+                    await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+                )
+        except httpx.TimeoutException as failure:
+            timed_out = True
+            note(
+                f"{label} ZEITLIMIT {TIMEOUT.read:.0f} s überschritten "
+                f"({type(failure).__name__}) nach {warm_done} von {WARMUP} Aufwärmläufen und "
+                f"{len(results)} von {RUNS_WARM} Messläufen; Reihe abgebrochen"
+            )
+    if timed_out:
+        note(
+            "  Hinweis: der abgebrochene Lauf kann serverseitig weiterlaufen, der folgende "
+            "Lauf misst dann neben ihm"
+        )
+        await long_single_run(lat, key, label, method, url, depth=depth, body=body)
+    if len(results) < 2:
+        return
     hits = (
         [len(read_report(result.body)) for result in results if result.status == 207]
         if count_hits
@@ -1742,13 +1804,14 @@ async def measure_series(
         note(
             f"  {label} fehler={describe_error(failed[0].body)} ({len(failed)} von {len(results)})"
         )
-    return summarize([result.seconds for result in results])["median"]
+    if not timed_out:
+        lat.medians[key] = summarize([result.seconds for result in results])["median"]
 
 
-async def measure_report(lat: Latency, label: str) -> float:
+async def measure_report(lat: Latency, key: str, label: str) -> None:
     """The REPORT ``oc:filter-files`` on the home root of alice, as a warm series."""
-    return await measure_series(
-        lat, label, "REPORT", home_url(lat.alice, "/"), body=report_body(lat.tag_id)
+    await measure_series(
+        lat, key, label, "REPORT", home_url(lat.alice, "/"), body=report_body(lat.tag_id)
     )
 
 
@@ -1775,17 +1838,18 @@ async def block_stages(lat: Latency) -> None:
             f"STUFE {count} zusammensetzung: knoten={parts[0]} dateien={parts[1]} "
             f"ordner={parts[2]} (getaggter Ordner: {folders or '-'}, Dateien aus /{TREE_DIR})"
         )
-        lat.medians[f"stufe{count}"] = await measure_report(lat, f"STUFE {count}")
+        await measure_report(lat, f"stufe{count}", f"STUFE {count}")
 
 
 #: The properties of the flat folder reference: what ``files_list`` pays today.
 FLAT_PROPS = (f"{{{xml.OC}}}fileid", f"{{{xml.DAV}}}displayname", f"{{{xml.DAV}}}getcontentlength")
 
 
-async def measure_flat_with_tags(lat: Latency, label: str) -> float:
+async def measure_flat_with_tags(lat: Latency, key: str, label: str) -> None:
     """Reference (d): the flat folder with ``nc:system-tags``, the PR #64298 way."""
-    return await measure_series(
+    await measure_series(
         lat,
+        key,
         label,
         "PROPFIND",
         home_url(lat.alice, f"/{FLAT_DIR}/"),
@@ -1797,27 +1861,29 @@ async def measure_flat_with_tags(lat: Latency, label: str) -> float:
 async def block_references(lat: Latency) -> None:
     """The reference points of the same series: name lookup, flat folder, and the hop."""
     base = lat.alice.base_url
-    lat.medians["ref_a"] = await measure_series(
+    await measure_series(
         lat,
+        "ref_a",
         "REFERENZ a PROPFIND Depth 1 /remote.php/dav/systemtags/",
         "PROPFIND",
         f"{base}/remote.php/dav/systemtags/",
         depth="1",
         body=propfind_body([f"{{{xml.OC}}}id", f"{{{xml.OC}}}display-name"]),
     )
-    lat.medians["ref_c"] = await measure_series(
+    await measure_series(
         lat,
+        "ref_c",
         f"REFERENZ c PROPFIND Depth 1 /{FLAT_DIR}/ ohne nc:system-tags",
         "PROPFIND",
         home_url(lat.alice, f"/{FLAT_DIR}/"),
         depth="1",
         body=propfind_body(list(FLAT_PROPS)),
     )
-    lat.medians["ref_d"] = await measure_flat_with_tags(
-        lat, f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags"
+    await measure_flat_with_tags(
+        lat, "ref_d", f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags"
     )
-    lat.medians["ref_e"] = await measure_series(
-        lat, "REFERENZ e GET /status.php", "GET", f"{base}/status.php", count_hits=False
+    await measure_series(
+        lat, "ref_e", "REFERENZ e GET /status.php", "GET", f"{base}/status.php", count_hits=False
     )
     note(
         "REFERENZ Treffer bei a, c, d zählen alle d:response-Elemente "
@@ -1897,12 +1963,68 @@ async def block_ballast(lat: Latency) -> None:
         note(f"BALLAST abgebrochen nach {seconds:.0f} s bei {mappings} Zuordnungen")
     else:
         note(f"BALLAST aufgebaut: {built} Füll-Tags in {seconds:.0f} s, {mappings} Zuordnungen")
-    lat.medians["ballast_mappings"] = float(mappings) if mappings.isdigit() else -1.0
+    await measure_with_ballast(lat)
+
+
+async def measure_with_ballast(lat: Latency) -> None:
+    """Stage 5000 and reference (d) again, with the ballast standing."""
     docker_stats()
-    lat.medians["stufe5000_ballast"] = await measure_report(lat, "STUFE 5000 (mit Ballast)")
-    lat.medians["ref_d_ballast"] = await measure_flat_with_tags(
-        lat, f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags (mit Ballast)"
+    await measure_report(lat, "stufe5000_ballast", "STUFE 5000 (mit Ballast)")
+    await measure_flat_with_tags(
+        lat,
+        "ref_d_ballast",
+        f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags (mit Ballast)",
     )
+
+
+def ballast_threshold(lat: Latency) -> list[str]:
+    """The D-25-04 line with ballast: from the warm median, else from the long single run."""
+    median = lat.medians.get("stufe5000_ballast")
+    if median is not None:
+        return threshold_line(median, "mit Ballast")
+    single = lat.medians.get("stufe5000_ballast_einzellauf")
+    if single is None:
+        silent = (
+            "SCHWELLE D-25-04 (mit Ballast) median_warm_5000=nicht messbar "
+            f"(keine Antwort binnen {LONG_TIMEOUT_SECONDS} s) ergebnis=ueber"
+        )
+        return [silent]
+    verdict = "ueber" if single > THRESHOLD_SECONDS else "unter"
+    line = (
+        f"SCHWELLE D-25-04 (mit Ballast) median_warm_5000=nicht messbar (Reihe über "
+        f"{TIMEOUT.read:.0f} s abgebrochen), einzellauf={single:.3f} s "
+        f"schwelle={THRESHOLD_SECONDS:.1f} s ergebnis={verdict}"
+    )
+    return [line]
+
+
+async def ballast_remeasure(env: Mapping[str, str]) -> None:
+    """Repeat only the measurements with ballast, on the data a ``--keep-data`` run left.
+
+    The first latency run on 26.09. lost them to a tool error (the 60 s client limit was
+    raised as a block failure instead of being recorded); the ballast itself stands
+    unchanged, so the build is not repeated.
+    """
+    user = env["NC_MCP_TEST_USER"]
+    section("ballast nachmessung")
+    note(
+        "WIEDERHOLUNG Grund: im Lauf davor brach die Messung mit Ballast mit ReadTimeout ab "
+        "(Werkzeugfehler: Zeitlimit als Blockfehler statt als Messwert); der Ballast steht "
+        "unverändert (--keep-data), nur die Messungen mit Ballast werden neu gefahren"
+    )
+    ids = [tag_id for tag_id, name, _ in list_tags(NC_CONTAINER) if name == LATENCY_TAG]
+    if not ids or not spike_dir_exists(user):
+        raise RunFailed("no standing latency data; run --block latency --keep-data first")
+    fills = [name for _, name, _ in list_tags(NC_CONTAINER) if name.startswith(FILL_PREFIX)]
+    note(
+        f"Datenstand: Tag {LATENCY_TAG} id={ids[0]}, Füll-Tags={len(fills)}, "
+        f"Zuordnungen={php(NC_CONTAINER, PHP_COUNT_MAPPINGS)}"
+    )
+    lat = Latency(env=env, alice=basic_creds(env, user, env["NC_MCP_TEST_APP_PASSWORD"]))
+    lat.tag_id = ids[0]
+    await guarded("ballast nachmessung", measure_with_ballast(lat))
+    for line in ballast_threshold(lat):
+        note(line)
 
 
 async def block_threshold(lat: Latency) -> None:
@@ -1913,9 +2035,10 @@ async def block_threshold(lat: Latency) -> None:
         return
     for line in threshold_line(median):
         note(line)
-    with_ballast = lat.medians.get("stufe5000_ballast")
-    if with_ballast is not None:
-        for line in threshold_line(with_ballast, "mit Ballast"):
+    if any(key.startswith("stufe5000_ballast") for key in lat.medians) or (
+        "ballast_mappings" in lat.medians
+    ):
+        for line in ballast_threshold(lat):
             note(line)
     if PREPARE_CONTEXT_BASELINE.is_file():
         medians = prepare_context_medians(PREPARE_CONTEXT_BASELINE.read_text(encoding="utf-8"))
@@ -2065,6 +2188,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             asyncio.run(controls(env))
         elif options.block == "latency":
             asyncio.run(latency(env, keep_data=options.keep_data))
+        elif options.block == "ballast-remeasure":
+            asyncio.run(ballast_remeasure(env))
         elif options.block == "teardown":
             teardown(env["NC_MCP_TEST_USER"])
         else:
