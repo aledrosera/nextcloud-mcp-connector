@@ -17,8 +17,10 @@ The blocks are ``controls`` (topology, baseline inventory, the impersonation con
 (what the REPORT costs at 1, 100 and 5000 tagged nodes, with references, cold runs and a
 ballast of fill tags; ``--keep-data`` leaves the data for the prepare_context measurement),
 ``ballast-remeasure`` (only the measurements with ballast, on standing ``--keep-data``
-data), ``teardown`` (takes the latency data back, idempotent) and ``secret-scan`` (the gate over
-every protocol of the phase folder before a commit).
+data), ``teardown`` (takes the latency data back, idempotent), ``matrix`` (one throwaway
+instance of ``compose.spike-tags.yml`` per ``--nc-tag``, from ``up`` to ``down -v``: basic
+form and target path, 412, app off) and ``secret-scan`` (the gate over every protocol of
+the phase folder before a commit).
 
 **No secret reaches a protocol.** The values of the environment file, every password and
 token generated during a run and the ``AUTHORIZATION-APP-API`` header name are scanned for
@@ -32,6 +34,7 @@ import base64
 import dataclasses
 import io
 import json
+import os
 import re
 import secrets
 import statistics
@@ -63,6 +66,12 @@ BASE_URL = "http://127.0.0.1:8082"
 SPIKE_CONTAINER = "nc-spike-tags"
 SPIKE_BASE_URL = "http://127.0.0.1:8083"
 SPIKE_COMPOSE = "compose.spike-tags.yml"
+#: The full name of its volume; it must be absent before ``up`` (Pitfall 3: no upgrade run).
+SPIKE_VOLUME = "nc-mcp-spike-tags_nc-spike-tags-data"
+#: The patch releases the matrix measures (D-25-02); anything else needs --allow-other-tag.
+MATRIX_TAGS = ("32.0.15-apache", "33.0.9-apache", "34.0.4-apache")
+#: The tag of the matrix run on the throwaway instance.
+MATRIX_TAG = "kein-ki-spike25-m"
 
 #: Every tag this run creates starts with this prefix, never the bare production name: a
 #: forgotten tag of that exact name would falsify the canary tests of phases 26 to 28.
@@ -117,7 +126,15 @@ SABRE = "http://sabredav.org/ns"
 DAV_FILES = "/remote.php/dav/files/"
 TIMEOUT = httpx.Timeout(60.0)
 
-BLOCKS = ("controls", "findings", "latency", "ballast-remeasure", "teardown", "secret-scan")
+BLOCKS = (
+    "controls",
+    "findings",
+    "latency",
+    "ballast-remeasure",
+    "teardown",
+    "matrix",
+    "secret-scan",
+)
 
 # --- PHP one shot snippets ------------------------------------------------------------------
 # Handed to ``php --`` through stdin, arguments behind the ``--``; nothing of them lands in
@@ -278,8 +295,19 @@ def write_protocol(out: Path, header: str) -> None:
 # --- processes ------------------------------------------------------------------------------
 
 
-def run(argv: Sequence[str], *, stdin: str | None = None, check: bool = True) -> str:
-    """One external command, no shell, fixed argument list, output as text."""
+def run(
+    argv: Sequence[str],
+    *,
+    stdin: str | None = None,
+    check: bool = True,
+    env: Mapping[str, str] | None = None,
+) -> str:
+    """One external command, no shell, fixed argument list, output as text.
+
+    ``env`` is added to the inherited environment of this one child process only; that is
+    how a secret reaches ``docker compose`` without ever being an argument.
+    """
+    child_env = None if env is None else {**os.environ, **env}
     finished = subprocess.run(  # noqa: S603 - a fixed argument list, never a shell
         list(argv),
         input=stdin,
@@ -288,6 +316,7 @@ def run(argv: Sequence[str], *, stdin: str | None = None, check: bool = True) ->
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=child_env,
     )
     if check and finished.returncode != 0:
         raise RunFailed(
@@ -790,6 +819,8 @@ class Run:
     tag_ids: list[str]
     notes_path: str = ""
     admin_created: bool = False
+    #: The Nextcloud container occ talks to: nc35 for findings, the throwaway for matrix.
+    container: str = NC_CONTAINER
 
 
 async def ensure_dir(run: Run, creds: Credentials, path: str) -> None:
@@ -871,7 +902,7 @@ def list_tags(container: str) -> list[tuple[str, str, str]]:
 
 def tag_add(run: Run, name: str, access: str) -> str:
     """Create one tag with occ and remember its id for the rollback."""
-    tag_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", name, access, "--output=json"))
+    tag_id = parse_tag_id(occ(run.container, "tag:add", name, access, "--output=json"))
     run.tag_ids.append(tag_id)
     note(f"occ tag:add {name} {access} -> id {tag_id}")
     return tag_id
@@ -879,9 +910,9 @@ def tag_add(run: Run, name: str, access: str) -> str:
 
 def tag_files_add(run: Run, fileid: str, name: str, access: str) -> str:
     """Tag one node by fileid (creates the tag if missing) and return the tag id by name."""
-    output = occ(NC_CONTAINER, "tag:files:add", fileid, name, access)
+    output = occ(run.container, "tag:files:add", fileid, name, access)
     note(f"occ tag:files:add {fileid} {name} {access} -> {output[:120]}")
-    matches = [tag_id for tag_id, tag_name, _ in list_tags(NC_CONTAINER) if tag_name == name]
+    matches = [tag_id for tag_id, tag_name, _ in list_tags(run.container) if tag_name == name]
     if not matches:
         raise RunFailed(f"tag {name} not listed after tag:files:add")
     for tag_id in matches:
@@ -897,15 +928,25 @@ async def report(run: Run, creds: Credentials, tag_id: str, sub: str = "/") -> D
     )
 
 
-def describe_report(result: DavResult, creds: Credentials) -> str:
-    """Hits with fileids and home relative paths, or the error text of a failed REPORT."""
+def describe_report(result: DavResult, creds: Credentials, *, kinds: bool = False) -> str:
+    """Hits with fileids and home relative paths, or the error text of a failed REPORT.
+
+    With ``kinds`` every path is followed by whether it is a folder (``ordner=ja|nein``).
+    """
     if result.status != 207:
         return f"fehler={describe_error(result.body)}"
     entries = read_report(result.body)
     home = home_of(creds)
     paths = [home_path_of(href, home) or f"FREMD:{href}" for href, _, _ in entries]
     fileids = sorted((fileid for _, fileid, _ in entries), key=_as_int)
-    return f"treffer={len(entries)} fileids={fileids} pfade={paths}"
+    text = f"treffer={len(entries)} fileids={fileids} pfade={paths}"
+    if kinds:
+        detail = [
+            f"{path}:{fileid}:ordner={'ja' if folder else 'nein'}"
+            for path, (_, fileid, folder) in zip(paths, entries, strict=True)
+        ]
+        text += f" eintraege={detail}"
+    return text
 
 
 def report_fileids(result: DavResult) -> list[str]:
@@ -920,12 +961,20 @@ def _as_int(value: str) -> int:
 
 
 async def log_report(
-    run: Run, block: str, label: str, creds: Credentials, tag_id: str, sub: str = "/"
+    run: Run,
+    block: str,
+    label: str,
+    creds: Credentials,
+    tag_id: str,
+    sub: str = "/",
+    *,
+    kinds: bool = False,
 ) -> DavResult:
     """REPORT, then one protocol row with status, wall clock and the hit list."""
     result = await report(run, creds, tag_id, sub)
     command = f"REPORT systemtag={tag_id} als {creds.user} ({creds.mode}) auf {sub} [{label}]"
-    row(block, command, result.status, describe_report(result, creds), result.seconds)
+    described = describe_report(result, creds, kinds=kinds)
+    row(block, command, result.status, described, result.seconds)
     return result
 
 
@@ -1151,19 +1200,23 @@ async def systemtag_listing(run: Run, creds: Credentials) -> tuple[DavResult, li
     return result, ids
 
 
-async def block_412(run: Run) -> None:
+async def block_412(
+    run: Run,
+    *,
+    name: str = f"{TAG_PREFIX}-412",
+    path: str = f"/{SPIKE_DIR}/t412/x.txt",
+) -> None:
     """412 for an unknown id, and for the id of a tag deleted and created again."""
     block = "412"
     alice = run.alice
     await log_report(run, block, "unbekannte Id", alice, "999999")
 
-    name = f"{TAG_PREFIX}-412"
     first = tag_add(run, name, "public")
-    fileid = await put_file(run, alice, f"/{SPIKE_DIR}/t412/x.txt")
+    fileid = await put_file(run, alice, path)
     tag_files_add(run, fileid, name, "public")
     await log_report(run, block, f"Id A={first} vor dem Loeschen", alice, first)
 
-    note(f"occ tag:delete {first} -> {occ(NC_CONTAINER, 'tag:delete', first)[:120]}")
+    note(f"occ tag:delete {first} -> {occ(run.container, 'tag:delete', first)[:120]}")
     second = tag_add(run, name, "public")
     tag_files_add(run, fileid, name, "public")
     await log_report(run, block, f"Id A={first} nach Loeschen und Neuanlage", alice, first)
@@ -1180,6 +1233,36 @@ async def block_412(run: Run) -> None:
     )
 
 
+def new_app_password(container: str, user: str, password: str, secret_name: str) -> str:
+    """An app password for ``user`` (login password via stdin), remembered as a secret.
+
+    Parsed like ``app_password`` in ``scripts/bootstrap_test_nc.sh``: the last non-empty
+    output line is the token. Nextcloud 32 has no ``--name`` option yet (measured on
+    32.0.15); the command is then asked again without it.
+    """
+    argv = ["user:auth-tokens:add", user, "--password-from-env"]
+    raw = occ_pw(container, password, *argv, "--name", "spike25", check=False)
+    named = "--name spike25"
+    if 'The "--name" option does not exist' in raw:
+        raw = occ_pw(container, password, *argv)
+        named = "(ohne --name, Option fehlt in dieser Version)"
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    # stdout and stderr arrive joined; a warning on stderr would otherwise pose as the
+    # token, so the line after the "app password:" label wins over the last line.
+    labels = [n for n, line in enumerate(lines) if line == "app password:"]
+    if labels and labels[-1] + 1 < len(lines):
+        token = lines[labels[-1] + 1]
+    else:
+        token = lines[-1] if lines else ""
+    if len(token) < 20 or " " in token:
+        # Only lines with a space are shown: a token never has one, so none can leak here.
+        prose = [line[:80] for line in lines if " " in line]
+        raise RunFailed(f"no app password could be parsed for {user}; output: {prose}")
+    remember_secret(secret_name, token)
+    note(f"occ user:auth-tokens:add {user} --password-from-env {named} (token kept)")
+    return token
+
+
 async def create_temp_admin(run: Run) -> Credentials:
     """A throwaway admin with a random password and an app password, both via stdin only."""
     password = secrets.token_urlsafe(24)
@@ -1189,21 +1272,7 @@ async def create_temp_admin(run: Run) -> Credentials:
     note(f"occ user:add --password-from-env {TEMP_ADMIN} (password via stdin)")
     added = occ(NC_CONTAINER, "group:adduser", "admin", TEMP_ADMIN)
     note(f"occ group:adduser admin {TEMP_ADMIN} -> {added[:80]}")
-    raw = occ_pw(
-        NC_CONTAINER,
-        password,
-        "user:auth-tokens:add",
-        TEMP_ADMIN,
-        "--password-from-env",
-        "--name",
-        "spike25",
-    )
-    lines = [line.strip() for line in raw.splitlines() if line.strip()]
-    token = lines[-1] if lines else ""
-    if len(token) < 20:
-        raise RunFailed(f"no app password could be parsed for {TEMP_ADMIN}")
-    remember_secret("TEMP_ADMIN_APP_PASSWORD", token)
-    note(f"occ user:auth-tokens:add {TEMP_ADMIN} --password-from-env --name spike25 (token kept)")
+    token = new_app_password(NC_CONTAINER, TEMP_ADMIN, password, "TEMP_ADMIN_APP_PASSWORD")
     admin = basic_creds(run.env, TEMP_ADMIN, token)
     # The home of a fresh account is set up by its first authenticated DAV request; it is
     # asked for explicitly, so the PUT that follows does not depend on that side effect.
@@ -1293,25 +1362,39 @@ async def block_varianten(run: Run) -> None:
 
 async def block_zielpfad(run: Run) -> None:
     """Does the target path of the REPORT narrow the answer, or does it always search all."""
-    block = "zielpfad"
+    await zielpfad(run)
+
+
+async def zielpfad(
+    run: Run,
+    *,
+    block: str = "zielpfad",
+    tag_name: str = f"{TAG_PREFIX}-ziel",
+    also_tag: Sequence[str] = (),
+    kinds: bool = False,
+) -> str:
+    """Tag ``/p/tagged`` (and ``also_tag``), REPORT on three target paths; the tag id."""
     alice = run.alice
     await put_file(run, alice, f"/{SPIKE_DIR}/p/tagged/sub/f.txt")
     await put_file(run, alice, f"/{SPIKE_DIR}/q/g.txt")
     folder = await fileid_of(run, alice, f"/{SPIKE_DIR}/p/tagged")
-    tag_id = tag_files_add(run, folder, f"{TAG_PREFIX}-ziel", "public")
+    tag_id = tag_files_add(run, folder, tag_name, "public")
+    for path in also_tag:
+        tag_files_add(run, await fileid_of(run, alice, path), tag_name, "public")
     answers = {}
     for label, sub in (
         ("Home-Wurzel", "/"),
         ("Unterordner des getaggten Ordners", f"/{SPIKE_DIR}/p/tagged/sub/"),
         ("fremder ungetaggter Ordner", f"/{SPIKE_DIR}/q/"),
     ):
-        result = await log_report(run, block, label, alice, tag_id, sub)
+        result = await log_report(run, block, label, alice, tag_id, sub, kinds=kinds)
         answers[sub] = (result.status, report_fileids(result))
     distinct = {(status, tuple(ids)) for status, ids in answers.values()}
     note(
         f"ZIELPFAD filtert={'ja' if len(distinct) > 1 else 'nein'} "
         f"(getaggter Ordner fileid={folder}, Antworten je Zielpfad={answers})"
     )
+    return tag_id
 
 
 async def share_with(run: Run, path: str, user: str) -> str:
@@ -1387,12 +1470,36 @@ async def capability_systemtags(run: Run) -> tuple[int, str]:
     return response.status_code, json.dumps(capabilities["systemtags"], sort_keys=True)
 
 
-async def measure_app_state(run: Run, state: str, tag_id: str, fileid: str) -> None:
-    """The six observations of pattern 6 for one state of the systemtags app."""
-    block = "app-aus-35"
+#: The observation points of pattern 6, in the order of the APP-AUS comparison lines.
+APP_AUS_POINTS = (
+    "Capability",
+    "Suchprovider",
+    "PROPFIND-systemtags",
+    "REPORT",
+    "nc:system-tags",
+    "occ-list-tag",
+)
+
+
+async def measure_app_state(
+    run: Run,
+    state: str,
+    tag_id: str,
+    fileid: str,
+    *,
+    block: str = "app-aus-35",
+    folder: str = f"/{SPIKE_DIR}/app/",
+) -> dict[str, str]:
+    """The six observations of pattern 6 for one state of the systemtags app.
+
+    Returns one short value per observation point, so a caller can set two states side by
+    side; ``report_status`` and ``report_hits`` carry the REPORT on their own.
+    """
     alice = run.alice
+    seen: dict[str, str] = {}
     status, entry = await capability_systemtags(run)
     row(block, f"[{state}] GET /ocs/v1.php/cloud/capabilities", status, f"systemtags={entry}")
+    seen["Capability"] = "fehlt" if entry in ("fehlt", "(no capabilities)") else "vorhanden"
 
     response = await ocs.ocs_get(run.client, alice, ocs.SEARCH_PROVIDERS_PATH)
     try:
@@ -1407,19 +1514,25 @@ async def measure_app_state(run: Run, state: str, tag_id: str, fileid: str) -> N
         response.status_code,
         f"systemtags={'ja' if 'systemtags' in ids else 'nein'} provider={ids}",
     )
+    seen["Suchprovider"] = f"systemtags={'ja' if 'systemtags' in ids else 'nein'}"
 
     listing, listed = await systemtag_listing(run, alice)
+    listed_here = "ja" if tag_id in listed else "nein"
     row(
         block,
         f"[{state}] PROPFIND Depth 1 /remote.php/dav/systemtags/",
         listing.status,
-        f"eintraege={len(listed)} tag {tag_id} gelistet={'ja' if tag_id in listed else 'nein'}",
+        f"eintraege={len(listed)} tag {tag_id} gelistet={listed_here}",
         listing.seconds,
     )
+    seen["PROPFIND-systemtags"] = f"{listing.status}/gelistet={listed_here}"
 
-    await log_report(run, block, state, alice, tag_id)
+    found = await log_report(run, block, state, alice, tag_id)
+    hits = len(read_report(found.body)) if found.status == 207 else 0
+    seen["REPORT"] = f"{found.status}/treffer={hits}"
+    seen["report_status"] = str(found.status)
+    seen["report_hits"] = str(hits)
 
-    folder = f"/{SPIKE_DIR}/app/"
     result = await dav_request(
         run.client,
         alice,
@@ -1447,32 +1560,96 @@ async def measure_app_state(run: Run, state: str, tag_id: str, fileid: str) -> N
         f"datei {fileid}: nc:system-tags={tags_of_file}",
         result.seconds,
     )
+    seen["nc:system-tags"] = f"{result.status}/{tags_of_file}".replace(" ", "")
 
     commands = [
         line.strip()
-        for line in occ(NC_CONTAINER, "list", check=False).splitlines()
+        for line in occ(run.container, "list", check=False).splitlines()
         if line.strip().startswith("tag:")
     ]
-    note(f"[{state}] occ list | tag: -> {[command.split()[0] for command in commands]}")
+    names = [command.split()[0] for command in commands]
+    note(f"[{state}] occ list | tag: -> {names}")
+    seen["occ-list-tag"] = ",".join(names) or "(keine)"
+    return seen
 
 
-async def block_app_aus(run: Run) -> None:
-    """What switching the systemtags app off changes on 35, and that it comes back on."""
-    block = "app-aus-35"
-    fileid = await put_file(run, run.alice, f"/{SPIKE_DIR}/app/h.txt")
-    tag_id = tag_files_add(run, fileid, f"{TAG_PREFIX}-app", "public")
-    await measure_app_state(run, "App an", tag_id, fileid)
+async def block_app_aus(
+    run: Run,
+    *,
+    block: str = "app-aus-35",
+    path: str = f"/{SPIKE_DIR}/app/h.txt",
+    tag_name: str = f"{TAG_PREFIX}-app",
+    compare: bool = False,
+    restart: bool = False,
+) -> None:
+    """What switching the systemtags app off changes, and that it comes back on.
+
+    Every assignment is set before the app goes off: ``tag:files:*`` belongs to the app and
+    is gone while it is disabled (source finding 2). With ``compare`` one line per
+    observation point sets before and after side by side. With ``restart`` the container
+    is restarted while the app is off and all six points are measured once more: the
+    official image caches the app config in APCu of the web server, which ``occ`` on the
+    command line cannot clear (seen on 32.0.15: capability still there right after).
+    """
+    fileid = await put_file(run, run.alice, path)
+    tag_id = tag_files_add(run, fileid, tag_name, "public")
+    folder = path.rsplit("/", 1)[0] + "/"
+    before = await measure_app_state(run, "App an", tag_id, fileid, block=block, folder=folder)
+    after: dict[str, str] = {}
+    restarted: dict[str, str] = {}
     try:
-        output = occ(NC_CONTAINER, "app:disable", "systemtags")
+        output = occ(run.container, "app:disable", "systemtags")
         note(f"occ app:disable systemtags -> {output[:120]}")
-        await measure_app_state(run, "App aus", tag_id, fileid)
+        after = await measure_app_state(run, "App aus", tag_id, fileid, block=block, folder=folder)
+        if restart:
+            seconds = await restart_container(run)
+            note(f"docker restart {run.container}, status.php wieder 200 nach {seconds:.1f} s")
+            restarted = await measure_app_state(
+                run, "App aus, nach Neustart", tag_id, fileid, block=block, folder=folder
+            )
     finally:
-        output = occ(NC_CONTAINER, "app:enable", "systemtags", check=False)
+        output = occ(run.container, "app:enable", "systemtags", check=False)
         note(f"occ app:enable systemtags -> {output[:120]}")
         status, entry = await capability_systemtags(run)
         row(block, "[nach Lauf] GET /ocs/v1.php/cloud/capabilities", status, f"systemtags={entry}")
         present = "ja" if entry not in ("fehlt", "(no capabilities)") else "nein"
         note(f"CAPABILITY systemtags nach Lauf vorhanden: {present}")
+        if compare:
+            for point in APP_AUS_POINTS:
+                note(
+                    f"APP-AUS {point} vorher={before.get(point, '?')} "
+                    f"nachher={after.get(point, '?')}"
+                )
+            note(
+                f"APP-AUS REPORT nachher status={after.get('report_status', '?')} "
+                f"treffer={after.get('report_hits', '?')}"
+            )
+        if compare and restart:
+            for point in APP_AUS_POINTS:
+                note(
+                    f"APP-AUS-NEUSTART {point} vorher={before.get(point, '?')} "
+                    f"nachher={restarted.get(point, '?')}"
+                )
+            note(
+                f"APP-AUS-NEUSTART REPORT nachher status={restarted.get('report_status', '?')} "
+                f"treffer={restarted.get('report_hits', '?')}"
+            )
+
+
+async def restart_container(run: Run) -> float:
+    """``docker restart`` of ``run.container``, then wait for ``status.php``; the seconds."""
+    started = time.perf_counter()
+    docker("restart", run.container)
+    url = f"{run.alice.base_url}/status.php"
+    for _ in range(60):
+        try:
+            response = await run.client.get(url)
+        except httpx.HTTPError:
+            response = None
+        if response is not None and response.status_code == 200:
+            return time.perf_counter() - started
+        await asyncio.sleep(2)
+    raise RunFailed(f"{url} did not answer 200 within two minutes after the restart")
 
 
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
@@ -2162,6 +2339,200 @@ def teardown(user: str) -> None:
     note(f"BASELINE-DATEI {BASELINE_FILE.name} nach dem Vergleich gelöscht")
 
 
+# --- version matrix on throwaway instances (plan 25-03) -------------------------------------
+
+
+def validate_nc_tag(tag: str, *, allow_other: bool = False) -> str:
+    """The image tag the matrix may start: one of ``MATRIX_TAGS``, others only on request.
+
+    ``allow_other`` exists for the fallback to a locally present patch release when a pull
+    fails; the run names such a tag in its protocol.
+    """
+    if tag in MATRIX_TAGS:
+        return tag
+    if allow_other and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-apache", tag):
+        return tag
+    raise ValueError(
+        f"--nc-tag {tag!r} is not one of {', '.join(MATRIX_TAGS)}; "
+        "a local fallback needs --allow-other-tag"
+    )
+
+
+_VERSION = re.compile(r"versionstring:\s*(\S+)")
+
+
+def compose(action: Sequence[str], compose_env: Mapping[str, str], *, check: bool = True) -> str:
+    """One ``docker compose`` call on the throwaway file; secrets only in ``compose_env``."""
+    argv = ["docker", "compose", "-f", str(REPO_ROOT / SPIKE_COMPOSE), *action]
+    return run(argv, env=compose_env, check=check)
+
+
+def spike_leftovers() -> tuple[str, str]:
+    """The ids of a throwaway container and of its volume, empty strings when absent."""
+    container = docker("ps", "-a", "--filter", f"name={SPIKE_CONTAINER}", "-q", check=False)
+    volume = docker("volume", "ls", "-q", "--filter", f"name={SPIKE_VOLUME}", check=False)
+    return container.strip(), volume.strip()
+
+
+def matrix_preconditions() -> None:
+    """Never two throwaway instances (D-25-01), never an old volume (Pitfall 3)."""
+    section("vorbedingungen")
+    container, volume = spike_leftovers()
+    note(f"VORBEDINGUNG Container {SPIKE_CONTAINER} vorhanden: {'ja' if container else 'nein'}")
+    note(f"VORBEDINGUNG Volume {SPIKE_VOLUME} vorhanden: {'ja' if volume else 'nein'}")
+    docker_stats()
+    if container or volume:
+        raise RunFailed(
+            f"a throwaway container or the volume {SPIKE_VOLUME} is still there; "
+            "take it down with down -v first"
+        )
+
+
+async def matrix_testdata(run: Run) -> None:
+    """A handful of folders and files as alice over WebDAV, no mass build."""
+    section("testdaten")
+    alice = run.alice
+    for folder in ("p", "p/tagged", "p/tagged/sub", "q"):
+        await ensure_dir(run, alice, f"/{SPIKE_DIR}/{folder}")
+    for path in ("p/tagged/sub/f.txt", "q/g.txt", "a.txt"):
+        fileid = await put_file(run, alice, f"/{SPIKE_DIR}/{path}")
+        note(f"PUT /{SPIKE_DIR}/{path} -> fileid {fileid}")
+
+
+async def matrix_grundform(run: Run) -> None:
+    """The basic form of the REPORT and its target path on this version."""
+    tag_id = await zielpfad(
+        run,
+        block="grundform",
+        tag_name=MATRIX_TAG,
+        also_tag=(f"/{SPIKE_DIR}/a.txt",),
+        kinds=True,
+    )
+    note(f"occ tag:list -> {list_tags(run.container)} (Tag-Id {MATRIX_TAG}={tag_id})")
+
+
+async def ocs_app_password(client: httpx.AsyncClient, user: str, password: str) -> str:
+    """An app password over ``GET /ocs/v2.php/core/getapppassword`` with the login password.
+
+    The fallback where ``occ user:auth-tokens:add`` is broken; the password travels in the
+    basic auth header of one loopback request, never as an argument.
+    """
+    response = await client.get(
+        f"{SPIKE_BASE_URL}/ocs/v2.php/core/getapppassword",
+        headers=dict(ocs.OCS_HEADERS),
+        auth=(user, password),
+    )
+    try:
+        token = str(response.json()["ocs"]["data"]["apppassword"])
+    except (ValueError, KeyError, TypeError):
+        token = ""
+    if len(token) < 20:
+        raise RunFailed(f"getapppassword for {user} answered {response.status_code}, no token")
+    remember_secret("SPIKE_ALICE_APP", token)
+    note(f"GET /ocs/v2.php/core/getapppassword als {user} -> HTTP {response.status_code} (kept)")
+    return token
+
+
+async def matrix(tag: str, *, other: bool) -> None:
+    """One version from an empty machine to a removed volume, measured in between."""
+    section(f"matrix nc-tag={tag}, start {now_stamp()}")
+    if other:
+        note(f"RUECKFALL-TAG {tag}: nicht der Soll-Tag der Matrix (--allow-other-tag)")
+    matrix_preconditions()
+    admin_password = secrets.token_urlsafe(24)
+    alice_password = secrets.token_urlsafe(24)
+    remember_secret("SPIKE_ADMIN_PASSWORD", admin_password)
+    remember_secret("SPIKE_ALICE_PASSWORD", alice_password)
+    compose_env = {"NC_SPIKE_TAG": tag, "NC_SPIKE_ADMIN_PASSWORD": admin_password}
+    section("aufbau")
+    try:
+        started = time.perf_counter()
+        output = compose(["up", "-d", "--wait"], compose_env)
+        note(f"docker compose up -d --wait: {time.perf_counter() - started:.1f} s")
+        note(" / ".join(line.strip() for line in output.splitlines()[-4:] if line.strip()))
+        started = time.perf_counter()
+        wait_for_install(SPIKE_CONTAINER)
+        note(f"Installation abgewartet: {time.perf_counter() - started:.1f} s")
+        switched = occ(
+            SPIKE_CONTAINER,
+            "config:system:set",
+            "auth.bruteforce.protection.enabled",
+            "--value=false",
+            "--type=boolean",
+        )
+        note(f"bruteforce protection aus (Wegwerf-Instanz) -> {switched[:120]}")
+        status = occ(SPIKE_CONTAINER, "status")
+        note(status)
+        found = _VERSION.search(status)
+        note(f"VERSION OF RECORD {found[1] if found else '(nicht lesbar)'}")
+        note(f"dbtype: {occ(SPIKE_CONTAINER, 'config:system:get', 'dbtype', check=False)}")
+        memcache = occ(SPIKE_CONTAINER, "config:system:get", "memcache.local", check=False)
+        note(f"memcache.local: {memcache or '(leer, nicht gesetzt)'}")
+        apps = [
+            line.strip()
+            for line in occ(SPIKE_CONTAINER, "app:list", check=False).splitlines()
+            if re.match(r"\s*- (systemtags|dav):", line)
+        ]
+        note(f"occ app:list | systemtags, dav -> {apps}")
+        docker_stats()
+        occ_pw(SPIKE_CONTAINER, alice_password, "user:add", "--password-from-env", "alice")
+        note("occ user:add --password-from-env alice (password via stdin)")
+        async with new_client() as client:
+            try:
+                token = new_app_password(
+                    SPIKE_CONTAINER, "alice", alice_password, "SPIKE_ALICE_APP"
+                )
+            except RunFailed as failure:
+                if '"login-name" option does not exist' not in str(failure):
+                    raise
+                note(
+                    "BEFUND occ user:auth-tokens:add scheitert auf dieser Version: "
+                    'The "login-name" option does not exist (Option wird gelesen, nicht '
+                    "definiert); Rückfall GET /ocs/v2.php/core/getapppassword"
+                )
+                token = await ocs_app_password(client, "alice", alice_password)
+            alice = Credentials(
+                base_url=SPIKE_BASE_URL, user="alice", secret=token, mode=MODE_BASIC
+            )
+            spike = Run(
+                env={},
+                client=client,
+                alice=alice,
+                bob=alice,
+                note_ids=[],
+                share_ids=[],
+                tag_ids=[],
+                container=SPIKE_CONTAINER,
+            )
+            await matrix_testdata(spike)
+            section("grundform")
+            await guarded("grundform", matrix_grundform(spike))
+            section("412")
+            await guarded(
+                "412", block_412(spike, name=f"{MATRIX_TAG}412", path=f"/{SPIKE_DIR}/a.txt")
+            )
+            section("app-aus")
+            await guarded(
+                "app-aus",
+                block_app_aus(
+                    spike,
+                    block="app-aus",
+                    path=f"/{SPIKE_DIR}/a.txt",
+                    tag_name=MATRIX_TAG,
+                    compare=True,
+                    restart=True,
+                ),
+            )
+    finally:
+        section("abbau")
+        output = compose(["down", "-v"], compose_env, check=False)
+        note(" / ".join(line.strip() for line in output.splitlines()[-4:] if line.strip()))
+        container, volume = spike_leftovers()
+        note(f"ABBAU Container vorhanden: {'ja' if container else 'nein'}")
+        note(f"ABBAU Volume vorhanden: {'ja' if volume else 'nein'}")
+        note(f"ENDE {now_stamp()}")
+
+
 def secret_scan(env_file: Path) -> int:
     """Scan every protocol of the phase folder for the secret values of ``env_file``."""
     env = read_env_file(env_file)
@@ -2192,7 +2563,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="latency: leave /spike25 and the spike tags for the prepare_context measurement",
     )
+    parser.add_argument(
+        "--nc-tag",
+        help=f"matrix: the nextcloud image tag, one of {', '.join(MATRIX_TAGS)}",
+    )
+    parser.add_argument(
+        "--allow-other-tag",
+        action="store_true",
+        help="matrix: accept another patch tag (local fallback when a pull fails)",
+    )
     options = parser.parse_args(argv)
+    nc_tag = ""
+    if options.block == "matrix":
+        if not options.nc_tag:
+            parser.error("--nc-tag is required for the matrix block")
+        try:
+            nc_tag = validate_nc_tag(options.nc_tag, allow_other=options.allow_other_tag)
+        except ValueError as failure:
+            parser.error(str(failure))
     if isinstance(sys.stdout, io.TextIOWrapper):
         # The protocol carries German prose; a Windows console code page must not garble it.
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -2217,6 +2605,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             asyncio.run(ballast_remeasure(env))
         elif options.block == "teardown":
             teardown(env["NC_MCP_TEST_USER"])
+        elif options.block == "matrix":
+            asyncio.run(matrix(nc_tag, other=nc_tag not in MATRIX_TAGS))
         else:
             asyncio.run(findings(env))
     except (RunFailed, ToolError, httpx.HTTPError) as failure:
