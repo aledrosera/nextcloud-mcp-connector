@@ -1,0 +1,134 @@
+
+# Lauf block=matrix start=2026-09-26T18:40:20Z (neue Datei)
+
+== matrix nc-tag=33.0.9-apache, start 2026-09-26T18:40:20Z ==
+
+== vorbedingungen ==
+VORBEDINGUNG Container nc-spike-tags vorhanden: nein
+VORBEDINGUNG Volume nc-mcp-spike-tags_nc-spike-tags-data vorhanden: nein
+nc_app_mcp_connector  mem 115.1MiB / 7.603GiB  cpu 0.11%
+nc35-test-issuer  mem 22.14MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 112.8MiB / 7.603GiB  cpu 0.07%
+nc35-caddy  mem 17.01MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 82.23MiB / 7.603GiB  cpu 0.09%
+nc35-nc  mem 320.3MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 97.79MiB / 7.603GiB  cpu 0.13%
+n8n-mcp-test-loopback  mem 2.086MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 378.9MiB / 7.603GiB  cpu 23.80%
+nc-mcp-exapp-greenmail  mem 123.9MiB / 7.603GiB  cpu 0.08%
+nc-mcp-exapp-nc  mem 185.2MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 11.84MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 80.66MiB / 7.603GiB  cpu 0.01%
+nc-mcp-exapp-registry  mem 9.121MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 219.8MiB / 7.603GiB  cpu 0.00%
+
+== aufbau ==
+docker compose up -d --wait: 11.2 s
+Container nc-spike-tags Starting / Container nc-spike-tags Started / Container nc-spike-tags Waiting / Container nc-spike-tags Healthy
+nc-spike-tags: installed (attempt 1)
+Installation abgewartet: 0.3 s
+bruteforce protection aus (Wegwerf-Instanz) -> System config value auth.bruteforce.protection.enabled set to boolean false
+- installed: true
+  - version: 33.0.9.1
+  - versionstring: 33.0.9
+  - edition: 
+  - maintenance: false
+  - needsDbUpgrade: false
+  - productname: Nextcloud
+  - extendedSupport: false
+VERSION OF RECORD 33.0.9
+dbtype: sqlite3
+memcache.local: \OC\Memcache\APCu
+occ app:list | systemtags, dav -> ['- dav: 1.36.1', '- systemtags: 1.23.0']
+nc-spike-tags  mem 151.4MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector  mem 115.1MiB / 7.603GiB  cpu 0.12%
+nc35-test-issuer  mem 22.14MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 112.8MiB / 7.603GiB  cpu 0.05%
+nc35-caddy  mem 17.01MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 82.22MiB / 7.603GiB  cpu 0.01%
+nc35-nc  mem 320.3MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 97.79MiB / 7.603GiB  cpu 0.14%
+n8n-mcp-test-loopback  mem 2.086MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 379.1MiB / 7.603GiB  cpu 0.08%
+nc-mcp-exapp-greenmail  mem 123.9MiB / 7.603GiB  cpu 0.08%
+nc-mcp-exapp-nc  mem 185.2MiB / 7.603GiB  cpu 0.01%
+nc-mcp-exapp-caddy  mem 11.84MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 80.66MiB / 7.603GiB  cpu 0.02%
+nc-mcp-exapp-registry  mem 9.121MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 219.8MiB / 7.603GiB  cpu 0.02%
+occ user:add --password-from-env alice (password via stdin)
+BEFUND occ user:auth-tokens:add scheitert auf dieser Version: The "login-name" option does not exist (Option wird gelesen, nicht definiert); Rückfall GET /ocs/v2.php/core/getapppassword
+GET /ocs/v2.php/core/getapppassword als alice -> HTTP 200 (kept)
+
+== testdaten ==
+PUT /spike25/p/tagged/sub/f.txt -> fileid 155
+PUT /spike25/q/g.txt -> fileid 156
+PUT /spike25/a.txt -> fileid 157
+
+== grundform ==
+occ tag:files:add 152 kein-ki-spike25-m public -> public tag named kein-ki-spike25-m created.
+public tag named kein-ki-spike25-m added.
+occ tag:files:add 157 kein-ki-spike25-m public -> public tag named kein-ki-spike25-m added.
+2026-09-26T18:40:49Z | grundform | REPORT systemtag=1 als alice (basic) auf / [Home-Wurzel] | HTTP 207 | 37 ms | treffer=2 fileids=['152', '157'] pfade=['/spike25/p/tagged', '/spike25/a.txt'] eintraege=['/spike25/p/tagged:152:ordner=ja', '/spike25/a.txt:157:ordner=nein']
+2026-09-26T18:40:49Z | grundform | REPORT systemtag=1 als alice (basic) auf /spike25/p/tagged/sub/ [Unterordner des getaggten Ordners] | HTTP 207 | 33 ms | treffer=2 fileids=['152', '157'] pfade=['/spike25/p/tagged', '/spike25/a.txt'] eintraege=['/spike25/p/tagged:152:ordner=ja', '/spike25/a.txt:157:ordner=nein']
+2026-09-26T18:40:49Z | grundform | REPORT systemtag=1 als alice (basic) auf /spike25/q/ [fremder ungetaggter Ordner] | HTTP 207 | 33 ms | treffer=2 fileids=['152', '157'] pfade=['/spike25/p/tagged', '/spike25/a.txt'] eintraege=['/spike25/p/tagged:152:ordner=ja', '/spike25/a.txt:157:ordner=nein']
+ZIELPFAD filtert=nein (getaggter Ordner fileid=152, Antworten je Zielpfad={'/': (207, ['152', '157']), '/spike25/p/tagged/sub/': (207, ['152', '157']), '/spike25/q/': (207, ['152', '157'])})
+occ tag:list -> [('1', 'kein-ki-spike25-m', 'public')] (Tag-Id kein-ki-spike25-m=1)
+
+== 412 ==
+2026-09-26T18:40:49Z | 412 | REPORT systemtag=999999 als alice (basic) auf / [unbekannte Id] | HTTP 412 | 34 ms | fehler=Cannot filter by non-existing tag
+occ tag:add kein-ki-spike25-m412 public -> id 2
+occ tag:files:add 157 kein-ki-spike25-m412 public -> public tag named kein-ki-spike25-m412 added.
+2026-09-26T18:40:50Z | 412 | REPORT systemtag=2 als alice (basic) auf / [Id A=2 vor dem Loeschen] | HTTP 207 | 34 ms | treffer=1 fileids=['157'] pfade=['/spike25/a.txt']
+occ tag:delete 2 -> The specified tag was deleted
+occ tag:add kein-ki-spike25-m412 public -> id 3
+occ tag:files:add 157 kein-ki-spike25-m412 public -> public tag named kein-ki-spike25-m412 added.
+2026-09-26T18:40:52Z | 412 | REPORT systemtag=2 als alice (basic) auf / [Id A=2 nach Loeschen und Neuanlage] | HTTP 412 | 34 ms | fehler=Cannot filter by non-existing tag
+2026-09-26T18:40:52Z | 412 | REPORT systemtag=3 als alice (basic) auf / [Id B=3 (gleicher Name, neu)] | HTTP 207 | 34 ms | treffer=1 fileids=['157'] pfade=['/spike25/a.txt']
+2026-09-26T18:40:52Z | 412 | PROPFIND Depth 1 /remote.php/dav/systemtags/ als alice | HTTP 207 | 32 ms | A=2 gelistet=nein B=3 gelistet=ja
+
+== app-aus ==
+occ tag:files:add 157 kein-ki-spike25-m public -> public tag named kein-ki-spike25-m added.
+2026-09-26T18:40:52Z | app-aus | [App an] GET /ocs/v1.php/cloud/capabilities | HTTP 200 | systemtags={"enabled": true}
+2026-09-26T18:40:52Z | app-aus | [App an] GET /ocs/v2.php/search/providers | HTTP 200 | systemtags=ja provider=['files', 'systemtags', 'circles', 'comments', 'settings_apps', 'settings']
+2026-09-26T18:40:53Z | app-aus | [App an] PROPFIND Depth 1 /remote.php/dav/systemtags/ | HTTP 207 | 31 ms | eintraege=2 tag 1 gelistet=ja
+2026-09-26T18:40:53Z | app-aus | REPORT systemtag=1 als alice (basic) auf / [App an] | HTTP 207 | 33 ms | treffer=2 fileids=['152', '157'] pfade=['/spike25/p/tagged', '/spike25/a.txt']
+2026-09-26T18:40:53Z | app-aus | [App an] PROPFIND Depth 1 /spike25/ mit nc:system-tags | HTTP 207 | 260 ms | datei 157: nc:system-tags=['kein-ki-spike25-m', 'kein-ki-spike25-m412']
+[App an] occ list | tag: -> ['tag:add', 'tag:delete', 'tag:edit', 'tag:files:add', 'tag:files:delete', 'tag:files:delete-all', 'tag:list']
+occ app:disable systemtags -> systemtags 1.23.0 disabled
+2026-09-26T18:40:53Z | app-aus | [App aus] GET /ocs/v1.php/cloud/capabilities | HTTP 200 | systemtags={"enabled": true}
+2026-09-26T18:40:53Z | app-aus | [App aus] GET /ocs/v2.php/search/providers | HTTP 200 | systemtags=ja provider=['files', 'systemtags', 'circles', 'comments', 'settings_apps', 'settings']
+2026-09-26T18:40:53Z | app-aus | [App aus] PROPFIND Depth 1 /remote.php/dav/systemtags/ | HTTP 207 | 60 ms | eintraege=2 tag 1 gelistet=ja
+2026-09-26T18:40:54Z | app-aus | REPORT systemtag=1 als alice (basic) auf / [App aus] | HTTP 207 | 36 ms | treffer=2 fileids=['152', '157'] pfade=['/spike25/p/tagged', '/spike25/a.txt']
+2026-09-26T18:40:54Z | app-aus | [App aus] PROPFIND Depth 1 /spike25/ mit nc:system-tags | HTTP 207 | 54 ms | datei 157: nc:system-tags=['kein-ki-spike25-m', 'kein-ki-spike25-m412']
+[App aus] occ list | tag: -> ['tag:add', 'tag:delete', 'tag:edit', 'tag:list']
+docker restart nc-spike-tags, status.php wieder 200 nach 3.7 s
+2026-09-26T18:41:00Z | app-aus | [App aus, nach Neustart] GET /ocs/v1.php/cloud/capabilities | HTTP 200 | systemtags=fehlt
+2026-09-26T18:41:00Z | app-aus | [App aus, nach Neustart] GET /ocs/v2.php/search/providers | HTTP 200 | systemtags=nein provider=['files', 'circles', 'comments', 'settings_apps', 'settings']
+2026-09-26T18:41:00Z | app-aus | [App aus, nach Neustart] PROPFIND Depth 1 /remote.php/dav/systemtags/ | HTTP 207 | 106 ms | eintraege=2 tag 1 gelistet=ja
+2026-09-26T18:41:00Z | app-aus | REPORT systemtag=1 als alice (basic) auf / [App aus, nach Neustart] | HTTP 207 | 58 ms | treffer=2 fileids=['152', '157'] pfade=['/spike25/p/tagged', '/spike25/a.txt']
+2026-09-26T18:41:00Z | app-aus | [App aus, nach Neustart] PROPFIND Depth 1 /spike25/ mit nc:system-tags | HTTP 207 | 45 ms | datei 157: nc:system-tags=['kein-ki-spike25-m', 'kein-ki-spike25-m412']
+[App aus, nach Neustart] occ list | tag: -> ['tag:add', 'tag:delete', 'tag:edit', 'tag:list']
+occ app:enable systemtags -> systemtags 1.23.0 enabled
+2026-09-26T18:41:01Z | app-aus | [nach Lauf] GET /ocs/v1.php/cloud/capabilities | HTTP 200 | systemtags={"enabled": true}
+CAPABILITY systemtags nach Lauf vorhanden: ja
+APP-AUS Capability vorher=vorhanden nachher=vorhanden
+APP-AUS Suchprovider vorher=systemtags=ja nachher=systemtags=ja
+APP-AUS PROPFIND-systemtags vorher=207/gelistet=ja nachher=207/gelistet=ja
+APP-AUS REPORT vorher=207/treffer=2 nachher=207/treffer=2
+APP-AUS nc:system-tags vorher=207/['kein-ki-spike25-m','kein-ki-spike25-m412'] nachher=207/['kein-ki-spike25-m','kein-ki-spike25-m412']
+APP-AUS occ-list-tag vorher=tag:add,tag:delete,tag:edit,tag:files:add,tag:files:delete,tag:files:delete-all,tag:list nachher=tag:add,tag:delete,tag:edit,tag:list
+APP-AUS REPORT nachher status=207 treffer=2
+APP-AUS-NEUSTART Capability vorher=vorhanden nachher=fehlt
+APP-AUS-NEUSTART Suchprovider vorher=systemtags=ja nachher=systemtags=nein
+APP-AUS-NEUSTART PROPFIND-systemtags vorher=207/gelistet=ja nachher=207/gelistet=ja
+APP-AUS-NEUSTART REPORT vorher=207/treffer=2 nachher=207/treffer=2
+APP-AUS-NEUSTART nc:system-tags vorher=207/['kein-ki-spike25-m','kein-ki-spike25-m412'] nachher=207/['kein-ki-spike25-m','kein-ki-spike25-m412']
+APP-AUS-NEUSTART occ-list-tag vorher=tag:add,tag:delete,tag:edit,tag:files:add,tag:files:delete,tag:files:delete-all,tag:list nachher=tag:add,tag:delete,tag:edit,tag:list
+APP-AUS-NEUSTART REPORT nachher status=207 treffer=2
+
+== abbau ==
+Network nc-mcp-spike-tags_default Removing / Volume nc-mcp-spike-tags_nc-spike-tags-data Removing / Network nc-mcp-spike-tags_default Removed / Volume nc-mcp-spike-tags_nc-spike-tags-data Removed
+ABBAU Container vorhanden: nein
+ABBAU Volume vorhanden: nein
+ENDE 2026-09-26T18:41:03Z
