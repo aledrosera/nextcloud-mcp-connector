@@ -102,7 +102,7 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
 
 ### v1.7 Ausschluss-Tag kein-ki (Phasen 25-29), IN ARBEIT
 
-- [ ] **Phase 25: Mess-Spike Tag-Abfrage** - Die unbelegten Annahmen der Recherche werden gemessen, bevor eine Designentscheidung fällt (BL-16-Kostennotiz)
+- [x] **Phase 25: Mess-Spike Tag-Abfrage** - Die unbelegten Annahmen der Recherche werden gemessen, bevor eine Designentscheidung fällt (BL-16-Kostennotiz) (completed 2026-09-26)
 - [ ] **Phase 26: Guard-Kern** - Eine request-gebundene Prüfschicht mit drei Zuständen, einem Roundtrip je Antwort und Subtree-Präfixregel, ohne dass ein Werkzeug angefasst wird
 - [ ] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox
 - [ ] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate
@@ -140,7 +140,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 25-04-PLAN.md , Messbericht und Owner-Checkpoint D-25-05 (Notes-Weg, Fail-closed-Auslöser, Batch-Strategie)
+- [x] 25-04-PLAN.md , Messbericht und Owner-Checkpoint D-25-05 (Notes-Weg, Fail-closed-Auslöser, Batch-Strategie)
 
 **Research flag**: ja (Live-Zugriff auf NC 32 bis 35, präparierte Testdaten mit großen Ordnern, vielen Tag-Zuordnungen und geteilten Unterordnern)
 
@@ -241,7 +241,7 @@ Plans:
 | 22. Konfiguration, Kette und Drosselung | v1.6 | 3/3 | Complete   | 2026-09-19 |
 | 23. Konto-Mapping und Credential-Wege | v1.6 | 6/6 | Complete | 2026-09-23 |
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
-| 25. Mess-Spike Tag-Abfrage | v1.7 | 3/4 | In Progress|  |
+| 25. Mess-Spike Tag-Abfrage | v1.7 | 4/4 | Complete   | 2026-09-26 |
 | 26. Guard-Kern | v1.7 | 0/TBD | Not started | - |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 0/TBD | Not started | - |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
