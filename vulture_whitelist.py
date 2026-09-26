@@ -308,17 +308,6 @@ _._decode_payload
 # (SPIKE_BASE_URL, SPIKE_COMPOSE, wait_for_install).
 
 # --- The counter measurement of plan 25-05 (scripts/tag_spike.py) -----------------------
-# Parked while plan 25-05 task 1 builds the tool section by section: the pure helpers and
-# constants below were written and unit tested (section C) before the blocks that call them,
-# block_vorfahren (section D) and gegenmessung (section E). Each name leaves this list with
-# the section that calls it; after section E this part of the file is empty again.
-GEGEN_NC_TAG
-GEGEN_FILL_TAGS
-GEGEN_BALLAST_LIMIT_SECONDS
-GEGEN_MIN_FREE_GIB
-_.compose_file
-_.db_container
-gegen_setup
-stage_medians
-used_memory_gib
-block_vorfahren
+# Empty again, as announced: plan 25-05 task 1 parked its pure helpers and constants here
+# (section C) before the blocks that call them existed. They left the list with the section
+# that calls them, block_vorfahren (section D) and gegenmessung (section E).
