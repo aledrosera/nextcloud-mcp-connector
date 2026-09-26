@@ -309,8 +309,6 @@ _._decode_payload
 # matrix of plan 25-03 (SPIKE_*, wait_for_install).
 SPIKE_BASE_URL
 SPIKE_COMPOSE
-WARMUP
-RUNS_WARM
 RUNS_COLD
 wait_for_install
 
@@ -318,13 +316,9 @@ wait_for_install
 # defined with the first block (messbedingungen) and unit tested there; each leaves this list
 # with the block that reads it (datenaufbau, stufen, referenzen, kalt, ballast, schwelle).
 COLD_PAUSE_SECONDS
-STAGES
-STAGE_FOLDER
 FILL_PREFIX
 FILL_TAGS
 BALLAST_LIMIT_SECONDS
 PREPARE_CONTEXT_BASELINE
-format_series
 threshold_line
 prepare_context_medians
-medians

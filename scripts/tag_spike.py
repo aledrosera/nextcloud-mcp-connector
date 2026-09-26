@@ -118,13 +118,20 @@ BLOCKS = ("controls", "findings", "latency", "secret-scan")
 _PHP_BOOT = "<?php\nrequire_once '/var/www/html/lib/base.php';\n"
 
 #: Set the complete object set of one tag in one transaction (ISystemTagObjectMapper, NC 31+).
-#: Arguments: tag id, count, folder below the user's home, user. Picks ``count`` files spread
-#: evenly over the folder, walked recursively, and prints the count and the first ids.
+#: Arguments: tag id, count, folder below the user's home, user, and optionally a comma list
+#: of folders below the home that are tagged themselves (the subtree case). Picks the
+#: remaining ``count`` files spread evenly over the folder, walked recursively, and prints
+#: the total, the number of files, the number of folders and the first ids.
 PHP_SET_TAG_OBJECTS = (
     _PHP_BOOT
     + r"""
 [, $tagId, $count, $sub, $user] = $argv;
-$folder = \OCP\Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($user)->get($sub);
+$home = \OCP\Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($user);
+$folder = $home->get($sub);
+$extra = [];
+foreach (array_filter(explode(',', $argv[5] ?? ''), 'strlen') as $path) {
+    $extra[] = (string)$home->get($path)->getId();
+}
 $ids = [];
 $walk = function ($node) use (&$walk, &$ids) {
     if ($node instanceof \OCP\Files\Folder) {
@@ -135,15 +142,17 @@ $walk = function ($node) use (&$walk, &$ids) {
 };
 $walk($folder);
 sort($ids, SORT_NUMERIC);
-$n = max(0, (int)$count);
+$n = max(0, (int)$count - count($extra));
 $step = max(1, intdiv(count($ids), max(1, $n)));
 $pick = [];
 foreach ($ids as $k => $id) {
     if ($k % $step === 0 && count($pick) < $n) { $pick[] = $id; }
 }
+$all = array_merge($extra, $pick);
 \OCP\Server::get(\OCP\SystemTag\ISystemTagObjectMapper::class)
-    ->setObjectIdsForTag($tagId, 'files', $pick);
-echo count($pick), ' ', implode(',', array_slice($pick, 0, 5)), "\n";
+    ->setObjectIdsForTag($tagId, 'files', $all);
+echo count($all), ' ', count($pick), ' ', count($extra), ' ',
+    implode(',', array_slice($all, 0, 5)), "\n";
 """
 )
 
@@ -1689,8 +1698,86 @@ async def file_count(lat: Latency, folder: str) -> int:
     return max(0, len(read_report(result.body)) - 1)
 
 
+async def measure_series(
+    lat: Latency,
+    label: str,
+    method: str,
+    url: str,
+    *,
+    depth: str | None = None,
+    body: bytes | None = None,
+    count_hits: bool = True,
+) -> float:
+    """WARMUP discarded runs, then RUNS_WARM measured ones, one client per series.
+
+    Writes one ``format_series`` line and returns the warm median in seconds. A status of
+    400 or above is never counted as zero hits: its Sabre message goes into the protocol.
+    """
+    async with new_client() as client:
+        for _ in range(WARMUP):
+            await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+        results = [
+            await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+            for _ in range(RUNS_WARM)
+        ]
+    hits = (
+        [len(read_report(result.body)) for result in results if result.status == 207]
+        if count_hits
+        else []
+    )
+    note(
+        format_series(
+            label,
+            [result.status for result in results],
+            hits,
+            [result.size for result in results],
+            [result.seconds for result in results],
+        )
+    )
+    failed = [result for result in results if result.status >= 400]
+    if failed:
+        note(
+            f"  {label} fehler={describe_error(failed[0].body)} ({len(failed)} von {len(results)})"
+        )
+    return summarize([result.seconds for result in results])["median"]
+
+
+async def measure_report(lat: Latency, label: str) -> float:
+    """The REPORT ``oc:filter-files`` on the home root of alice, as a warm series."""
+    return await measure_series(
+        lat, label, "REPORT", home_url(lat.alice, "/"), body=report_body(lat.tag_id)
+    )
+
+
+def set_stage(lat: Latency, count: int, folders: str = "") -> str:
+    """Give the latency tag exactly ``count`` nodes of the tree in one transaction."""
+    args = [lat.tag_id, str(count), TREE_DIR, lat.alice.user]
+    if folders:
+        args.append(folders)
+    return php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, *args)
+
+
+async def block_stages(lat: Latency) -> None:
+    """The REPORT at 1, 100 and 5000 tagged nodes; 1 and 100 contain a tagged folder."""
+    if not lat.tag_id:
+        raise RunFailed("no latency tag: the datenaufbau block did not finish")
+    smoke = set_stage(lat, 1)
+    note(f"SMOKE setObjectIdsForTag count=1 -> {smoke} (Annahme A2)")
+    if smoke.split(" ")[0] != "1":
+        raise RunFailed(f"setObjectIdsForTag smoke test failed: {smoke[:200]}")
+    for count in STAGES:
+        folders = STAGE_FOLDER if count < max(STAGES) else ""
+        parts = [*set_stage(lat, count, folders).split(" "), "?", "?", "?"]
+        note(
+            f"STUFE {count} zusammensetzung: knoten={parts[0]} dateien={parts[1]} "
+            f"ordner={parts[2]} (getaggter Ordner: {folders or '-'}, Dateien aus /{TREE_DIR})"
+        )
+        lat.medians[f"stufe{count}"] = await measure_report(lat, f"STUFE {count}")
+
+
 _LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = (
     ("datenaufbau", block_build),
+    ("stufen", block_stages),
 )
 
 
