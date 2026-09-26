@@ -310,8 +310,6 @@ _._decode_payload
 SPIKE_CONTAINER
 SPIKE_BASE_URL
 SPIKE_COMPOSE
-TAG_PREFIX
-SPIKE_DIR
 THRESHOLD_SECONDS
 WARMUP
 RUNS_WARM
@@ -320,14 +318,6 @@ PHP_SET_TAG_OBJECTS
 PHP_INSERT_VARIANT
 occ_pw
 wait_for_install
-compare_baseline
-report_body
-propfind_body
-home_url
-home_of
-home_path_of
-read_report
-describe_error
 summarize
-basic_creds
-dav_request
+put_file
+tag_add

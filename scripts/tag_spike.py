@@ -31,7 +31,7 @@ import statistics
 import subprocess
 import sys
 import time
-from collections.abc import Coroutine, Iterable, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,7 +42,7 @@ import httpx
 from lxml import etree
 
 from mcp_connector.errors import ToolError
-from mcp_connector.nextcloud.clients import ocs, xml
+from mcp_connector.nextcloud.clients import notes, ocs, xml
 from mcp_connector.nextcloud.credentials import MODE_APPAPI, MODE_BASIC, Credentials
 
 #: The containers of the Nextcloud 35 topology this run measures against.
@@ -190,7 +190,7 @@ def section(title: str) -> None:
     note(f"\n== {title} ==")
 
 
-def row(block: str, command: str, status: int, raw: str, seconds: float | None = None) -> str:
+def row(block: str, command: str, status: int | str, raw: str, seconds: float | None = None) -> str:
     """Timestamp | block | command | HTTP status | ms | raw excerpt (at most 300 chars)."""
     timing = "" if seconds is None else f" | {seconds * 1000:.0f} ms"
     excerpt = raw.replace("\r", "").replace("\n", " ")[:300]
@@ -654,9 +654,367 @@ async def controls(env: Mapping[str, str]) -> None:
         )
 
 
+# --- findings on nc35 -----------------------------------------------------------------------
+
+#: The sub blocks of ``findings``, in the order they run and are reported.
+FINDINGS_BLOCKS = (
+    "notes",
+    "impersonation",
+    "412",
+    "unsichtbar",
+    "varianten",
+    "zielpfad",
+    "freigabe",
+    "app-aus-35",
+)
+
+SHARES_PATH = "/apps/files_sharing/api/v1/shares"
+TEMP_ADMIN = "spike25admin"
+
+
+@dataclass
+class Run:
+    """Everything one findings run creates, so the ``finally`` can take all of it back."""
+
+    env: Mapping[str, str]
+    client: httpx.AsyncClient
+    alice: Credentials
+    bob: Credentials
+    note_ids: list[str]
+    share_ids: list[str]
+    tag_ids: list[str]
+    notes_path: str = ""
+    admin_created: bool = False
+
+
+async def ensure_dir(run: Run, creds: Credentials, path: str) -> None:
+    """MKCOL every segment of ``path`` below the home; an existing folder is fine (405)."""
+    current = ""
+    for segment in [part for part in path.split("/") if part]:
+        current = f"{current}/{segment}"
+        result = await dav_request(run.client, creds, "MKCOL", home_url(creds, current + "/"))
+        if result.status not in (201, 405):
+            raise RunFailed(f"MKCOL {current} answered {result.status}")
+
+
+async def put_file(run: Run, creds: Credentials, path: str, content: str = "spike25\n") -> str:
+    """Create one file (and its parents) and return its fileid."""
+    parent = path.rsplit("/", 1)[0]
+    if parent:
+        await ensure_dir(run, creds, parent)
+    response = await run.client.put(
+        home_url(creds, path), content=content.encode(), auth=creds.auth()
+    )
+    if response.status_code not in (201, 204):
+        raise RunFailed(f"PUT {path} answered {response.status_code}")
+    return await fileid_of(run, creds, path)
+
+
+async def fileid_of(run: Run, creds: Credentials, path: str) -> str:
+    """The ``oc:fileid`` of one entry, read with a PROPFIND Depth 0."""
+    result = await dav_request(
+        run.client,
+        creds,
+        "PROPFIND",
+        home_url(creds, path),
+        depth="0",
+        body=propfind_body([f"{{{xml.OC}}}fileid"]),
+    )
+    if result.status != 207:
+        raise RunFailed(f"PROPFIND {path} answered {result.status}")
+    entries = read_report(result.body)
+    if not entries or not entries[0][1]:
+        raise RunFailed(f"PROPFIND {path} carried no fileid")
+    return entries[0][1]
+
+
+def parse_tag_id(output: str) -> str:
+    """The id out of ``occ tag:add --output=json``."""
+    start = output.find("{")
+    try:
+        data = json.loads(output[start:]) if start >= 0 else {}
+    except json.JSONDecodeError:
+        data = {}
+    tag_id = str(data.get("id", "")) if isinstance(data, dict) else ""
+    if not re.fullmatch(r"[0-9]+", tag_id):
+        raise RunFailed(f"occ tag:add gave no id: {output[:200]}")
+    return tag_id
+
+
+def list_tags(container: str) -> list[tuple[str, str, str]]:
+    """``(id, name, access)`` of every tag ``occ tag:list`` knows."""
+    raw = occ(container, "tag:list", "--output=json", check=False)
+    start = min((i for i in (raw.find("{"), raw.find("[")) if i >= 0), default=-1)
+    try:
+        data = json.loads(raw[start:]) if start >= 0 else []
+    except json.JSONDecodeError:
+        return []
+    items: list[tuple[str, str, str]] = []
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, dict):
+                items.append((str(key), str(value.get("name", "")), str(value.get("access", ""))))
+    elif isinstance(data, list):
+        items.extend(
+            (str(value.get("id", "")), str(value.get("name", "")), str(value.get("access", "")))
+            for value in data
+            if isinstance(value, dict)
+        )
+    return items
+
+
+def tag_add(run: Run, name: str, access: str) -> str:
+    """Create one tag with occ and remember its id for the rollback."""
+    tag_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", name, access, "--output=json"))
+    run.tag_ids.append(tag_id)
+    note(f"occ tag:add {name} {access} -> id {tag_id}")
+    return tag_id
+
+
+def tag_files_add(run: Run, fileid: str, name: str, access: str) -> str:
+    """Tag one node by fileid (creates the tag if missing) and return the tag id by name."""
+    output = occ(NC_CONTAINER, "tag:files:add", fileid, name, access)
+    note(f"occ tag:files:add {fileid} {name} {access} -> {output[:120]}")
+    matches = [tag_id for tag_id, tag_name, _ in list_tags(NC_CONTAINER) if tag_name == name]
+    if not matches:
+        raise RunFailed(f"tag {name} not listed after tag:files:add")
+    for tag_id in matches:
+        if tag_id not in run.tag_ids:
+            run.tag_ids.append(tag_id)
+    return matches[-1]
+
+
+async def report(run: Run, creds: Credentials, tag_id: str, sub: str = "/") -> DavResult:
+    """One REPORT ``oc:filter-files`` below ``sub`` of the user's home."""
+    return await dav_request(
+        run.client, creds, "REPORT", home_url(creds, sub), body=report_body(tag_id)
+    )
+
+
+def describe_report(result: DavResult, creds: Credentials) -> str:
+    """Hits with fileids and home relative paths, or the error text of a failed REPORT."""
+    if result.status != 207:
+        return f"fehler={describe_error(result.body)}"
+    entries = read_report(result.body)
+    home = home_of(creds)
+    paths = [home_path_of(href, home) or f"FREMD:{href}" for href, _, _ in entries]
+    fileids = sorted((fileid for _, fileid, _ in entries), key=_as_int)
+    return f"treffer={len(entries)} fileids={fileids} pfade={paths}"
+
+
+def report_fileids(result: DavResult) -> list[str]:
+    """The sorted fileids of a 207 REPORT, empty for anything else."""
+    if result.status != 207:
+        return []
+    return sorted((fileid for _, fileid, _ in read_report(result.body)), key=_as_int)
+
+
+def _as_int(value: str) -> int:
+    return int(value) if value.isdigit() else -1
+
+
+async def log_report(
+    run: Run, block: str, label: str, creds: Credentials, tag_id: str, sub: str = "/"
+) -> DavResult:
+    """REPORT, then one protocol row with status, wall clock and the hit list."""
+    result = await report(run, creds, tag_id, sub)
+    command = f"REPORT systemtag={tag_id} als {creds.user} ({creds.mode}) auf {sub} [{label}]"
+    row(block, command, result.status, describe_report(result, creds), result.seconds)
+    return result
+
+
+async def block_notes(run: Run) -> None:
+    """Pattern 5: does the id of a note equal the fileid of its file (D-25-05, EXCL-05)."""
+    block = "notes"
+    creds = run.alice
+    headers = {"OCS-APIRequest": "true", "Accept": "application/json"}
+    response = await run.client.get(
+        notes.api_url(creds, "/settings"), headers=headers, auth=creds.auth()
+    )
+    settings = response.json() if response.status_code == 200 else {}
+    run.notes_path = str(settings.get("notesPath") or "Notes").strip("/")
+    row(block, "GET notes/api/v1/settings", response.status_code, f"notesPath={run.notes_path}")
+
+    first = await notes.create_note(
+        run.client, creds, title="spike25 Notiz", content="x", category=SPIKE_DIR
+    )
+    first_id = str(first.get("id", ""))
+    run.note_ids.append(first_id)
+    row(
+        block,
+        "POST notes/api/v1/notes title='spike25 Notiz' category=spike25",
+        "2xx",
+        f"id={first_id} title={first.get('title')} category={first.get('category')}",
+    )
+
+    folder = f"/{run.notes_path}/{SPIKE_DIR}"
+    listing = await _list_folder(run, creds, folder)
+    row(block, f"PROPFIND Depth 1 {folder}/", 207, f"eintraege={listing}")
+    by_name = {name: fileid for name, fileid, _ in listing}
+    first_fileid = by_name.get(f"{first.get('title')}.md", "")
+    same_first = first_id == first_fileid
+    note(
+        f"NOTES id={first_id} fileid={first_fileid} datei={first.get('title')}.md "
+        f"gleich={'ja' if same_first else 'nein'}"
+    )
+
+    fetched = await notes.get_note(run.client, creds, first_fileid or "0")
+    same_fetch = str(fetched.get("id", "")) == first_id
+    row(
+        block,
+        f"GET notes/api/v1/notes/{first_fileid}",
+        "2xx",
+        f"id={fetched.get('id')} title={fetched.get('title')} "
+        f"dieselbe_notiz={'ja' if same_fetch else 'nein'}",
+    )
+
+    second = await notes.create_note(
+        run.client, creds, title="spike25 Notiz", content="y", category=SPIKE_DIR
+    )
+    second_id = str(second.get("id", ""))
+    run.note_ids.append(second_id)
+    listing = await _list_folder(run, creds, folder)
+    new_files = [(name, fileid) for name, fileid, _ in listing if name not in by_name]
+    second_name, second_fileid = new_files[0] if len(new_files) == 1 else ("?", "")
+    same_second = second_id == second_fileid
+    row(
+        block,
+        "POST notes/api/v1/notes (same title again)",
+        "2xx",
+        f"id={second_id} title={second.get('title')} neue_dateien={new_files}",
+    )
+    note(
+        f"NOTES id={second_id} fileid={second_fileid} datei={second_name} "
+        f"gleich={'ja' if same_second else 'nein'}"
+    )
+
+    folder_id = await fileid_of(run, creds, folder)
+    tag_id = tag_files_add(run, folder_id, f"{TAG_PREFIX}-notes", "public")
+    result = await log_report(run, block, "Notes-Kategorieordner getaggt", creds, tag_id)
+    hits = report_fileids(result)
+    folder_hit = "ja" if folder_id in hits else "nein"
+    note_hits = [i for i in (first_id, second_id) if i in hits]
+    note(
+        f"NOTES REPORT ordner_fileid={folder_id} im_treffer={folder_hit} "
+        f"notiz_ids_im_treffer={note_hits}"
+    )
+
+    verdict = "ja" if same_first and same_second and same_fetch else "nein"
+    note(f"NOTIZ-ID GLEICH FILEID: {verdict}")
+
+
+async def _list_folder(run: Run, creds: Credentials, folder: str) -> list[tuple[str, str, bool]]:
+    """``(displayname, fileid, is_collection)`` of the children of ``folder``."""
+    result = await dav_request(
+        run.client,
+        creds,
+        "PROPFIND",
+        home_url(creds, folder + "/"),
+        depth="1",
+        body=propfind_body([f"{{{xml.OC}}}fileid", f"{{{xml.DAV}}}displayname"]),
+    )
+    if result.status != 207:
+        raise RunFailed(f"PROPFIND {folder} answered {result.status}")
+    children: list[tuple[str, str, bool]] = []
+    home = home_of(creds)
+    for href, props in xml.parse_multistatus(result.body):
+        path = home_path_of(href, home)
+        if path is None or path.rstrip("/") == folder.rstrip("/"):
+            continue
+        name = props.get(f"{{{xml.DAV}}}displayname") or path.rsplit("/", 1)[-1]
+        is_dir = href.endswith("/")
+        children.append((name, props.get(f"{{{xml.OC}}}fileid", ""), is_dir))
+    return children
+
+
+_BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
+    "notes": block_notes,
+}
+
+
+async def rollback(run: Run, before: Mapping[str, str]) -> None:
+    """Take back everything a findings run created, in the order of the plan."""
+    section("rueckbau")
+    note(
+        f"occ app:enable systemtags -> {occ(NC_CONTAINER, 'app:enable', 'systemtags', check=False)}"
+    )
+    for share_id in list(run.share_ids):
+        response = await run.client.delete(
+            ocs.ocs_url(run.alice, f"{SHARES_PATH}/{share_id}"),
+            headers=dict(ocs.OCS_HEADERS),
+            auth=run.alice.auth(),
+        )
+        note(f"DELETE share {share_id} -> HTTP {response.status_code}")
+        run.share_ids.remove(share_id)
+    spike_tags = {
+        tag_id for tag_id, name, _ in list_tags(NC_CONTAINER) if name.lower().startswith(TAG_PREFIX)
+    }
+    for tag_id in sorted(spike_tags | set(run.tag_ids), key=_as_int):
+        output = occ(NC_CONTAINER, "tag:delete", tag_id, check=False)
+        note(f"occ tag:delete {tag_id} -> {output[:120]}")
+    for note_id in run.note_ids:
+        response = await run.client.delete(
+            notes.api_url(run.alice, f"/notes/{note_id}"),
+            headers={"OCS-APIRequest": "true", "Accept": "application/json"},
+            auth=run.alice.auth(),
+        )
+        note(f"DELETE note {note_id} -> HTTP {response.status_code}")
+    user = run.alice.user
+    output = occ(
+        NC_CONTAINER,
+        "files:delete",
+        "--force",
+        "--skip-trash",
+        f"{user}/files/{SPIKE_DIR}",
+        check=False,
+    )
+    note(f"occ files:delete --force --skip-trash {user}/files/{SPIKE_DIR} -> {output[:160]}")
+    if run.notes_path:
+        folder = f"/{run.notes_path}/{SPIKE_DIR}"
+        result = await dav_request(run.client, run.alice, "DELETE", home_url(run.alice, folder))
+        note(f"DELETE {folder} -> HTTP {result.status}")
+    if before.get("papierkorb") == "0":
+        output = occ(NC_CONTAINER, "trashbin:cleanup", user, check=False)
+        note(f"occ trashbin:cleanup {user} -> {output[:160]}")
+    else:
+        note("trashbin:cleanup skipped: the trash was not empty before the run")
+    if run.admin_created or TEMP_ADMIN in occ(NC_CONTAINER, "user:list", check=False):
+        output = occ(NC_CONTAINER, "user:delete", TEMP_ADMIN, check=False)
+        note(f"occ user:delete {TEMP_ADMIN} -> {output[:120]}")
+    note(f"occ files:cleanup -> {occ(NC_CONTAINER, 'files:cleanup', check=False)[:160]}")
+    listed = TEMP_ADMIN in occ(NC_CONTAINER, "user:list", check=False)
+    note(f"RUECKBAU {TEMP_ADMIN} vorhanden: {'ja' if listed else 'nein'}")
+
+
 async def findings(env: Mapping[str, str]) -> None:
-    """The single findings on nc35 (plan 25-01 task 2)."""
-    raise RunFailed(f"the findings block is not built yet (env with {len(env)} names)")
+    """The single findings on nc35, each in its own guarded block, all rolled back."""
+    topology()
+    user = env["NC_MCP_TEST_USER"]
+    before = baseline(NC_CONTAINER, user)
+    for field, value in before.items():
+        note(f"BASELINE-START {field}={value}")
+    async with new_client() as client:
+        run = Run(
+            env=env,
+            client=client,
+            alice=basic_creds(env, user, env["NC_MCP_TEST_APP_PASSWORD"]),
+            bob=basic_creds(env, env["NC_MCP_TEST_USER2"], env["NC_MCP_TEST_APP_PASSWORD2"]),
+            note_ids=[],
+            share_ids=[],
+            tag_ids=[],
+        )
+        try:
+            for name in FINDINGS_BLOCKS:
+                section(name)
+                work = _BLOCK_FUNCTIONS.get(name)
+                if work is None:
+                    note(f"BLOCK MISSING | {name} | not built yet")
+                    continue
+                await guarded(name, work(run))
+        finally:
+            await rollback(run, before)
+            for line in compare_baseline(before, baseline(NC_CONTAINER, user)):
+                note(line)
 
 
 def secret_scan(env_file: Path) -> int:

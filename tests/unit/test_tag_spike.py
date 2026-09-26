@@ -160,3 +160,34 @@ def test_scan_for_secrets_reports_every_hit_without_the_value() -> None:
 def test_scan_for_secrets_ignores_empty_secret_values() -> None:
     texts = {"raw/a.txt": "nothing to see\n"}
     assert spike.scan_for_secrets(texts, {"AA": "", "BB": "   "}) == []
+
+
+# --- the findings block -------------------------------------------------------------------
+
+
+def test_findings_runs_exactly_the_eight_sub_blocks_in_plan_order() -> None:
+    assert spike.FINDINGS_BLOCKS == (
+        "notes",
+        "impersonation",
+        "412",
+        "unsichtbar",
+        "varianten",
+        "zielpfad",
+        "freigabe",
+        "app-aus-35",
+    )
+
+
+def test_parse_tag_id_reads_the_json_of_occ_tag_add() -> None:
+    assert spike.parse_tag_id('{"id":17,"name":"kein-ki-spike25","access":"public"}') == "17"
+    with pytest.raises(spike.RunFailed):
+        spike.parse_tag_id("Tag already exists")
+
+
+def test_compare_baseline_names_every_field_and_the_verdict() -> None:
+    before = {"tags": "[]", "dateien": "275"}
+    after = {"tags": "[]", "dateien": "276"}
+    assert spike.compare_baseline(before, after) == [
+        "BASELINE tags vorher=[] nachher=[] gleich=ja",
+        "BASELINE dateien vorher=275 nachher=276 gleich=nein",
+    ]
