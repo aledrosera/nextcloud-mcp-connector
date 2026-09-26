@@ -95,6 +95,8 @@ FILL_TAGS = 35
 BALLAST_LIMIT_SECONDS = 600
 #: After a series ran into the 60 s client limit: one single run with this limit.
 LONG_TIMEOUT_SECONDS = 300
+#: Below this CPU share the Nextcloud container counts as idle again.
+IDLE_CPU_PERCENT = 10.0
 
 #: The phase folder the protocols live in (D-25-06: internal, nothing goes to docs/).
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1704,6 +1706,28 @@ async def file_count(lat: Latency, folder: str) -> int:
     return max(0, len(read_report(result.body)) - 1)
 
 
+def cpu_percent(container: str) -> float | None:
+    """The CPU share ``docker stats --no-stream`` reports for ``container`` right now."""
+    output = docker("stats", "--no-stream", "--format", "{{.CPUPerc}}", container, check=False)
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)%", output)
+    return float(match[1]) if match else None
+
+
+async def wait_until_idle() -> float:
+    """Seconds until the Nextcloud container is idle again, at most LONG_TIMEOUT_SECONDS.
+
+    A request the client gave up on keeps running in PHP; a run started next to it would
+    measure two REPORTs at once.
+    """
+    started = time.perf_counter()
+    while time.perf_counter() - started < LONG_TIMEOUT_SECONDS:
+        load = cpu_percent(NC_CONTAINER)
+        if load is not None and load < IDLE_CPU_PERCENT:
+            break
+        await asyncio.sleep(5)
+    return time.perf_counter() - started
+
+
 async def long_single_run(
     lat: Latency,
     key: str,
@@ -1778,9 +1802,10 @@ async def measure_series(
                 f"{len(results)} von {RUNS_WARM} Messläufen; Reihe abgebrochen"
             )
     if timed_out:
+        waited = await wait_until_idle()
         note(
-            "  Hinweis: der abgebrochene Lauf kann serverseitig weiterlaufen, der folgende "
-            "Lauf misst dann neben ihm"
+            f"  {label}: der abgebrochene Lauf rechnete serverseitig weiter; nc35 ruhte nach "
+            f"{waited:.0f} s wieder (docker stats CPU unter {IDLE_CPU_PERCENT:.0f} %)"
         )
         await long_single_run(lat, key, label, method, url, depth=depth, body=body)
     if len(results) < 2:
