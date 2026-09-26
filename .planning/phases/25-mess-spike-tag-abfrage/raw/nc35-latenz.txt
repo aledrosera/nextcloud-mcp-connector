@@ -1,0 +1,204 @@
+
+# Lauf block=latency start=2026-09-26T17:50:59Z (neue Datei)
+
+== messbedingungen ==
+- installed: true
+  - version: 35.0.0.10
+  - versionstring: 35.0.0
+  - edition: 
+  - maintenance: false
+  - needsDbUpgrade: false
+  - productname: Nextcloud
+  - extendedSupport: false
+dbtype: sqlite3
+memcache.local: (leer, nicht gesetzt)
+nc_app_mcp_connector  mem 103.9MiB / 7.603GiB  cpu 0.13%
+nc35-test-issuer  mem 10.96MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 112.4MiB / 7.603GiB  cpu 0.08%
+nc35-caddy  mem 11.83MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 71.05MiB / 7.603GiB  cpu 0.08%
+nc35-nc  mem 287.3MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 84.76MiB / 7.603GiB  cpu 0.15%
+n8n-mcp-test-loopback  mem 1.969MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 341.5MiB / 7.603GiB  cpu 0.12%
+nc-mcp-exapp-greenmail  mem 113.3MiB / 7.603GiB  cpu 0.07%
+nc-mcp-exapp-nc  mem 181.6MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 10.92MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 72.66MiB / 7.603GiB  cpu 0.03%
+nc-mcp-exapp-registry  mem 5.617MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 216.6MiB / 7.603GiB  cpu 0.01%
+laufende Container (Mitläufer auf dem Host):
+nc_app_mcp_connector  127.0.0.1:5000/mcp_connector:0.2.1  Up 31 hours (healthy)
+nc35-test-issuer  caddy:2  Up 31 hours
+nc35-greenmail  greenmail/standalone:2.1.12  Up 31 hours
+nc35-caddy  caddy:2  Up 31 hours
+nc35-harp  ghcr.io/nextcloud/nextcloud-appapi-harp:release  Up 31 hours (healthy)
+nc35-nc  nextcloud:35.0.0-apache-local  Up 31 hours (healthy)
+nc_app_mcp_connector_park34  127.0.0.1:5000/mcp_connector:0.1.11  Up 31 hours (healthy)
+n8n-mcp-test-loopback  alpine/socat  Up 31 hours
+n8n-mcp-test  n8nio/n8n:latest  Up 31 hours
+nc-mcp-exapp-greenmail  greenmail/standalone:2.1.12  Up 31 hours
+nc-mcp-exapp-nc  nextcloud:34.0.3-apache  Up 31 hours (healthy)
+nc-mcp-exapp-caddy  caddy:2  Up 31 hours
+nc-mcp-exapp-harp  ghcr.io/nextcloud/nextcloud-appapi-harp:release  Up 31 hours (healthy)
+nc-mcp-exapp-registry  registry:2  Up 31 hours
+findling-nextcloud  nextcloud:34.0.3-apache  Up 31 hours
+BASELINE-START tags=[]
+BASELINE-START dateien=275
+BASELINE-START papierkorb=0
+BASELINE-START mappings=0
+BASELINE-DATEI nc35-baseline.json geschrieben (nur Zähler)
+
+== datenaufbau ==
+nc_app_mcp_connector  mem 103.9MiB / 7.603GiB  cpu 0.12%
+nc35-test-issuer  mem 10.96MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 112.4MiB / 7.603GiB  cpu 0.10%
+nc35-caddy  mem 11.83MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 71.04MiB / 7.603GiB  cpu 0.10%
+nc35-nc  mem 287.3MiB / 7.603GiB  cpu 5.65%
+nc_app_mcp_connector_park34  mem 84.76MiB / 7.603GiB  cpu 0.17%
+n8n-mcp-test-loopback  mem 1.969MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 341.4MiB / 7.603GiB  cpu 0.11%
+nc-mcp-exapp-greenmail  mem 113.3MiB / 7.603GiB  cpu 0.10%
+nc-mcp-exapp-nc  mem 181.6MiB / 7.603GiB  cpu 4.99%
+nc-mcp-exapp-caddy  mem 10.92MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 72.66MiB / 7.603GiB  cpu 0.12%
+nc-mcp-exapp-registry  mem 5.617MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 216.6MiB / 7.603GiB  cpu 0.00%
+DATENAUFBAU dateien=20000 angelegt in 3.9 s
+DATENAUFBAU files:scan in 12.0 s (Annahme A1) | -------+---------+--------+--------------+ | Folders | Files | New | Updated | Removed | Errors | Elapsed time | +---------+-------+-----+---------+---------+--------+--------------+ | 1113 | 20000 | 0 | 21113 | 0 | 0 | 00:00:12 | +---------+-------+-----+---------+---------+--------+--------------+
+occ tag:add kein-ki-spike25-lat public -> id 72
+DATENAUFBAU PROPFIND Depth 1 /spike25/flat/: 10000 Kinder (erwartet 10000)
+
+== stufen ==
+SMOKE setObjectIdsForTag count=1 -> 1 1 0 1012 (Annahme A2)
+STUFE 1 zusammensetzung: knoten=1 dateien=0 ordner=1 (getaggter Ordner: spike25/tree/a3/b3, Dateien aus /spike25/tree)
+STUFE 1 status=207 treffer=1 bytes=459 min=57 median=59 p95_zweitgroesster=63 max=74 (ms, n=15)
+STUFE 100 zusammensetzung: knoten=100 dateien=99 ordner=1 (getaggter Ordner: spike25/tree/a3/b3, Dateien aus /spike25/tree)
+STUFE 100 status=207 treffer=100 bytes=25722 min=221 median=243 p95_zweitgroesster=273 max=273 (ms, n=15)
+STUFE 5000 zusammensetzung: knoten=5000 dateien=5000 ordner=0 (getaggter Ordner: -, Dateien aus /spike25/tree)
+STUFE 5000 status=207 treffer=5000 bytes=1276122 min=8280 median=8848 p95_zweitgroesster=10117 max=10582 (ms, n=15)
+
+== referenzen ==
+REFERENZ a PROPFIND Depth 1 /remote.php/dav/systemtags/ status=207 treffer=2 bytes=572 min=46 median=48 p95_zweitgroesster=73 max=90 (ms, n=15)
+REFERENZ c PROPFIND Depth 1 /spike25/flat/ ohne nc:system-tags status=207 treffer=10001 bytes=2830499 min=292 median=336 p95_zweitgroesster=371 max=400 (ms, n=15)
+REFERENZ d PROPFIND Depth 1 /spike25/flat/ mit nc:system-tags status=207 treffer=10001 bytes=3000516 min=311 median=346 p95_zweitgroesster=527 max=2135 (ms, n=15)
+REFERENZ e GET /status.php status=200 treffer=- bytes=171 min=15 median=16 p95_zweitgroesster=23 max=24 (ms, n=15)
+REFERENZ Treffer bei a, c, d zählen alle d:response-Elemente (c und d: der Ordner selbst plus seine Kinder)
+
+== kalt ==
+KALT Definition: vor jedem Lauf apachectl -k graceful (neue mod_php-Worker, OPcache leer), dann 5 s Pause; der OS-Seitencache der SQLite-Datei bleibt warm (Annahme A5)
+KALT lauf=1 status=207 treffer=5000 bytes=1276122 ms=8649 | graceful: AH00558: apache2: Could not reliably determine the server's fully qualified doma
+KALT lauf=2 status=207 treffer=5000 bytes=1276122 ms=8265 | graceful: AH00558: apache2: Could not reliably determine the server's fully qualified doma
+KALT lauf=3 status=207 treffer=5000 bytes=1276122 ms=8563 | graceful: AH00558: apache2: Could not reliably determine the server's fully qualified doma
+KALT STUFE 5000 min=8265 median=8563 max=8649 (ms, n=3)
+
+== ballast ==
+nc_app_mcp_connector  mem 103.9MiB / 7.603GiB  cpu 0.11%
+nc35-test-issuer  mem 10.94MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 112.4MiB / 7.603GiB  cpu 0.09%
+nc35-caddy  mem 13.43MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 71.04MiB / 7.603GiB  cpu 0.02%
+nc35-nc  mem 242.1MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 84.77MiB / 7.603GiB  cpu 0.15%
+n8n-mcp-test-loopback  mem 1.969MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 341.4MiB / 7.603GiB  cpu 0.09%
+nc-mcp-exapp-greenmail  mem 113.3MiB / 7.603GiB  cpu 0.08%
+nc-mcp-exapp-nc  mem 181.7MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 10.92MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 72.89MiB / 7.603GiB  cpu 0.11%
+nc-mcp-exapp-registry  mem 5.617MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 217.3MiB / 7.603GiB  cpu 0.00%
+BALLAST spike25-fill-00 id=73 -> 10000 Zuordnungen (0 s)
+BALLAST spike25-fill-01 id=74 -> 10000 Zuordnungen (40 s)
+BALLAST spike25-fill-02 id=75 -> 10000 Zuordnungen (79 s)
+BALLAST spike25-fill-03 id=76 -> 10000 Zuordnungen (122 s)
+BALLAST spike25-fill-04 id=77 -> 10000 Zuordnungen (172 s)
+BALLAST spike25-fill-05 id=78 -> 10000 Zuordnungen (212 s)
+BALLAST spike25-fill-06 id=79 -> 10000 Zuordnungen (252 s)
+BALLAST spike25-fill-07 id=80 -> 10000 Zuordnungen (288 s)
+BALLAST spike25-fill-08 id=81 -> 10000 Zuordnungen (330 s)
+BALLAST spike25-fill-09 id=82 -> 10000 Zuordnungen (368 s)
+BALLAST spike25-fill-10 id=83 -> 10000 Zuordnungen (415 s)
+BALLAST spike25-fill-11 id=84 -> 10000 Zuordnungen (456 s)
+BALLAST spike25-fill-12 id=85 -> 10000 Zuordnungen (499 s)
+BALLAST spike25-fill-13 id=86 -> 10000 Zuordnungen (558 s)
+BALLAST abgebrochen nach 613 s bei 145000 Zuordnungen
+nc_app_mcp_connector  mem 103.9MiB / 7.603GiB  cpu 0.21%
+nc35-test-issuer  mem 10.97MiB / 7.603GiB  cpu 0.00%
+nc35-greenmail  mem 112.4MiB / 7.603GiB  cpu 0.12%
+nc35-caddy  mem 11.92MiB / 7.603GiB  cpu 0.00%
+nc35-harp  mem 71.29MiB / 7.603GiB  cpu 0.16%
+nc35-nc  mem 256.3MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 85.03MiB / 7.603GiB  cpu 0.43%
+n8n-mcp-test-loopback  mem 1.969MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 341.5MiB / 7.603GiB  cpu 0.38%
+nc-mcp-exapp-greenmail  mem 113.3MiB / 7.603GiB  cpu 0.15%
+nc-mcp-exapp-nc  mem 182.3MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 10.8MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-harp  mem 72.85MiB / 7.603GiB  cpu 0.28%
+nc-mcp-exapp-registry  mem 5.617MiB / 7.603GiB  cpu 0.00%
+findling-nextcloud  mem 217.3MiB / 7.603GiB  cpu 0.01%
+BLOCK FAILED | ballast | ReadTimeout: 
+
+== schwelle ==
+SCHWELLE D-25-04 median_warm_5000=8.848 s schwelle=1.0 s ergebnis=ueber
+VERGLEICH prepare_context-Baseline (Plan 25-01, ohne Spike-Daten): median short 0.72 s, full 0.81 s; REPORT median_warm_5000=8.848 s (der REPORT startet laut ARCHITECTURE parallel zu den Beinen)
+RUECKBAU ausgesetzt (--keep-data): /spike25 und die Spike-Tags stehen
+
+# Lauf block=ballast-remeasure start=2026-09-26T18:11:14Z (angehängt an bestehende Datei)
+
+== ballast nachmessung ==
+WIEDERHOLUNG Grund: im Lauf davor brach die Messung mit Ballast mit ReadTimeout ab (Werkzeugfehler: Zeitlimit als Blockfehler statt als Messwert); der Ballast steht unverändert (--keep-data), nur die Messungen mit Ballast werden neu gefahren
+Datenstand: Tag kein-ki-spike25-lat id=72, Füll-Tags=14, Zuordnungen=145000
+nc_app_mcp_connector  mem 103.9MiB / 7.603GiB  cpu 0.13%
+nc35-test-issuer  mem 10.94MiB / 7.603GiB  cpu 0.02%
+nc35-greenmail  mem 112.4MiB / 7.603GiB  cpu 0.07%
+nc35-caddy  mem 11.77MiB / 7.603GiB  cpu 0.02%
+nc35-harp  mem 71.13MiB / 7.603GiB  cpu 0.01%
+nc35-nc  mem 280.2MiB / 7.603GiB  cpu 0.00%
+nc_app_mcp_connector_park34  mem 85.03MiB / 7.603GiB  cpu 0.14%
+n8n-mcp-test-loopback  mem 1.969MiB / 7.603GiB  cpu 0.00%
+n8n-mcp-test  mem 341.3MiB / 7.603GiB  cpu 0.20%
+nc-mcp-exapp-greenmail  mem 113.3MiB / 7.603GiB  cpu 0.07%
+nc-mcp-exapp-nc  mem 182.3MiB / 7.603GiB  cpu 0.00%
+nc-mcp-exapp-caddy  mem 10.8MiB / 7.603GiB  cpu 0.04%
+nc-mcp-exapp-harp  mem 72.63MiB / 7.603GiB  cpu 0.09%
+nc-mcp-exapp-registry  mem 5.617MiB / 7.603GiB  cpu 0.02%
+findling-nextcloud  mem 217.3MiB / 7.603GiB  cpu 0.00%
+STUFE 5000 (mit Ballast) ZEITLIMIT 60 s überschritten (ReadTimeout) nach 0 von 3 Aufwärmläufen und 0 von 15 Messläufen; Reihe abgebrochen
+  STUFE 5000 (mit Ballast): der abgebrochene Lauf rechnete serverseitig weiter; nc35 ruhte nach 195 s wieder (docker stats CPU unter 10 %)
+STUFE 5000 (mit Ballast) EINZELLAUF zeitlimit=300 s status=207 treffer=5000 bytes=1276122 ms=249568
+REFERENZ d PROPFIND Depth 1 /spike25/flat/ mit nc:system-tags (mit Ballast) status=207 treffer=10001 bytes=22620516 min=854 median=879 p95_zweitgroesster=942 max=973 (ms, n=15)
+SCHWELLE D-25-04 (mit Ballast) median_warm_5000=nicht messbar (Reihe über 60 s abgebrochen), einzellauf=249.568 s schwelle=1.0 s ergebnis=ueber
+
+# Lauf block=teardown start=2026-09-26T18:21:12Z (angehängt an bestehende Datei)
+
+== teardown ==
+occ tag:delete 72 (kein-ki-spike25-lat) -> The specified tag was deleted
+occ tag:delete 73 (spike25-fill-00) -> The specified tag was deleted
+occ tag:delete 74 (spike25-fill-01) -> The specified tag was deleted
+occ tag:delete 75 (spike25-fill-02) -> The specified tag was deleted
+occ tag:delete 76 (spike25-fill-03) -> The specified tag was deleted
+occ tag:delete 77 (spike25-fill-04) -> The specified tag was deleted
+occ tag:delete 78 (spike25-fill-05) -> The specified tag was deleted
+occ tag:delete 79 (spike25-fill-06) -> The specified tag was deleted
+occ tag:delete 80 (spike25-fill-07) -> The specified tag was deleted
+occ tag:delete 81 (spike25-fill-08) -> The specified tag was deleted
+occ tag:delete 82 (spike25-fill-09) -> The specified tag was deleted
+occ tag:delete 83 (spike25-fill-10) -> The specified tag was deleted
+occ tag:delete 84 (spike25-fill-11) -> The specified tag was deleted
+occ tag:delete 85 (spike25-fill-12) -> The specified tag was deleted
+occ tag:delete 86 (spike25-fill-13) -> The specified tag was deleted
+Spike-Tags gelöscht: 15
+occ files:delete --force --skip-trash alice/files/spike25 -> 
+occ files:cleanup -> 0 orphaned file cache entries deleted
+0 orphaned file cache extended entries deleted
+0 orphaned mount entries deleted
+RUECKBAU /spike25 vorhanden: nein
+RUECKBAU Spike-Tags vorhanden: keine
+BASELINE dateien vorher=275 nachher=275 gleich=ja
+BASELINE mappings vorher=0 nachher=0 gleich=ja
+BASELINE papierkorb vorher=0 nachher=0 gleich=ja
+BASELINE tags vorher=[] nachher=[] gleich=ja
+BASELINE-DATEI nc35-baseline.json nach dem Vergleich gelöscht
