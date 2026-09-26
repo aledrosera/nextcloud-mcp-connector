@@ -1026,9 +1026,58 @@ async def block_impersonation(run: Run) -> None:
     )
 
 
+async def systemtag_listing(run: Run, creds: Credentials) -> tuple[DavResult, list[str]]:
+    """PROPFIND Depth 1 on ``/remote.php/dav/systemtags/``: the tag ids this user sees."""
+    result = await dav_request(
+        run.client,
+        creds,
+        "PROPFIND",
+        f"{creds.base_url}/remote.php/dav/systemtags/",
+        depth="1",
+        body=propfind_body([f"{{{xml.OC}}}id", f"{{{xml.OC}}}display-name"]),
+    )
+    ids: list[str] = []
+    if result.status == 207:
+        for _href, props in xml.parse_multistatus(result.body):
+            tag_id = props.get(f"{{{xml.OC}}}id", "")
+            if tag_id:
+                ids.append(tag_id)
+    return result, ids
+
+
+async def block_412(run: Run) -> None:
+    """412 for an unknown id, and for the id of a tag deleted and created again."""
+    block = "412"
+    alice = run.alice
+    await log_report(run, block, "unbekannte Id", alice, "999999")
+
+    name = f"{TAG_PREFIX}-412"
+    first = tag_add(run, name, "public")
+    fileid = await put_file(run, alice, f"/{SPIKE_DIR}/t412/x.txt")
+    tag_files_add(run, fileid, name, "public")
+    await log_report(run, block, f"Id A={first} vor dem Loeschen", alice, first)
+
+    note(f"occ tag:delete {first} -> {occ(NC_CONTAINER, 'tag:delete', first)[:120]}")
+    second = tag_add(run, name, "public")
+    tag_files_add(run, fileid, name, "public")
+    await log_report(run, block, f"Id A={first} nach Loeschen und Neuanlage", alice, first)
+    await log_report(run, block, f"Id B={second} (gleicher Name, neu)", alice, second)
+
+    listing, ids = await systemtag_listing(run, alice)
+    row(
+        block,
+        "PROPFIND Depth 1 /remote.php/dav/systemtags/ als alice",
+        listing.status,
+        f"A={first} gelistet={'ja' if first in ids else 'nein'} "
+        f"B={second} gelistet={'ja' if second in ids else 'nein'}",
+        listing.seconds,
+    )
+
+
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "notes": block_notes,
     "impersonation": block_impersonation,
+    "412": block_412,
 }
 
 
