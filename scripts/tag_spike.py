@@ -25,6 +25,7 @@ stdin only, never as an argument (WR-06).
 import argparse
 import asyncio
 import base64
+import io
 import json
 import re
 import secrets
@@ -1160,11 +1161,47 @@ async def block_unsichtbar(run: Run) -> None:
         run.admin_created = False
 
 
+async def block_varianten(run: Run) -> None:
+    """Source finding 1: same-named tags land in one REPORT, because it searches by name."""
+    block = "varianten"
+    alice = run.alice
+    name = f"{TAG_PREFIX}-var"
+    upper = "Kein-Ki-Spike25-Var"
+    variants = {"X": tag_add(run, name, "public")}
+    for key, (variant_name, visibility, editable) in {
+        "Y": (name, "1", "0"),
+        "Z": (name, "0", "0"),
+        "W": (upper, "1", "1"),
+    }.items():
+        tag_id = php(NC_CONTAINER, PHP_INSERT_VARIANT, variant_name, visibility, editable)
+        if not re.fullmatch(r"[0-9]+", tag_id):
+            raise RunFailed(f"variant insert gave no id: {tag_id[:200]}")
+        run.tag_ids.append(tag_id)
+        variants[key] = tag_id
+        note(
+            f"DB-Insert systemtag name={variant_name} visibility={visibility} "
+            f"editable={editable} -> {key}={tag_id}"
+        )
+    for key, tag_id in variants.items():
+        sub = f"{SPIKE_DIR}/var/{key.lower()}"
+        fileid = await put_file(run, alice, f"/{sub}/f{key.lower()}.txt")
+        mapped = php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, tag_id, "1", sub, alice.user)
+        note(f"setObjectIdsForTag {key}={tag_id} -> {mapped} (Datei {fileid}, /{sub})")
+    for key in ("X", "Y", "W", "Z"):
+        await log_report(run, block, f"Variante {key}", alice, variants[key])
+    dbtype = occ(NC_CONTAINER, "config:system:get", "dbtype", check=False)
+    note(
+        f"VARIANTEN dbtype={dbtype}: Groß/Klein-Vergleich gilt für diese Datenbank "
+        "(SQLite vergleicht binär); MySQL/MariaDB-Kollation nicht gemessen (Annahme A3)"
+    )
+
+
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "notes": block_notes,
     "impersonation": block_impersonation,
     "412": block_412,
     "unsichtbar": block_unsichtbar,
+    "varianten": block_varianten,
 }
 
 
@@ -1279,6 +1316,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--block", required=True, choices=BLOCKS, help="the block to run")
     parser.add_argument("--out", help="the protocol file this run appends to")
     options = parser.parse_args(argv)
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        # The protocol carries German prose; a Windows console code page must not garble it.
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     if options.block == "secret-scan":
         return secret_scan(Path(options.env_file))
