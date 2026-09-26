@@ -1775,9 +1775,57 @@ async def block_stages(lat: Latency) -> None:
         lat.medians[f"stufe{count}"] = await measure_report(lat, f"STUFE {count}")
 
 
+#: The properties of the flat folder reference: what ``files_list`` pays today.
+FLAT_PROPS = (f"{{{xml.OC}}}fileid", f"{{{xml.DAV}}}displayname", f"{{{xml.DAV}}}getcontentlength")
+
+
+async def measure_flat_with_tags(lat: Latency, label: str) -> float:
+    """Reference (d): the flat folder with ``nc:system-tags``, the PR #64298 way."""
+    return await measure_series(
+        lat,
+        label,
+        "PROPFIND",
+        home_url(lat.alice, f"/{FLAT_DIR}/"),
+        depth="1",
+        body=propfind_body([*FLAT_PROPS, f"{{{xml.NC}}}system-tags"]),
+    )
+
+
+async def block_references(lat: Latency) -> None:
+    """The reference points of the same series: name lookup, flat folder, and the hop."""
+    base = lat.alice.base_url
+    lat.medians["ref_a"] = await measure_series(
+        lat,
+        "REFERENZ a PROPFIND Depth 1 /remote.php/dav/systemtags/",
+        "PROPFIND",
+        f"{base}/remote.php/dav/systemtags/",
+        depth="1",
+        body=propfind_body([f"{{{xml.OC}}}id", f"{{{xml.OC}}}display-name"]),
+    )
+    lat.medians["ref_c"] = await measure_series(
+        lat,
+        f"REFERENZ c PROPFIND Depth 1 /{FLAT_DIR}/ ohne nc:system-tags",
+        "PROPFIND",
+        home_url(lat.alice, f"/{FLAT_DIR}/"),
+        depth="1",
+        body=propfind_body(list(FLAT_PROPS)),
+    )
+    lat.medians["ref_d"] = await measure_flat_with_tags(
+        lat, f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags"
+    )
+    lat.medians["ref_e"] = await measure_series(
+        lat, "REFERENZ e GET /status.php", "GET", f"{base}/status.php", count_hits=False
+    )
+    note(
+        "REFERENZ Treffer bei a, c, d zählen alle d:response-Elemente "
+        "(c und d: der Ordner selbst plus seine Kinder)"
+    )
+
+
 _LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = (
     ("datenaufbau", block_build),
     ("stufen", block_stages),
+    ("referenzen", block_references),
 )
 
 
