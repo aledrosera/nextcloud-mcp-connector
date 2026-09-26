@@ -307,12 +307,6 @@ _._decode_payload
 # leaves this list with the block that calls it: the findings block of plan 25-01 task 2, the
 # latency blocks of plan 25-02 (THRESHOLD_SECONDS, WARMUP, RUNS_*, summarize) and the version
 # matrix of plan 25-03 (SPIKE_*, wait_for_install).
-SPIKE_CONTAINER
 SPIKE_BASE_URL
 SPIKE_COMPOSE
-THRESHOLD_SECONDS
-WARMUP
-RUNS_WARM
-RUNS_COLD
 wait_for_install
-summarize

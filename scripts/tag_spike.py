@@ -13,8 +13,12 @@ Run it against the Nextcloud 35 topology of ``compose.nc35.yml``::
     uv run --no-sync python scripts/tag_spike.py --env-file .env.nc35 --block <name> --out <file>
 
 The blocks are ``controls`` (topology, baseline inventory, the impersonation controls),
-``findings`` (the single findings on nc35, each rolled back in a ``finally``) and
-``secret-scan`` (the gate over every protocol of the phase folder before a commit).
+``findings`` (the single findings on nc35, each rolled back in a ``finally``), ``latency``
+(what the REPORT costs at 1, 100 and 5000 tagged nodes, with references, cold runs and a
+ballast of fill tags; ``--keep-data`` leaves the data for the prepare_context measurement),
+``ballast-remeasure`` (only the measurements with ballast, on standing ``--keep-data``
+data), ``teardown`` (takes the latency data back, idempotent) and ``secret-scan`` (the gate over
+every protocol of the phase folder before a commit).
 
 **No secret reaches a protocol.** The values of the environment file, every password and
 token generated during a run and the ``AUTHORIZATION-APP-API`` header name are scanned for
@@ -25,6 +29,7 @@ stdin only, never as an argument (WR-06).
 import argparse
 import asyncio
 import base64
+import dataclasses
 import io
 import json
 import re
@@ -70,12 +75,37 @@ THRESHOLD_SECONDS = 1.0
 WARMUP = 3
 RUNS_WARM = 15
 RUNS_COLD = 3
+#: Pitfall 4: between these two values the owner is asked about a PostgreSQL counter check.
+NEAR_THRESHOLD_SECONDS = 0.6
+#: The pause after ``apachectl -k graceful`` before a cold run.
+COLD_PAUSE_SECONDS = 5
+
+#: Plan 25-02: the tag the latency run measures, the stages and the synthetic data set.
+LATENCY_TAG = f"{TAG_PREFIX}-lat"
+STAGES = (1, 100, 5000)
+TREE_DIR = f"{SPIKE_DIR}/tree"
+FLAT_DIR = f"{SPIKE_DIR}/flat"
+#: The folder tagged in stages 1 and 100, so the subtree case is part of the answer.
+STAGE_FOLDER = f"{TREE_DIR}/a3/b3"
+FLAT_FILES = 10_000
+#: The ballast tags (owner decision Q3): 35 public tags, each on all 10,000 flat files.
+FILL_PREFIX = "spike25-fill-"
+FILL_TAGS = 35
+#: The ballast build is cut after this many seconds (10 minutes) and reported as a limit.
+BALLAST_LIMIT_SECONDS = 600
+#: After a series ran into the 60 s client limit: one single run with this limit.
+LONG_TIMEOUT_SECONDS = 300
+#: Below this CPU share the Nextcloud container counts as idle again.
+IDLE_CPU_PERCENT = 10.0
 
 #: The phase folder the protocols live in (D-25-06: internal, nothing goes to docs/).
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PHASE_DIR = REPO_ROOT / ".planning" / "phases" / "25-mess-spike-tag-abfrage"
 RAW_DIR = PHASE_DIR / "raw"
 REPORT_FILE = PHASE_DIR / "25-MESSBERICHT.md"
+#: Counters only, no secret: the latency run leaves it for a teardown in another process.
+BASELINE_FILE = RAW_DIR / "nc35-baseline.json"
+PREPARE_CONTEXT_BASELINE = RAW_DIR / "nc35-prepare-context-baseline.txt"
 
 #: The header name whose value is base64 of ``user:APP_SECRET``; never in a protocol.
 APPAPI_HEADER = "AUTHORIZATION-APP-API"
@@ -87,7 +117,7 @@ SABRE = "http://sabredav.org/ns"
 DAV_FILES = "/remote.php/dav/files/"
 TIMEOUT = httpx.Timeout(60.0)
 
-BLOCKS = ("controls", "findings", "secret-scan")
+BLOCKS = ("controls", "findings", "latency", "ballast-remeasure", "teardown", "secret-scan")
 
 # --- PHP one shot snippets ------------------------------------------------------------------
 # Handed to ``php --`` through stdin, arguments behind the ``--``; nothing of them lands in
@@ -96,13 +126,20 @@ BLOCKS = ("controls", "findings", "secret-scan")
 _PHP_BOOT = "<?php\nrequire_once '/var/www/html/lib/base.php';\n"
 
 #: Set the complete object set of one tag in one transaction (ISystemTagObjectMapper, NC 31+).
-#: Arguments: tag id, count, folder below the user's home, user. Picks ``count`` files spread
-#: evenly over the folder, walked recursively, and prints the count and the first ids.
+#: Arguments: tag id, count, folder below the user's home, user, and optionally a comma list
+#: of folders below the home that are tagged themselves (the subtree case). Picks the
+#: remaining ``count`` files spread evenly over the folder, walked recursively, and prints
+#: the total, the number of files, the number of folders and the first ids.
 PHP_SET_TAG_OBJECTS = (
     _PHP_BOOT
     + r"""
 [, $tagId, $count, $sub, $user] = $argv;
-$folder = \OCP\Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($user)->get($sub);
+$home = \OCP\Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($user);
+$folder = $home->get($sub);
+$extra = [];
+foreach (array_filter(explode(',', $argv[5] ?? ''), 'strlen') as $path) {
+    $extra[] = (string)$home->get($path)->getId();
+}
 $ids = [];
 $walk = function ($node) use (&$walk, &$ids) {
     if ($node instanceof \OCP\Files\Folder) {
@@ -113,15 +150,17 @@ $walk = function ($node) use (&$walk, &$ids) {
 };
 $walk($folder);
 sort($ids, SORT_NUMERIC);
-$n = max(0, (int)$count);
+$n = max(0, (int)$count - count($extra));
 $step = max(1, intdiv(count($ids), max(1, $n)));
 $pick = [];
 foreach ($ids as $k => $id) {
     if ($k % $step === 0 && count($pick) < $n) { $pick[] = $id; }
 }
+$all = array_merge($extra, $pick);
 \OCP\Server::get(\OCP\SystemTag\ISystemTagObjectMapper::class)
-    ->setObjectIdsForTag($tagId, 'files', $pick);
-echo count($pick), ' ', implode(',', array_slice($pick, 0, 5)), "\n";
+    ->setObjectIdsForTag($tagId, 'files', $all);
+echo count($all), ' ', count($pick), ' ', count($extra), ' ',
+    implode(',', array_slice($all, 0, 5)), "\n";
 """
 )
 
@@ -561,6 +600,62 @@ def summarize(values: Sequence[float]) -> dict[str, float]:
         "p95_second_largest": ordered[-2],
         "max": ordered[-1],
     }
+
+
+def span(values: Sequence[int]) -> str:
+    """One number when all values agree, ``low..high`` when they do not, ``-`` for none."""
+    if not values:
+        return "-"
+    low, high = min(values), max(values)
+    return str(low) if low == high else f"{low}..{high}"
+
+
+def format_series(
+    label: str,
+    statuses: Sequence[int],
+    hits: Sequence[int],
+    sizes: Sequence[int],
+    seconds: Sequence[float],
+) -> str:
+    """One protocol line per measured series, wall clock in milliseconds.
+
+    Status, hits and bytes are shown as a span, so a series that changed its answer midway
+    cannot hide behind the value of its last run.
+    """
+    stats = {key: f"{value * 1000:.0f}" for key, value in summarize(seconds).items()}
+    status = "/".join(str(value) for value in sorted(set(statuses)))
+    return (
+        f"{label} status={status} treffer={span(hits)} bytes={span(sizes)} "
+        f"min={stats['min']} median={stats['median']} "
+        f"p95_zweitgroesster={stats['p95_second_largest']} max={stats['max']} "
+        f"(ms, n={len(seconds)})"
+    )
+
+
+def threshold_line(median_seconds: float, label: str = "") -> list[str]:
+    """The D-25-04 verdict for the warm median at 5000, plus the near threshold note.
+
+    Only a median above the threshold is ``ueber``; the verdict itself is decided by the
+    owner at checkpoint 25-04, this line only states the number against the limit.
+    """
+    verdict = "ueber" if median_seconds > THRESHOLD_SECONDS else "unter"
+    head = "SCHWELLE D-25-04" + (f" ({label})" if label else "")
+    first = (
+        f"{head} median_warm_5000={median_seconds:.3f} s "
+        f"schwelle={THRESHOLD_SECONDS:.1f} s ergebnis={verdict}"
+    )
+    lines = [first]
+    if NEAR_THRESHOLD_SECONDS <= median_seconds <= THRESHOLD_SECONDS:
+        lines.append("HINWEIS nahe Schwelle: PostgreSQL-Gegenmessung am Checkpoint fragen")
+    return lines
+
+
+_WALL_CLOCK = re.compile(r"wall clock detail='(\w+)':.*?median ([0-9.]+) s")
+
+
+def prepare_context_medians(text: str) -> dict[str, float]:
+    """The median wall clock per detail level out of a ``test_ctx_bundle.py -s`` output."""
+    return {match[1]: float(match[2]) for match in _WALL_CLOCK.finditer(text)}
 
 
 # --- HTTP -----------------------------------------------------------------------------------
@@ -1477,6 +1572,596 @@ async def findings(env: Mapping[str, str]) -> None:
                 note(line)
 
 
+# --- latency on nc35 (plan 25-02) -----------------------------------------------------------
+
+
+@dataclass
+class Latency:
+    """What one latency run carries from block to block."""
+
+    env: Mapping[str, str]
+    alice: Credentials
+    tag_id: str = ""
+    medians: dict[str, float] = dataclasses.field(default_factory=dict)
+
+
+def docker_stats() -> None:
+    """Memory and CPU of every container right now (Pitfall 7: the VM has 7.6 GiB)."""
+    note(
+        docker(
+            "stats",
+            "--no-stream",
+            "--format",
+            "{{.Name}}  mem {{.MemUsage}}  cpu {{.CPUPerc}}",
+            check=False,
+        ).strip()
+    )
+
+
+def spike_dir_exists(user: str) -> bool:
+    """Whether ``data/<user>/files/spike25`` is on disk inside the Nextcloud container."""
+    answer = docker(
+        "exec",
+        "-u",
+        "www-data",
+        NC_CONTAINER,
+        "sh",
+        "-c",
+        'if [ -e "$1" ]; then echo ja; else echo nein; fi',
+        "sh",
+        f"/var/www/html/data/{user}/files/{SPIKE_DIR}",
+        check=False,
+    ).strip()
+    return answer.endswith("ja")
+
+
+def save_baseline(before: Mapping[str, str]) -> None:
+    """Keep the start inventory for a teardown that may run in a later process.
+
+    An existing file is left alone: it belongs to an earlier run that was never torn down,
+    and its counters, not today's, describe the state nc35 has to return to.
+    """
+    if BASELINE_FILE.exists():
+        note(f"BASELINE-DATEI {BASELINE_FILE.name} besteht schon, bleibt massgeblich")
+        return
+    BASELINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    BASELINE_FILE.write_text(json.dumps(dict(before), sort_keys=True), encoding="utf-8")
+    note(f"BASELINE-DATEI {BASELINE_FILE.name} geschrieben (nur Zähler)")
+
+
+def conditions(user: str) -> dict[str, str]:
+    """The measuring conditions of the protocol head, and the start inventory."""
+    section("messbedingungen")
+    note(occ(NC_CONTAINER, "status", check=False))
+    note(f"dbtype: {occ(NC_CONTAINER, 'config:system:get', 'dbtype', check=False)}")
+    memcache = occ(NC_CONTAINER, "config:system:get", "memcache.local", check=False)
+    note(f"memcache.local: {memcache or '(leer, nicht gesetzt)'}")
+    docker_stats()
+    note("laufende Container (Mitläufer auf dem Host):")
+    note(docker("ps", "--format", "{{.Names}}  {{.Image}}  {{.Status}}", check=False).strip())
+    before = baseline(NC_CONTAINER, user)
+    for field, value in before.items():
+        note(f"BASELINE-START {field}={value}")
+    return before
+
+
+#: Builds the synthetic data set inside the container as www-data, arguments behind ``sh``:
+#: a flat folder of 10,000 files (the extreme case of nextcloud/server PR #64298) and a tree
+#: of 1,000 folders with 10 files each. Prints the number of files it finds afterwards.
+BUILD_SCRIPT = r"""
+base="$1"
+mkdir -p "$base/flat"
+for n in $(seq -f %05g 0 9999); do printf 'spike25 %s\n' "$n" > "$base/flat/f$n.txt"; done
+for a in 0 1 2 3 4 5 6 7 8 9; do for b in 0 1 2 3 4 5 6 7 8 9; do for c in 0 1 2 3 4 5 6 7 8 9; do
+  d="$base/tree/a$a/b$b/c$c"
+  mkdir -p "$d"
+  for f in 0 1 2 3 4 5 6 7 8 9; do printf 'x\n' > "$d/f$f.txt"; done
+done; done; done
+find "$base" -type f | wc -l
+"""
+
+
+async def block_build(lat: Latency) -> None:
+    """20,000 files below /spike25, a files:scan, and the tag the stages are measured on."""
+    user = lat.alice.user
+    docker_stats()
+    started = time.perf_counter()
+    count = docker(
+        "exec",
+        "-u",
+        "www-data",
+        NC_CONTAINER,
+        "sh",
+        "-c",
+        BUILD_SCRIPT,
+        "sh",
+        f"/var/www/html/data/{user}/files/{SPIKE_DIR}",
+    ).strip()
+    note(f"DATENAUFBAU dateien={count} angelegt in {time.perf_counter() - started:.1f} s")
+    started = time.perf_counter()
+    scan = occ(NC_CONTAINER, "files:scan", f"--path=/{user}/files/{SPIKE_DIR}")
+    seconds = time.perf_counter() - started
+    note(
+        f"DATENAUFBAU files:scan in {seconds:.1f} s (Annahme A1) | {' '.join(scan.split())[-300:]}"
+    )
+    lat.tag_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", LATENCY_TAG, "public", "--output=json"))
+    note(f"occ tag:add {LATENCY_TAG} public -> id {lat.tag_id}")
+    flat = await file_count(lat, f"/{FLAT_DIR}/")
+    note(f"DATENAUFBAU PROPFIND Depth 1 /{FLAT_DIR}/: {flat} Kinder (erwartet {FLAT_FILES})")
+
+
+async def file_count(lat: Latency, folder: str) -> int:
+    """The number of children a PROPFIND Depth 1 lists for ``folder`` (itself excluded)."""
+    async with new_client() as client:
+        result = await dav_request(
+            client,
+            lat.alice,
+            "PROPFIND",
+            home_url(lat.alice, folder),
+            depth="1",
+            body=propfind_body([f"{{{xml.OC}}}fileid"]),
+        )
+    if result.status != 207:
+        raise RunFailed(f"PROPFIND {folder} answered {result.status}")
+    return max(0, len(read_report(result.body)) - 1)
+
+
+def cpu_percent(container: str) -> float | None:
+    """The CPU share ``docker stats --no-stream`` reports for ``container`` right now."""
+    output = docker("stats", "--no-stream", "--format", "{{.CPUPerc}}", container, check=False)
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)%", output)
+    return float(match[1]) if match else None
+
+
+async def wait_until_idle() -> float:
+    """Seconds until the Nextcloud container is idle again, at most LONG_TIMEOUT_SECONDS.
+
+    A request the client gave up on keeps running in PHP; a run started next to it would
+    measure two REPORTs at once.
+    """
+    started = time.perf_counter()
+    while time.perf_counter() - started < LONG_TIMEOUT_SECONDS:
+        load = cpu_percent(NC_CONTAINER)
+        if load is not None and load < IDLE_CPU_PERCENT:
+            break
+        await asyncio.sleep(5)
+    return time.perf_counter() - started
+
+
+async def long_single_run(
+    lat: Latency,
+    key: str,
+    label: str,
+    method: str,
+    url: str,
+    *,
+    depth: str | None,
+    body: bytes | None,
+) -> None:
+    """One run with LONG_TIMEOUT_SECONDS after a series hit the 60 s limit.
+
+    Not a warm value and never a median: it only says how long the answer really takes,
+    so the owner sees a number instead of "more than 60 s".
+    """
+    timeout = httpx.Timeout(LONG_TIMEOUT_SECONDS)
+    async with httpx.AsyncClient(
+        follow_redirects=False, timeout=timeout, cookies=NoCookieJar()
+    ) as client:
+        try:
+            result = await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+        except httpx.TimeoutException as failure:
+            note(
+                f"{label} EINZELLAUF zeitlimit={LONG_TIMEOUT_SECONDS} s: keine Antwort "
+                f"({type(failure).__name__})"
+            )
+            return
+    hits = len(read_report(result.body)) if result.status == 207 else 0
+    lat.medians[f"{key}_einzellauf"] = result.seconds
+    note(
+        f"{label} EINZELLAUF zeitlimit={LONG_TIMEOUT_SECONDS} s status={result.status} "
+        f"treffer={hits} bytes={result.size} ms={result.seconds * 1000:.0f}"
+    )
+
+
+async def measure_series(
+    lat: Latency,
+    key: str,
+    label: str,
+    method: str,
+    url: str,
+    *,
+    depth: str | None = None,
+    body: bytes | None = None,
+    count_hits: bool = True,
+) -> None:
+    """WARMUP discarded runs, then RUNS_WARM measured ones, one client per series.
+
+    Writes one ``format_series`` line and keeps the warm median under ``key``. A status of
+    400 or above is never counted as zero hits: its Sabre message goes into the protocol.
+    A run over the 60 s client limit is a measured outcome, not a tool failure: the series
+    stops there (every further run would cost another minute), the protocol names the limit
+    and one long single run says how long the answer really takes.
+    """
+    results: list[DavResult] = []
+    warm_done = 0
+    timed_out = False
+    async with new_client() as client:
+        try:
+            for _ in range(WARMUP):
+                await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+                warm_done += 1
+            for _ in range(RUNS_WARM):
+                results.append(
+                    await dav_request(client, lat.alice, method, url, depth=depth, body=body)
+                )
+        except httpx.TimeoutException as failure:
+            timed_out = True
+            note(
+                f"{label} ZEITLIMIT {TIMEOUT.read:.0f} s überschritten "
+                f"({type(failure).__name__}) nach {warm_done} von {WARMUP} Aufwärmläufen und "
+                f"{len(results)} von {RUNS_WARM} Messläufen; Reihe abgebrochen"
+            )
+    if timed_out:
+        waited = await wait_until_idle()
+        note(
+            f"  {label}: der abgebrochene Lauf rechnete serverseitig weiter; nc35 ruhte nach "
+            f"{waited:.0f} s wieder (docker stats CPU unter {IDLE_CPU_PERCENT:.0f} %)"
+        )
+        await long_single_run(lat, key, label, method, url, depth=depth, body=body)
+    if len(results) < 2:
+        return
+    hits = (
+        [len(read_report(result.body)) for result in results if result.status == 207]
+        if count_hits
+        else []
+    )
+    note(
+        format_series(
+            label,
+            [result.status for result in results],
+            hits,
+            [result.size for result in results],
+            [result.seconds for result in results],
+        )
+    )
+    failed = [result for result in results if result.status >= 400]
+    if failed:
+        note(
+            f"  {label} fehler={describe_error(failed[0].body)} ({len(failed)} von {len(results)})"
+        )
+    if not timed_out:
+        lat.medians[key] = summarize([result.seconds for result in results])["median"]
+
+
+async def measure_report(lat: Latency, key: str, label: str) -> None:
+    """The REPORT ``oc:filter-files`` on the home root of alice, as a warm series."""
+    await measure_series(
+        lat, key, label, "REPORT", home_url(lat.alice, "/"), body=report_body(lat.tag_id)
+    )
+
+
+def set_stage(lat: Latency, count: int, folders: str = "") -> str:
+    """Give the latency tag exactly ``count`` nodes of the tree in one transaction."""
+    args = [lat.tag_id, str(count), TREE_DIR, lat.alice.user]
+    if folders:
+        args.append(folders)
+    return php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, *args)
+
+
+async def block_stages(lat: Latency) -> None:
+    """The REPORT at 1, 100 and 5000 tagged nodes; 1 and 100 contain a tagged folder."""
+    if not lat.tag_id:
+        raise RunFailed("no latency tag: the datenaufbau block did not finish")
+    smoke = set_stage(lat, 1)
+    note(f"SMOKE setObjectIdsForTag count=1 -> {smoke} (Annahme A2)")
+    if smoke.split(" ")[0] != "1":
+        raise RunFailed(f"setObjectIdsForTag smoke test failed: {smoke[:200]}")
+    for count in STAGES:
+        folders = STAGE_FOLDER if count < max(STAGES) else ""
+        parts = [*set_stage(lat, count, folders).split(" "), "?", "?", "?"]
+        note(
+            f"STUFE {count} zusammensetzung: knoten={parts[0]} dateien={parts[1]} "
+            f"ordner={parts[2]} (getaggter Ordner: {folders or '-'}, Dateien aus /{TREE_DIR})"
+        )
+        await measure_report(lat, f"stufe{count}", f"STUFE {count}")
+
+
+#: The properties of the flat folder reference: what ``files_list`` pays today.
+FLAT_PROPS = (f"{{{xml.OC}}}fileid", f"{{{xml.DAV}}}displayname", f"{{{xml.DAV}}}getcontentlength")
+
+
+async def measure_flat_with_tags(lat: Latency, key: str, label: str) -> None:
+    """Reference (d): the flat folder with ``nc:system-tags``, the PR #64298 way."""
+    await measure_series(
+        lat,
+        key,
+        label,
+        "PROPFIND",
+        home_url(lat.alice, f"/{FLAT_DIR}/"),
+        depth="1",
+        body=propfind_body([*FLAT_PROPS, f"{{{xml.NC}}}system-tags"]),
+    )
+
+
+async def block_references(lat: Latency) -> None:
+    """The reference points of the same series: name lookup, flat folder, and the hop."""
+    base = lat.alice.base_url
+    await measure_series(
+        lat,
+        "ref_a",
+        "REFERENZ a PROPFIND Depth 1 /remote.php/dav/systemtags/",
+        "PROPFIND",
+        f"{base}/remote.php/dav/systemtags/",
+        depth="1",
+        body=propfind_body([f"{{{xml.OC}}}id", f"{{{xml.OC}}}display-name"]),
+    )
+    await measure_series(
+        lat,
+        "ref_c",
+        f"REFERENZ c PROPFIND Depth 1 /{FLAT_DIR}/ ohne nc:system-tags",
+        "PROPFIND",
+        home_url(lat.alice, f"/{FLAT_DIR}/"),
+        depth="1",
+        body=propfind_body(list(FLAT_PROPS)),
+    )
+    await measure_flat_with_tags(
+        lat, "ref_d", f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags"
+    )
+    await measure_series(
+        lat, "ref_e", "REFERENZ e GET /status.php", "GET", f"{base}/status.php", count_hits=False
+    )
+    note(
+        "REFERENZ Treffer bei a, c, d zählen alle d:response-Elemente "
+        "(c und d: der Ordner selbst plus seine Kinder)"
+    )
+
+
+def graceful_restart() -> str:
+    """``apachectl -k graceful`` in the Nextcloud container: fresh mod_php workers."""
+    try:
+        return docker("exec", NC_CONTAINER, "apachectl", "-k", "graceful").strip()
+    except RunFailed:
+        return docker("exec", NC_CONTAINER, "apache2ctl", "-k", "graceful").strip()
+
+
+async def block_cold(lat: Latency) -> None:
+    """RUNS_COLD single REPORTs at 5000, each after a graceful restart and a pause."""
+    if "stufe5000" not in lat.medians:
+        raise RunFailed("stage 5000 was not measured, a cold value would compare nothing")
+    note(
+        "KALT Definition: vor jedem Lauf apachectl -k graceful (neue mod_php-Worker, OPcache "
+        f"leer), dann {COLD_PAUSE_SECONDS} s Pause; der OS-Seitencache der SQLite-Datei "
+        "bleibt warm (Annahme A5)"
+    )
+    seconds: list[float] = []
+    for number in range(1, RUNS_COLD + 1):
+        restart = graceful_restart()
+        await asyncio.sleep(COLD_PAUSE_SECONDS)
+        async with new_client() as client:
+            result = await dav_request(
+                client,
+                lat.alice,
+                "REPORT",
+                home_url(lat.alice, "/"),
+                body=report_body(lat.tag_id),
+            )
+        hits = len(read_report(result.body)) if result.status == 207 else 0
+        seconds.append(result.seconds)
+        note(
+            f"KALT lauf={number} status={result.status} treffer={hits} bytes={result.size} "
+            f"ms={result.seconds * 1000:.0f} | graceful: {restart[:80] or 'ok'}"
+        )
+    stats = {key: f"{value * 1000:.0f}" for key, value in summarize(seconds).items()}
+    note(
+        f"KALT STUFE 5000 min={stats['min']} median={stats['median']} max={stats['max']} "
+        f"(ms, n={len(seconds)})"
+    )
+
+
+async def block_ballast(lat: Latency) -> None:
+    """Owner decision Q3: does a large mapping table make the REPORT on our tag dearer.
+
+    35 public fill tags, each set on all 10,000 flat files, about 350,000 mappings. The build
+    is cut after BALLAST_LIMIT_SECONDS; a cut is a measured limit, not a failure, and the
+    measurements are repeated with whatever ballast stands.
+    """
+    if "stufe5000" not in lat.medians:
+        raise RunFailed("stage 5000 was not measured, the ballast would compare nothing")
+    user = lat.alice.user
+    docker_stats()
+    started = time.perf_counter()
+    built = 0
+    cut = False
+    for number in range(FILL_TAGS):
+        elapsed = time.perf_counter() - started
+        if elapsed > BALLAST_LIMIT_SECONDS:
+            cut = True
+            break
+        name = f"{FILL_PREFIX}{number:02d}"
+        fill_id = parse_tag_id(occ(NC_CONTAINER, "tag:add", name, "public", "--output=json"))
+        mapped = php(NC_CONTAINER, PHP_SET_TAG_OBJECTS, fill_id, str(FLAT_FILES), FLAT_DIR, user)
+        built += 1
+        note(f"BALLAST {name} id={fill_id} -> {mapped.split(' ')[0]} Zuordnungen ({elapsed:.0f} s)")
+    seconds = time.perf_counter() - started
+    mappings = php(NC_CONTAINER, PHP_COUNT_MAPPINGS)
+    if cut:
+        note(f"BALLAST abgebrochen nach {seconds:.0f} s bei {mappings} Zuordnungen")
+    else:
+        note(f"BALLAST aufgebaut: {built} Füll-Tags in {seconds:.0f} s, {mappings} Zuordnungen")
+    await measure_with_ballast(lat)
+
+
+async def measure_with_ballast(lat: Latency) -> None:
+    """Stage 5000 and reference (d) again, with the ballast standing."""
+    docker_stats()
+    await measure_report(lat, "stufe5000_ballast", "STUFE 5000 (mit Ballast)")
+    await measure_flat_with_tags(
+        lat,
+        "ref_d_ballast",
+        f"REFERENZ d PROPFIND Depth 1 /{FLAT_DIR}/ mit nc:system-tags (mit Ballast)",
+    )
+
+
+def ballast_threshold(lat: Latency) -> list[str]:
+    """The D-25-04 line with ballast: from the warm median, else from the long single run."""
+    median = lat.medians.get("stufe5000_ballast")
+    if median is not None:
+        return threshold_line(median, "mit Ballast")
+    single = lat.medians.get("stufe5000_ballast_einzellauf")
+    if single is None:
+        silent = (
+            "SCHWELLE D-25-04 (mit Ballast) median_warm_5000=nicht messbar "
+            f"(keine Antwort binnen {LONG_TIMEOUT_SECONDS} s) ergebnis=ueber"
+        )
+        return [silent]
+    verdict = "ueber" if single > THRESHOLD_SECONDS else "unter"
+    line = (
+        f"SCHWELLE D-25-04 (mit Ballast) median_warm_5000=nicht messbar (Reihe über "
+        f"{TIMEOUT.read:.0f} s abgebrochen), einzellauf={single:.3f} s "
+        f"schwelle={THRESHOLD_SECONDS:.1f} s ergebnis={verdict}"
+    )
+    return [line]
+
+
+async def ballast_remeasure(env: Mapping[str, str]) -> None:
+    """Repeat only the measurements with ballast, on the data a ``--keep-data`` run left.
+
+    The first latency run on 26.09. lost them to a tool error (the 60 s client limit was
+    raised as a block failure instead of being recorded); the ballast itself stands
+    unchanged, so the build is not repeated.
+    """
+    user = env["NC_MCP_TEST_USER"]
+    section("ballast nachmessung")
+    note(
+        "WIEDERHOLUNG Grund: im Lauf davor brach die Messung mit Ballast mit ReadTimeout ab "
+        "(Werkzeugfehler: Zeitlimit als Blockfehler statt als Messwert); der Ballast steht "
+        "unverändert (--keep-data), nur die Messungen mit Ballast werden neu gefahren"
+    )
+    ids = [tag_id for tag_id, name, _ in list_tags(NC_CONTAINER) if name == LATENCY_TAG]
+    if not ids or not spike_dir_exists(user):
+        raise RunFailed("no standing latency data; run --block latency --keep-data first")
+    fills = [name for _, name, _ in list_tags(NC_CONTAINER) if name.startswith(FILL_PREFIX)]
+    note(
+        f"Datenstand: Tag {LATENCY_TAG} id={ids[0]}, Füll-Tags={len(fills)}, "
+        f"Zuordnungen={php(NC_CONTAINER, PHP_COUNT_MAPPINGS)}"
+    )
+    lat = Latency(env=env, alice=basic_creds(env, user, env["NC_MCP_TEST_APP_PASSWORD"]))
+    lat.tag_id = ids[0]
+    await guarded("ballast nachmessung", measure_with_ballast(lat))
+    for line in ballast_threshold(lat):
+        note(line)
+
+
+async def block_threshold(lat: Latency) -> None:
+    """D-25-04 as a number: the warm median at 5000 against 1 s, and against prepare_context."""
+    median = lat.medians.get("stufe5000")
+    if median is None:
+        note("SCHWELLE D-25-04 nicht prüfbar: Stufe 5000 wurde nicht gemessen")
+        return
+    for line in threshold_line(median):
+        note(line)
+    if any(key.startswith("stufe5000_ballast") for key in lat.medians) or (
+        "ballast_mappings" in lat.medians
+    ):
+        for line in ballast_threshold(lat):
+            note(line)
+    if PREPARE_CONTEXT_BASELINE.is_file():
+        medians = prepare_context_medians(PREPARE_CONTEXT_BASELINE.read_text(encoding="utf-8"))
+        parts = [f"{detail} {value:.2f} s" for detail, value in medians.items()]
+        note(
+            f"VERGLEICH prepare_context-Baseline (Plan 25-01, ohne Spike-Daten): median "
+            f"{', '.join(parts) or '(nicht lesbar)'}; REPORT median_warm_5000={median:.3f} s "
+            "(der REPORT startet laut ARCHITECTURE parallel zu den Beinen)"
+        )
+    else:
+        note(f"VERGLEICH prepare_context: {PREPARE_CONTEXT_BASELINE.name} fehlt")
+
+
+_LATENCY_BLOCKS: tuple[tuple[str, Callable[[Latency], Coroutine[Any, Any, None]]], ...] = (
+    ("datenaufbau", block_build),
+    ("stufen", block_stages),
+    ("referenzen", block_references),
+    ("kalt", block_cold),
+    ("ballast", block_ballast),
+    ("schwelle", block_threshold),
+)
+
+
+async def latency(env: Mapping[str, str], *, keep_data: bool) -> None:
+    """Success criterion 3: what the REPORT costs at 1, 100 and 5000 tagged nodes."""
+    user = env["NC_MCP_TEST_USER"]
+    if docker("ps", "-q", "--filter", f"name={SPIKE_CONTAINER}", check=False).strip():
+        raise RunFailed(f"{SPIKE_CONTAINER} is running; stop it first (D-25-01, Pitfall 7)")
+    if spike_dir_exists(user):
+        raise RunFailed(f"/{SPIKE_DIR} is still there; run --block teardown first")
+    before = conditions(user)
+    save_baseline(before)
+    lat = Latency(env=env, alice=basic_creds(env, user, env["NC_MCP_TEST_APP_PASSWORD"]))
+    try:
+        for name, work in _LATENCY_BLOCKS:
+            section(name)
+            await guarded(name, work(lat))
+    finally:
+        if keep_data:
+            note(f"RUECKBAU ausgesetzt (--keep-data): /{SPIKE_DIR} und die Spike-Tags stehen")
+        else:
+            teardown(user)
+
+
+def is_spike_tag(name: str) -> bool:
+    """Whether a tag belongs to this phase: ``kein-ki-spike25*`` or ``spike25-fill-*``."""
+    return name.lower().startswith(TAG_PREFIX) or name.startswith(FILL_PREFIX)
+
+
+def load_baseline() -> dict[str, str] | None:
+    """The start inventory the latency run left behind, or ``None`` when there is none."""
+    if not BASELINE_FILE.is_file():
+        return None
+    data = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+    return {str(key): str(value) for key, value in data.items()} if isinstance(data, dict) else None
+
+
+def teardown(user: str) -> None:
+    """Take back every trace of the latency run; idempotent, also as a block of its own.
+
+    Tags first (``tag:delete`` drops their mappings), then the files without the trash, then
+    ``files:cleanup``; the last lines compare against the stored baseline, which is deleted
+    afterwards (the protocol keeps its counters).
+    """
+    section("teardown")
+    spike_tags = [
+        (tag_id, name) for tag_id, name, _ in list_tags(NC_CONTAINER) if is_spike_tag(name)
+    ]
+    for tag_id, name in sorted(spike_tags, key=lambda item: _as_int(item[0])):
+        output = occ(NC_CONTAINER, "tag:delete", tag_id, check=False)
+        note(f"occ tag:delete {tag_id} ({name}) -> {output[:120]}")
+    note(f"Spike-Tags gelöscht: {len(spike_tags)}")
+    output = occ(
+        NC_CONTAINER,
+        "files:delete",
+        "--force",
+        "--skip-trash",
+        f"{user}/files/{SPIKE_DIR}",
+        check=False,
+    )
+    note(f"occ files:delete --force --skip-trash {user}/files/{SPIKE_DIR} -> {output[:160]}")
+    note(f"occ files:cleanup -> {occ(NC_CONTAINER, 'files:cleanup', check=False)[:160]}")
+    left = [name for _, name, _ in list_tags(NC_CONTAINER) if is_spike_tag(name)]
+    note(f"RUECKBAU /{SPIKE_DIR} vorhanden: {'ja' if spike_dir_exists(user) else 'nein'}")
+    note(f"RUECKBAU Spike-Tags vorhanden: {left or 'keine'}")
+    after = baseline(NC_CONTAINER, user)
+    before = load_baseline()
+    if before is None:
+        note(f"BASELINE-DATEI {BASELINE_FILE.name} fehlt, kein Vergleich möglich")
+        for field, value in after.items():
+            note(f"BASELINE-ENDE {field}={value}")
+        return
+    for line in compare_baseline(before, after):
+        note(line)
+    BASELINE_FILE.unlink()
+    note(f"BASELINE-DATEI {BASELINE_FILE.name} nach dem Vergleich gelöscht")
+
+
 def secret_scan(env_file: Path) -> int:
     """Scan every protocol of the phase folder for the secret values of ``env_file``."""
     env = read_env_file(env_file)
@@ -1502,6 +2187,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--env-file", default=".env.nc35", help="the file the bootstrap wrote")
     parser.add_argument("--block", required=True, choices=BLOCKS, help="the block to run")
     parser.add_argument("--out", help="the protocol file this run appends to")
+    parser.add_argument(
+        "--keep-data",
+        action="store_true",
+        help="latency: leave /spike25 and the spike tags for the prepare_context measurement",
+    )
     options = parser.parse_args(argv)
     if isinstance(sys.stdout, io.TextIOWrapper):
         # The protocol carries German prose; a Windows console code page must not garble it.
@@ -1521,6 +2211,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if options.block == "controls":
             asyncio.run(controls(env))
+        elif options.block == "latency":
+            asyncio.run(latency(env, keep_data=options.keep_data))
+        elif options.block == "ballast-remeasure":
+            asyncio.run(ballast_remeasure(env))
+        elif options.block == "teardown":
+            teardown(env["NC_MCP_TEST_USER"])
         else:
             asyncio.run(findings(env))
     except (RunFailed, ToolError, httpx.HTTPError) as failure:

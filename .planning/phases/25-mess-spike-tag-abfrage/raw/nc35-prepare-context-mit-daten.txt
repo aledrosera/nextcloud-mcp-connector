@@ -1,0 +1,40 @@
+# prepare_context-Wanduhr auf nc35, MIT Spike-Daten (Plan 25-02, Task 2 Schritt 2)
+# Zeitstempel: 2026-09-26T18:20Z (UTC, Ende des Laufs)
+# Kommando: dasselbe wie in nc35-prepare-context-baseline.txt (Werte der Env-Datei nie ausgegeben):
+#   Env-Datei .env.nc35 per kleinem Python-Wrapper geladen (". ./.env.nc35" ist in der
+#   Worktree-Sandbox gesperrt, gleicher Inhalt), dazu
+#   NC_MCP_E2E_COMPOSE_FILE=compose.nc35.yml NC_MCP_E2E_PROJECT=nc-mcp-nc35
+#   NC_MCP_E2E_NEXTCLOUD=nc35-nc NC_MCP_E2E_HARP=nc35-harp NC_MCP_E2E_CADDY=nc35-caddy
+#   NC_MCP_E2E_CONTAINERS=nc35-nc,nc_app_mcp_connector,nc35-harp,nc35-caddy,nc35-greenmail
+#   pytest tests/integration/test_ctx_bundle.py -m integration -s \
+#          -k "wall_clock or measurement_protocol or no_measured_line"
+#   (Python der venv des Hauptcheckouts, PYTHONPATH auf src des Worktrees; src unverändert)
+# Datenstand: 20.000 Spike-Dateien (10.000 in /spike25/flat, 10.000 in /spike25/tree, 1.113
+#   Ordner), Tag kein-ki-spike25-lat auf Stufe 5000, Ballast abgebrochen (14 Füll-Tags
+#   spike25-fill-00..13 auf je 10.000 flat-Dateien, 145.000 Zuordnungen insgesamt; siehe
+#   nc35-latenz.txt, Abschnitte "ballast" und "ballast nachmessung").
+# Hostlast: dieselben Mitläufer wie im Protokollkopf von nc35-latenz.txt (34er-Topologie,
+#   Findling, n8n); nc35 ruhte vor dem Lauf (der verwaiste Ballast-REPORT war beendet).
+# Unterschied zur Baseline, nicht Teil der Messung: das Detail "full" meldet diesmal
+#   degraded=empty (Baseline: Mail-Bein "Nextcloud did not find the mail accounts.").
+# Streuung: max 5,66 s bei short ist ein einzelner Lauf von drei (wie in der Baseline 3,40 s);
+#   Vergleichswert ist der Median.
+#
+# Vergleich der Mediane: short 0,72 s (Baseline 0,72 s), full 0,82 s (Baseline 0,81 s);
+#   Bein search 0,63 s (Baseline 0,72 s). Die 20.000 Spike-Dateien und der Ballast
+#   verändern die prepare_context-Wanduhr nicht messbar.
+
+--- stdout des Laufs (unverändert) ---
+..
+--- prepare_context with four legs, measured ---
+  wall clock detail='short': min 0.68 s, median 0.72 s, max 5.66 s (3 runs, 0 excerpts, degraded=empty)
+  wall clock detail='full': min 0.80 s, median 0.82 s, max 0.85 s (3 runs, 3 excerpts, degraded=empty)
+  reference plan 04-04 (two legs): short 0.84 s, full 0.99 s; today with four legs: short 0.72 s, full 0.82 s (median)
+  leg search: median 0.63 s, max 0.67 s over 3 runs, no budget of its own (the search carries the per provider ceiling)
+  leg calendar: median 0.07 s, max 0.07 s over 3 runs, budget 10 s, headroom factor 139x
+  leg talk: median 0.04 s, max 0.04 s over 3 runs, budget 5 s, headroom factor 142x
+  leg mail: median 0.06 s, max 0.06 s over 3 runs, budget 10 s, headroom factor 161x
+  end state, unread per conversation: {'2uqkjpn2': 0, 'hbkwbtyk': 0, 'ppgkzi9r': 3, 'xa75t6fh': 0, 'tayhdxfv': 7}
+  topology: nc35-nc, nc_app_mcp_connector, nc35-harp, nc35-caddy, nc35-greenmail
+.
+3 passed, 6 deselected in 12.29s
