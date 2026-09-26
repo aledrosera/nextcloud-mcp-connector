@@ -1,6 +1,6 @@
 # Messbericht Phase 25: Mess-Spike Tag-Abfrage
 
-**Status:** Messung abgeschlossen, Owner-Entscheid offen (Checkpoint 25-04, D-25-05)
+**Status:** Messung abgeschlossen, Owner-Entscheid vom 2026-09-26 eingetragen (Checkpoint 25-04, D-25-05); Batch-Entscheid E3 offen bis Zusatzplan 25-05
 **Gemessen:** 2026-09-26, 17:28Z bis 18:43Z (UTC)
 **Ablage:** intern (D-25-06), nichts davon unter docs/
 **NC-Versionen (Version of record laut `occ status`):** 32.0.15, 33.0.9, 34.0.4 (je Wegwerf-Instanz), 35.0.0 (nc35-Strecke)
@@ -201,8 +201,31 @@ K5, 412 auf 33 (raw/matrix-33.txt; 32 und 34 gleich):
 
 ## Owner-Entscheid
 
-offen, wird am Checkpoint 25-04 Task 2 eingetragen
+**Datum:** 2026-09-26, Checkpoint 25-04 Task 2 (D-25-05). Owner-Antwort, vom Orchestrator wörtlich übermittelt: "Empfehlungen übernehmen".
+
+- **E1 Notes-Weg:** "Empfehlungen übernehmen", Option `empfehlung`: EXCL-05 wird in Phase 27 gebaut, Anschluss über die fileid der Notiz plus Pfadprüfung über notesPath und category.
+- **E2 Fail-closed-Auslöser:** "Empfehlungen übernehmen", Option `empfehlung`: maßgeblich ist der Ausgang des REPORT (207 = Menge ermittelt, 412 = Tag-Id einmal neu auflösen, alles andere = nicht prüfbar); die Capability wird nicht befragt.
+- **E3 Batch-Strategie:** "Empfehlungen übernehmen", also gemäß Empfehlung E3 **vertagt** bis zur Zusatzmessung 25-05; keine der Optionen `empfehlung` oder `batch-alternative` ist gewählt. "Ein REPORT je Antwort" ist nicht bestätigt.
+- **E4 PostgreSQL-Gegenmessung:** "Empfehlungen übernehmen", Option `postgres-gegenmessung`: Zusatzplan 25-05 vor Phase 26 (Stufen 1/100/5000 auf PostgreSQL, Stufe 1 und 100 bei stehendem Ballast von 145.000 Zuordnungen, PROPFIND-Weg mit nc:system-tags an Antwortknoten plus Vorfahren). D-25-02 ist damit erweitert; Phase 25 wird noch nicht abgeschlossen.
 
 ## Ableitungen für Phase 26 und 27
 
-Gilt erst nach dem Owner-Entscheid (D-25-05).
+Gilt erst nach dem Owner-Entscheid (D-25-05); der Entscheid oben liegt vor. Jede Ableitung nennt ihren Befund.
+
+### Phase 26 (Guard-Kern, EXCL-02 und EXCL-04)
+
+- **Fail-closed-Auslöser (E2, K1):** Der Guard wertet ausschließlich den Ausgang der Tag-Abfrage aus. 207 mit gültigem Body = Menge ermittelt, Filter aktiv. 412 = die gecachte Tag-Id ist veraltet oder unsichtbar: Name zu Id einmal neu auflösen und einmal wiederholen; kommt erneut 412 oder fehlt das Tag in der Liste, gilt "kein Tag vorhanden" nur, wenn PROPFIND /systemtags/ den Namen nicht mehr listet, sonst "nicht prüfbar". Jeder andere Ausgang (5xx, 401/403, Zeitlimit, Netzfehler, nicht parsebarer Body) = nicht prüfbar, betroffene Einträge zurückgehalten, Degradation benannt. Die systemtags-Capability wird nicht befragt: Sie hängt auf 32 bis 34 am APCu und sagt über die Antwortfähigkeit des REPORT nichts (REPORT 207 mit Treffern bei App aus auf allen vier Versionen). Folge: Bei ausgeschalteter App filtert der Guard weiter.
+- **412-Verhalten (K5):** Auf allen Versionen liefert eine unbekannte oder nach Löschen/Neuanlage veraltete Id 412 ("Cannot filter by non-existing tag"), die neue Id B 207. Das stützt EXCL-02 wie geschrieben: prozessweiter Cache nur für Name zu Id, bei 412 genau einmal neu auflösen.
+- **Varianten (K5):** Exakt gleichnamige Tags (X public, Y restricted) liefern je Id schon die Vereinigung; eine Variante in anderer Groß/Klein-Schreibung (W) ist getrennt. Der Guard löst daher alle Tags auf, deren Name casefold gleich `kein-ki` ist, und vereinigt die Mengen je Id. Ein für den Nutzer unsichtbares Tag (Z) liefert 412 und fehlt in seiner Liste: Es wird nicht zur Abfrage herangezogen und zählt nicht als "nicht prüfbar". Grenze: nur SQLite gemessen (A3), PostgreSQL folgt in 25-05.
+- **Zielpfad-Regel (K5):** Der REPORT filtert auf keiner Version nach Zielpfad; er liefert immer die ganze für den Nutzer sichtbare getaggte Menge. Der Guard schickt ihn auf die Home-Wurzel und prüft die Menge selbst per Präfixvergleich nach der bestehenden Segmentregel (EXCL-02). Einen engeren Zielpfad als Kostenhebel gibt es nicht.
+- **Batch-Form (E3): offen.** Der Median warm bei 5000 liegt mit 8,848 s über der Schwelle D-25-04 (mit Ballast 249,6 s). Ob Phase 26 "ein REPORT je Antwort" baut oder eine Tag-Prüfung an den Antwortknoten und ihren Vorfahren (mit Änderung am Wortlaut von EXCL-02), entscheidet der Owner nach Plan 25-05. Bis dahin plant Phase 26 die Batch-Form nicht fest; unabhängig davon gelten die Punkte oben.
+
+### Phase 27 (Werkzeug-Anschluss, EXCL-01, EXCL-03, EXCL-05)
+
+- **Notes-Weg (E1, K4):** EXCL-05 wird gebaut. Eine Notiz ist ausgeschlossen, wenn ihre Id (gleich fileid, belegt mit 933 und 934) in der getaggten Menge liegt oder ihr Pfad `notesPath/category/...` unter einem getaggten Ordner liegt; der REPORT liefert für einen getaggten Kategorieordner nur dessen fileid (932), keine Notiz-Ids. Die Pfadprüfung läuft über dieselbe Segmentregel wie bei den Datei-Werkzeugen.
+- **Freigabe-Grenze (K5):** Ein Tag auf einem Vorfahren beim Eigentümer ist für den Empfänger einer Unterordner-Freigabe unsichtbar (bob: 207, 0 Treffer); der geteilte Unterordner erscheint bei bob ungeschützt. Ein Tag auf dem geteilten Knoten selbst sieht bob (/share2). Phase 27 behandelt das als dokumentierte Grenze (Tag auf den geteilten Knoten setzen), die Doku folgt in Phase 29.
+
+### Offen bis 25-05
+
+- Batch-Entscheid E3 und damit der endgültige Wortlaut von EXCL-02.
+- Latenz und Varianten auf PostgreSQL, Stufe 1 und 100 mit Ballast, Kosten des PROPFIND-Wegs an Antwortknoten plus Vorfahren.
