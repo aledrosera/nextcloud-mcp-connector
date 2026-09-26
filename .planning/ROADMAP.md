@@ -120,7 +120,13 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
   3. Die Kosten des REPORT stehen als Zahlen im Protokoll: Wanduhr und Antwortgröße bei 1, 100 und 5000 getaggten Knoten, dazu die Referenz-Wanduhr von prepare_context, sodass die Batch-Entscheidung auf einer Messung steht
   4. Ob die Notiz-Id der fileid entspricht, ist mit Beleg aus einer echten Notiz beantwortet (ja oder nein), und das Ergebnis entscheidet ausdrücklich über den Notes-Weg in Phase 27
   5. Das Verhalten bei 412 nach gelöschter und neu angelegter Tag-Id, bei unsichtbarem Tag, bei gleichnamigen Varianten, beim REPORT-Zielpfad (Unterordner gegen Home-Wurzel) und bei geteiltem Unterordner mit getaggtem Vorfahr beim Eigentümer ist je als gemessener Einzelbefund festgehalten
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 25-01-PLAN.md , Messwerkzeug (compose.spike-tags.yml, scripts/tag_spike.py) und nc35-Einzelbefunde: Notes, Impersonation, 412, unsichtbar, Varianten, Zielpfad, Freigabe, App-aus 35, prepare_context-Baseline
+- [ ] 25-02-PLAN.md , Kostenmessung REPORT bei 1/100/5000 plus 10k-Ordner und Ballast, Schwelle D-25-04, prepare_context mit Daten, Rückbau
+- [ ] 25-03-PLAN.md , Matrix NC 32 -> 33 -> 34 sequenziell: App-aus, 412, REPORT-Grundform und Zielpfad
+- [ ] 25-04-PLAN.md , Messbericht und Owner-Checkpoint D-25-05 (Notes-Weg, Fail-closed-Auslöser, Batch-Strategie)
 **Research flag**: ja (Live-Zugriff auf NC 32 bis 35, präparierte Testdaten mit großen Ordnern, vielen Tag-Zuordnungen und geteilten Unterordnern)
 
 ### Phase 26: Guard-Kern
