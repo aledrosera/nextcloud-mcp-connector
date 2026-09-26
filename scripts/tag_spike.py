@@ -1196,12 +1196,36 @@ async def block_varianten(run: Run) -> None:
     )
 
 
+async def block_zielpfad(run: Run) -> None:
+    """Does the target path of the REPORT narrow the answer, or does it always search all."""
+    block = "zielpfad"
+    alice = run.alice
+    await put_file(run, alice, f"/{SPIKE_DIR}/p/tagged/sub/f.txt")
+    await put_file(run, alice, f"/{SPIKE_DIR}/q/g.txt")
+    folder = await fileid_of(run, alice, f"/{SPIKE_DIR}/p/tagged")
+    tag_id = tag_files_add(run, folder, f"{TAG_PREFIX}-ziel", "public")
+    answers = {}
+    for label, sub in (
+        ("Home-Wurzel", "/"),
+        ("Unterordner des getaggten Ordners", f"/{SPIKE_DIR}/p/tagged/sub/"),
+        ("fremder ungetaggter Ordner", f"/{SPIKE_DIR}/q/"),
+    ):
+        result = await log_report(run, block, label, alice, tag_id, sub)
+        answers[sub] = (result.status, report_fileids(result))
+    distinct = {(status, tuple(ids)) for status, ids in answers.values()}
+    note(
+        f"ZIELPFAD filtert={'ja' if len(distinct) > 1 else 'nein'} "
+        f"(getaggter Ordner fileid={folder}, Antworten je Zielpfad={answers})"
+    )
+
+
 _BLOCK_FUNCTIONS: dict[str, Callable[[Run], Coroutine[Any, Any, None]]] = {
     "notes": block_notes,
     "impersonation": block_impersonation,
     "412": block_412,
     "unsichtbar": block_unsichtbar,
     "varianten": block_varianten,
+    "zielpfad": block_zielpfad,
 }
 
 
