@@ -200,9 +200,9 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 27-02-PLAN.md , Datei-Familie: files_read/download/list/search orakelfrei, Upload-Orakel geschlossen (D-27-01/02)
-- [ ] 27-03-PLAN.md , Such-Familie: Live-Probe talk-message/comments, unified_search mit Sandbox für pfadlose Treffer (SBX-01) und lautlosem Tag-Filter, fetch(file) mit alter fileid
-- [ ] 27-04-PLAN.md , Notes: notes_search/read/create mit Guard und Sandbox (EXCL-05, SBX-02), ein Not-found-Satz
+- [x] 27-02-PLAN.md , Datei-Familie: files_read/download/list/search orakelfrei, Upload-Orakel geschlossen (D-27-01/02)
+- [x] 27-03-PLAN.md , Such-Familie: Live-Probe talk-message/comments, unified_search mit Sandbox für pfadlose Treffer (SBX-01) und lautlosem Tag-Filter, fetch(file) mit alter fileid
+- [x] 27-04-PLAN.md , Notes: notes_search/read/create mit Guard und Sandbox (EXCL-05, SBX-02), ein Not-found-Satz
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -286,7 +286,7 @@ Plans:
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
-| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 1/8 | In Progress|  |
+| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 4/8 | In Progress|  |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
