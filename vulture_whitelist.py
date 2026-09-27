@@ -313,28 +313,39 @@ _._decode_payload
 # that calls them, block_vorfahren (section D) and gegenmessung (section E).
 
 # --- The tag query client of plan 26-01, called by plan 26-02 ---------------------------
-# Empty again, as announced, but for one field: tagged_nodes left the list with plan 26-02,
-# whose load_scope calls it once per spelling of the exclusion tag (list_tags was never here,
-# the measuring script carries a function of the same name).
-#
-# is_collection: the folder flag of a TaggedNode, and the one name that stays. The guard of
-#   plan 26-02 turned out not to need it: nextcloud/exclusion.ancestors covers the subtree
-#   below any tagged path, and a file has no subtree, so folder and file are treated alike
-#   without asking. The field stays because it is what the REPORT answers (d:resourcetype is
-#   asked for) and it is asserted on in tests/unit/test_systemtags_client.py::
-#   test_tagged_nodes_maps_every_response. Phase 27 either reads it (a withheld folder named
-#   as such) or removes the field together with this entry.
-_.is_collection
+# Empty again, as announced: tagged_nodes left the list with plan 26-02, whose load_scope
+# calls it once per spelling of the exclusion tag, and is_collection left it with plan 27-01,
+# whose nextcloud/exclusion._active reads it into TagScope.has_folders (list_tags was never
+# here, the measuring script carries a function of the same name).
 
 # --- The guard core of phase 26, wired in by phase 27 ------------------------------------
-# nextcloud/exclusion.py was built one phase before the tool families that call it, so the
-# three states, the one-flight guard and the 412 automaton are pinned by tests before any
-# tool withholds anything. NcClients deliberately gets no guard field in phase 26.
+# Empty again, as announced: the one name parked here, TagScope.excludes, moved on to the
+# section below together with the helpers of plan 27-01, because it still waits for the same
+# callers, the family plans 27-02 to 27-06.
+
+# --- The withholding helpers of plan 27-01, wired in by plans 27-02 to 27-06 -------------
+# Plan 27-01 builds the shared pieces before the tool families that call them, so the one
+# wording, the batch lookup and the extractor are pinned by tests before any tool withholds
+# anything. Each entry leaves this list with the plan that calls it.
 #
-# excludes: TagScope.excludes, the question every tool family asks per entry ("withhold this
-#   path or file id?"), raising in the unverifiable state. Driven by tests/unit/
-#   test_exclusion.py::test_an_active_scope_covers_the_tagged_folder_and_below_but_not_a_sibling,
-#   test_an_untagged_scope_excludes_nothing_and_leaves_no_trace and
-#   test_an_unverifiable_scope_refuses_to_answer. It leaves this list with the plan of phase
-#   27 that wires in the families.
+# excludes: TagScope.excludes, the question every family asks per entry, raising in the
+#   unverifiable state. Driven by tests/unit/test_exclusion.py::
+#   test_an_active_scope_covers_the_tagged_folder_and_below_but_not_a_sibling.
 _.excludes
+# paths_of_fileids: dav.paths_of_fileids, the batch lookup of file ids into sandboxed home
+#   paths for Findling, comments and notes hits. Driven by tests/unit/
+#   test_dav_fileid_paths.py::test_a_hundred_and_twenty_ids_cost_three_searches.
+_.paths_of_fileids
+# unavailable_error: withhold.unavailable_error, the refusal of a single item or an upload
+#   while the check cannot be answered. Driven by tests/unit/test_withhold.py::
+#   test_the_unavailable_error_is_the_same_for_every_call.
+_.unavailable_error
+# degraded_entry: withhold.degraded_entry, the one degraded entry of a list family. Driven by
+#   tests/unit/test_withhold.py::test_the_degraded_entry_follows_the_key_of_the_family.
+_.degraded_entry
+# file_refs: withhold.file_refs, the file behind a search entry of any provider. Driven by
+#   tests/unit/test_withhold.py::test_a_findling_entry_carries_the_id_only.
+_.file_refs
+# needs_paths: withhold.needs_paths, whether file ids have to be resolved into paths. Driven
+#   by tests/unit/test_withhold.py::test_needs_paths_follows_the_sandbox_and_tagged_folders.
+_.needs_paths

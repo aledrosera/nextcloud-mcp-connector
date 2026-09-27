@@ -5,6 +5,7 @@ cursor, a cursor from another query, 4xx, 5xx and a folder parameter that tries 
 the user's home.
 """
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -23,6 +24,13 @@ SEARCH_URL = f"{BASE}/remote.php/dav/"
 _EMPTY_207 = """<?xml version="1.0"?>
 <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"></d:multistatus>
 """
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 def _hits_207(count: int, *, first: int = 0) -> str:

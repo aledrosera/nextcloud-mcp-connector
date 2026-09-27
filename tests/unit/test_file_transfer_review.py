@@ -2,6 +2,7 @@
 
 import base64
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -14,6 +15,13 @@ from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.tools import files, search
 
 CREDS = Credentials("https://nc.test", "alice", "test-password")
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 class LargeStream(httpx.AsyncByteStream):

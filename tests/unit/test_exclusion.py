@@ -2,9 +2,14 @@
 
 import asyncio
 import base64
+import dataclasses
 import json
+import os
+import subprocess
+import sys
 import time
 from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import httpx
 import pytest
@@ -19,6 +24,7 @@ from mcp_connector.nextcloud.credentials import Credentials
 
 BASE = "http://nc.test"
 SECRET = "app-password-test"
+SRC = Path(__file__).resolve().parents[2] / "src"
 
 TAGS = f"{BASE}/remote.php/dav/systemtags/"
 HOME = f"{BASE}/remote.php/dav/files/alice/"
@@ -360,6 +366,66 @@ async def test_a_tagged_folder_and_file_make_the_scope_active(clients: NcClients
     assert report.call_count == 1
     assert asked_ids(report.calls[0].request) == ["64"]
     assert exclusion._tag_ids[ALICE_KEY][1] == ("64",)
+    assert scope.has_folders is True
+
+
+@pytest.mark.anyio
+async def test_only_tagged_files_make_an_active_scope_without_folders(clients: NcClients) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="PROPFIND", url=TAGS).mock(
+            return_value=listed(tag_list(("64", "kein-ki")))
+        )
+        mock.route(method="REPORT", url=HOME).mock(
+            return_value=listed(report_207(("A/doc.md", "957", False), ("B/x.pdf", "958", False)))
+        )
+
+        scope = await exclusion.ExclusionGuard().scope(clients)
+
+    assert scope.state == "active"
+    assert scope.has_folders is False
+    assert exclusion.UNTAGGED.has_folders is False
+
+
+# --- the guard field of NcClients ----------------------------------------------------------
+
+
+def test_every_bundle_gets_a_fresh_guard_and_equality_stays_as_it_was() -> None:
+    client = httpx.AsyncClient(follow_redirects=False)
+    creds = Credentials(BASE, "alice", SECRET)
+
+    first = NcClients(client=client, creds=creds)
+    second = NcClients(client=client, creds=creds)
+
+    assert first == second
+    assert first.exclusion is not second.exclusion
+    assert isinstance(first.exclusion, exclusion.ExclusionGuard)
+    assert "exclusion" not in repr(first)
+
+    replaced = dataclasses.replace(first, exclusion=exclusion.ExclusionGuard())
+    assert replaced.exclusion is not first.exclusion
+    assert replaced == first
+
+
+@pytest.mark.parametrize(
+    "module",
+    [
+        "mcp_connector.nextcloud.exclusion",
+        "mcp_connector.nextcloud.clients.dav",
+        "mcp_connector.nextcloud",
+    ],
+)
+def test_each_module_imports_first_in_a_fresh_interpreter(module: str) -> None:
+    """The guard field must not bring back the cycle ``exclusion`` <-> ``nextcloud``."""
+    env = {**os.environ, "PYTHONPATH": str(SRC)}
+    done = subprocess.run(  # noqa: S603 - a fixed argv of this test, no shell, no user input
+        [sys.executable, "-c", f"import {module}"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert done.returncode == 0, done.stderr
 
 
 @pytest.mark.anyio
@@ -533,6 +599,27 @@ async def test_a_href_under_a_foreign_prefix_is_unverifiable_never_an_empty_set(
         scope = await exclusion.load_scope(clients)
 
     assert scope == exclusion.TagScope("unverifiable", reason="foreign_href")
+    assert report.call_count == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("suffix", ["A%2Fkein", "A%2fkein/", "A//B", "A%00B"])
+async def test_an_encoded_slash_or_a_double_slash_in_a_tagged_href_is_unverifiable(
+    clients: NcClients, suffix: str
+) -> None:
+    """IN-02/IN-03: ``A%2Fkein`` is one segment; decoding it into two would move the boundary."""
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="PROPFIND", url=TAGS).mock(
+            return_value=listed(tag_list(("64", "kein-ki")))
+        )
+        report = mock.route(method="REPORT", url=HOME).mock(
+            return_value=listed(report_207(("A/doc.md", "957", False), (suffix, "958", True)))
+        )
+
+        scope = await exclusion.ExclusionGuard().scope(clients)
+
+    assert scope.state == "unverifiable"
+    assert scope.reason == "foreign_href"
     assert report.call_count == 1
 
 
