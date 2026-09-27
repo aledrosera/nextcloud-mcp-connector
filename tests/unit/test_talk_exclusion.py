@@ -18,7 +18,7 @@ import pytest
 import respx
 
 from mcp_connector.errors import ToolError
-from mcp_connector.nextcloud import NcClients
+from mcp_connector.nextcloud import NcClients, capabilities
 from mcp_connector.nextcloud.clients import xml as davxml
 from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.tools import talk as talk_tools
@@ -43,6 +43,7 @@ SECRET_PATH = "Docs/geheim.txt"
 @pytest.fixture(autouse=True)
 def _fresh_tag_cache() -> None:
     guard_routes.reset()
+    capabilities.clear_cache()
 
 
 def fresh() -> NcClients:
