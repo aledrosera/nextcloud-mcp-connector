@@ -25,18 +25,28 @@ matched: names and metadata only, or file contents too, when a content provider 
 findling answered (BL-15). Without it a model concludes "the document does not exist"
 from a search that never looked inside a single file, or distrusts a real content hit
 because the payload claims contents are not indexed (pitfall 5, both directions).
+
+**A hit that carries a file passes the sandbox and the tag (EXCL-03, SBX-01).** Every
+provider counts, not only files: Findling, comments and notes hits name their file by id
+only, so that id is resolved into a path when the sandbox or a tagged folder needs it
+(:func:`_screen`). A sandbox drop is counted in ``skipped``; a ``kein-ki`` drop leaves no
+trace at all. When the exclusion check cannot be answered, every file-bearing hit is held
+back and ``degraded`` names that once.
 """
 
 import asyncio
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
-from .. import config, provider_map
+from .. import provider_map
 from ..errors import ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav, ocs
+from ..nextcloud.exclusion import TagScope
+from . import withhold
 
 DEFAULT_LIMIT = 25
 MAX_LIMIT = 100
@@ -67,6 +77,17 @@ _TERM_HINT = (
 )
 
 _UNKNOWN_PROVIDER_REASON = "This Nextcloud has no search provider with that id."
+
+#: The Talk message providers, classified by measurement and not by guess. The live probe
+#: of plan 27-03 (``.planning/phases/27-familien-anschluss-und-sandbox-parit-t/raw/
+#: 27-03-provider-probe.txt``, nc35 with Nextcloud 35.0.0 and spreed 25.0.0) shared a file
+#: into a conversation and searched for its name and its stem: neither provider answered
+#: with a single entry (``KLASSE=kein-leak``), while a plain text message was found with
+#: title "<actor> in <conversation>", its text as subline and a ``/call/<token>#message_<id>``
+#: link (``UNTERSCHEIDUNG=keine``). Their hits therefore carry no file and are treated as
+#: not file-bearing in every state. Should a later spreed start to match file names, the
+#: probe says so and these hits have to be withheld in ``active`` and ``unverifiable``.
+_FILE_SHARE_PROVIDERS = ("talk-message", "talk-message-current")
 
 
 async def unified_search(
@@ -101,24 +122,55 @@ async def unified_search(
     degraded: list[dict[str, str]] = []
     selected = _select(installed, providers, degraded)
 
-    outcomes = await asyncio.gather(
+    # The guard is the first member of its own, outside every provider timeout (pattern 6):
+    # a provider that runs into its 15 s must never cancel the flight the others wait on.
+    scope_out, *outcomes = await asyncio.gather(
+        clients.exclusion.scope(clients),
         *(_ask(clients, provider_id, term, capped) for provider_id in selected),
         return_exceptions=True,
     )
+    if isinstance(scope_out, BaseException):
+        raise scope_out
+    if not isinstance(scope_out, TagScope):
+        raise TypeError("the exclusion guard answered without a scope")
+    scope = scope_out
 
-    results: list[dict[str, Any]] = []
+    screened: list[tuple[str, _Screened]] = []
     cursors: dict[str, Any] = {}
     skipped = 0
+    withheld = False
     for provider_id, outcome in zip(selected, outcomes, strict=True):
         if isinstance(outcome, BaseException):
             degraded.append({"provider": provider_id, "reason": _reason(outcome)})
             continue
-        hits, unusable = _normalise(clients, provider_id, outcome)
-        results.extend(hits)
-        skipped += unusable
+        if not isinstance(outcome, dict):
+            continue
+        raw_entries = outcome.get("entries")
+        part = _screen(
+            clients, provider_id, raw_entries if isinstance(raw_entries, list) else [], scope
+        )
+        screened.append((provider_id, part))
+        skipped += part.skipped
+        withheld = withheld or part.withheld
         cursor = outcome.get("cursor")
         if cursor is not None and cursor != "":
             cursors[provider_id] = cursor
+
+    paths, lookup_failed = await _resolve(
+        clients, {fid for _, part in screened for fid in part.pending}
+    )
+    withheld = withheld or lookup_failed
+
+    results: list[dict[str, Any]] = []
+    for provider_id, part in screened:
+        kept, dropped = _settle(part.kept, paths, lookup_failed, scope)
+        skipped += dropped
+        hits, unusable = _normalise(clients, provider_id, kept)
+        results.extend(hits)
+        skipped += unusable
+
+    if withheld:
+        degraded.append(withhold.degraded_entry("provider"))
 
     result: dict[str, Any] = {
         "query": term,
@@ -198,22 +250,125 @@ async def _ask(clients: NcClients, provider_id: str, term: str, limit: int) -> d
         return await ocs.provider_search(clients.client, clients.creds, provider_id, term, limit)
 
 
-def _normalise(
-    clients: NcClients, provider_id: str, payload: dict[str, Any]
-) -> tuple[list[dict[str, Any]], int]:
-    """Turn one provider answer into compact hits, counting the unusable entries."""
-    raw_entries = payload.get("entries")
-    entries = raw_entries if isinstance(raw_entries, list) else []
+@dataclass(slots=True)
+class _Screened:
+    """What :func:`_screen` made of one provider answer.
 
+    ``kept`` are the entries still in the race, each with its file reference; ``pending``
+    the file ids that have to be resolved into paths before they are decided; ``skipped``
+    the counted drops (unusable or outside the sandbox); ``withheld`` whether an entry was
+    held back because the exclusion check could not be answered.
+    """
+
+    kept: list[tuple[dict[str, Any], withhold.FileRef]] = field(default_factory=list)
+    pending: set[str] = field(default_factory=set)
+    skipped: int = 0
+    withheld: bool = False
+
+
+def _screen(clients: NcClients, provider_id: str, entries: list[Any], scope: TagScope) -> _Screened:
+    """Decide every entry of one provider as far as the entry itself allows.
+
+    The order is fixed, because every step that speaks has to come before the ones that
+    stay silent (D-27-04): a sandbox drop may be counted, it says nothing about a tag.
+
+    1. Not an object: unusable, counted.
+    2. Carries no file (calendar, deck, contacts, a talk message, a systemtags tag entry):
+       kept, no tag can apply to it.
+    3. The exclusion check could not be answered: withheld silently, and the answer gets
+       one ``exclusion`` entry in ``degraded`` (D-27-03).
+    4. A plain ``attributes.path``: outside ``NC_MCP_FILES_ROOT`` it is a sandbox drop,
+       counted. The files provider sends this path relative to the home; so does the
+       file entry of the systemtags provider.
+    5. Neither a usable path nor a file id: unusable, counted.
+    6. Only a file id (Findling, comments, notes) and the path matters, because a sandbox
+       is set or a folder is tagged: the id is queued for one lookup of all providers.
+       Before phase 27 such an entry passed the sandbox unchecked, because only the files
+       provider was expected to carry a path (SBX-01, SBX-02).
+    7. Otherwise kept; the tag stage in :func:`_settle` decides it by its file id.
+    """
+    screened = _Screened()
+    resolve = scope.state != "unverifiable" and withhold.needs_paths(scope)
+    base_url = clients.creds.base_url
+    for entry in entries:
+        if not isinstance(entry, dict):
+            screened.skipped += 1
+            continue
+        ref = withhold.file_refs(base_url, provider_id, entry)
+        if provider_id in _FILE_SHARE_PROVIDERS or not ref.file_bearing:
+            screened.kept.append((entry, withhold.FileRef(None, None, file_bearing=False)))
+            continue
+        if scope.state == "unverifiable":
+            screened.withheld = True
+            continue
+        if ref.path is not None:
+            if not dav.in_files_root(ref.path):
+                screened.skipped += 1
+                continue
+        elif ref.fileid is None:
+            screened.skipped += 1
+            continue
+        elif resolve:
+            screened.pending.add(ref.fileid)
+        screened.kept.append((entry, ref))
+    return screened
+
+
+async def _resolve(clients: NcClients, fileids: set[str]) -> tuple[dict[str, str], bool]:
+    """Resolve the queued file ids with one lookup; ``True`` means the lookup itself failed.
+
+    A failed lookup is "could not check", never "not found" (fail-closed): the caller
+    withholds every queued entry and names the check in ``degraded``.
+    """
+    if not fileids:
+        return {}, False
+    try:
+        return await dav.paths_of_fileids(clients.client, clients.creds, sorted(fileids)), False
+    except (ToolError, httpx.HTTPError, ValueError):
+        return {}, True
+
+
+def _settle(
+    kept: list[tuple[dict[str, Any], withhold.FileRef]],
+    paths: dict[str, str],
+    lookup_failed: bool,
+    scope: TagScope,
+) -> tuple[list[dict[str, Any]], int]:
+    """Apply the resolved paths and then the tag, returning the survivors and the count.
+
+    A queued id that did not come back lies outside the sandbox or is gone: a sandbox
+    drop, counted. A queued id after a failed lookup is withheld silently; the caller
+    names that once in ``degraded``. A tagged entry disappears without any counter
+    (D-27-04, D-v1.7-02).
+    """
+    survivors: list[dict[str, Any]] = []
+    counted = 0
+    queued = scope.state != "unverifiable" and withhold.needs_paths(scope)
+    for entry, ref in kept:
+        if not ref.file_bearing:
+            survivors.append(entry)
+            continue
+        path = ref.path
+        if path is None and ref.fileid is not None and queued:
+            if lookup_failed:
+                continue
+            if ref.fileid not in paths:
+                counted += 1
+                continue
+            path = paths[ref.fileid]
+        if scope.state == "active" and scope.excludes(path=path, fileid=ref.fileid):
+            continue
+        survivors.append(entry)
+    return survivors, counted
+
+
+def _normalise(
+    clients: NcClients, provider_id: str, entries: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], int]:
+    """Turn the surviving entries of one provider into compact hits, counting the unusable."""
     hits: list[dict[str, Any]] = []
     skipped = 0
     for entry in entries:
-        if not isinstance(entry, dict):
-            skipped += 1
-            continue
-        if not _entry_in_files_root(provider_id, entry):
-            skipped += 1
-            continue
         resolved = provider_map.extract_id(provider_id, entry, clients.creds.base_url)
         if resolved is None:
             skipped += 1
@@ -235,24 +390,6 @@ def _normalise(
             hit["resolvable"] = False
         hits.append(hit)
     return hits, skipped
-
-
-def _entry_in_files_root(provider_id: str, entry: dict[str, Any]) -> bool:
-    """Drop search entries whose advertised file path is outside the configured root."""
-    root = config.files_root()
-    if root == "/":
-        return True
-    attributes = entry.get("attributes")
-    if not isinstance(attributes, dict):
-        # Non-file providers normally use an empty list. They remain searchable; only an
-        # explicit path is treated as a file path that needs the sandbox check.
-        return provider_id != "files"
-    raw_path = attributes.get("path")
-    if raw_path is None:
-        return provider_id != "files"
-    if not isinstance(raw_path, str):
-        return False
-    return dav.in_files_root("/" + raw_path.lstrip("/"))
 
 
 def _reason(exc: BaseException) -> str:
