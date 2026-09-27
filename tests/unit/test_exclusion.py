@@ -191,10 +191,10 @@ def test_clear_cache_drops_every_entry() -> None:
 # --- helpers for the flight tests --------------------------------------------------------
 
 
-def _clients(user: str = "alice") -> NcClients:
+def _clients(user: str = "alice", base_url: str = BASE) -> NcClients:
     return NcClients(
         client=httpx.AsyncClient(follow_redirects=False),
-        creds=Credentials(BASE, user, SECRET),
+        creds=Credentials(base_url, user, SECRET),
     )
 
 
@@ -729,6 +729,34 @@ async def test_twenty_concurrent_scope_calls_share_one_failure(clients: NcClient
     assert report.call_count == 1
     assert found[0] == exclusion.TagScope("unverifiable", reason="status")
     assert all(scope is found[0] for scope in found)
+
+
+@pytest.mark.anyio
+async def test_a_guard_refuses_a_second_identity_instead_of_serving_a_foreign_scope(
+    clients: NcClients, admin: NcClients
+) -> None:
+    """The first call binds the guard to (base_url, user); a different identity raises.
+
+    Without the binding, a miswired reuse in phase 27 would hand the second caller the
+    cached scope of the first account: foreign tagged paths, or worse, a foreign untagged.
+    """
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        listing = mock.route(method="PROPFIND", url=TAGS).mock(
+            return_value=listed(tag_list(("70", "projekt")))
+        )
+        guard = exclusion.ExclusionGuard()
+
+        first = await guard.scope(clients)
+        assert first.state == "untagged"
+        again = await guard.scope(clients)  # the same identity stays served
+        assert again is first
+
+        with pytest.raises(ValueError, match=r"one ExclusionGuard serves exactly one"):
+            await guard.scope(admin)
+        with pytest.raises(ValueError, match=r"one ExclusionGuard serves exactly one"):
+            await guard.scope(_clients("alice", base_url="http://other.test"))
+
+    assert listing.call_count == 1  # the refused calls never reached the network
 
 
 @pytest.mark.anyio

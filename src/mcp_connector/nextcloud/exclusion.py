@@ -303,17 +303,31 @@ class ExclusionGuard:
     An ``unverifiable`` scope is stored like any other: whoever waited shares the failure,
     not the cost. A cancelled flight stores nothing, so the next caller starts a new one;
     that only doubles the cost and stays fail-closed.
+
+    One instance serves exactly one ``(base_url, user)``: the first call binds the guard to
+    that identity, and a later call with a different one raises instead of handing out the
+    scope of a foreign account. The docstring contract alone would rely on the discipline of
+    phase 27, and the guard core protects itself against exactly that everywhere else.
     """
 
-    __slots__ = ("_lock", "_scope")
+    __slots__ = ("_key", "_lock", "_scope")
 
     def __init__(self) -> None:
         # Created here, not on first use, like the lock of ``oauth.jwks.KeySet``.
         self._lock = asyncio.Lock()
         self._scope: TagScope | None = None
+        self._key: tuple[str, str] | None = None
 
     async def scope(self, clients: NcClients) -> TagScope:
         """The scope of this tool call, asked for at most once however many parts need it."""
+        # The identity check runs before the fast path on purpose: a cached scope must never
+        # be handed to a caller with different credentials. No await sits between check and
+        # bind, so two concurrent first calls cannot interleave here.
+        key = (clients.creds.base_url, clients.creds.user)
+        if self._key is None:
+            self._key = key
+        elif self._key != key:
+            raise ValueError("one ExclusionGuard serves exactly one (base_url, user)")
         known = self._scope
         if known is not None:
             # The fast path takes no lock; nothing is awaited between check and return.
