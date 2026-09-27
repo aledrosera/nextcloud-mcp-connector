@@ -214,7 +214,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 27-07-PLAN.md , Live-Beweis nc35 für die Erfolgskriterien 1 bis 5 (ohne Wanduhr), A1-Latenz
+- [x] 27-07-PLAN.md , Live-Beweis nc35 für die Erfolgskriterien 1 bis 5 (ohne Wanduhr), A1-Latenz
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -286,7 +286,7 @@ Plans:
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
-| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 6/8 | In Progress|  |
+| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 7/8 | In Progress|  |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
