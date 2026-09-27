@@ -52,6 +52,7 @@ sequence frames itself exactly the same way (BL-09, ME-03), and a mail is the ch
 of all to try it: anybody may write one.
 """
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
@@ -66,7 +67,7 @@ from ..nextcloud.clients import tables as tables_client
 from ..nextcloud.clients import talk as talk_client
 from . import deck as deck_tools
 from . import files as files_tools
-from . import html_text, marks
+from . import html_text, marks, withhold
 from . import mail as mail_tools
 from . import notes as notes_tools
 from . import search as search_tools
@@ -233,21 +234,37 @@ async def _fetch_file(
 ) -> dict[str, Any]:
     """Turn a file id back into a path, then read that path with the ordinary reader.
 
+    A file id known from before the tag answers like an unknown one (EXCL-03, success
+    criterion 2). The guard and the lookup run side by side, and the guard decides first:
+    a tagged id is refused before any path is looked at, a path below a tagged folder right
+    after the lookup, both with :func:`_no_file`, the very error of an id that belongs to no
+    file. When the check cannot be answered, every id gets ``withhold.unavailable_error()``,
+    so the refusal itself tells nothing about the id. ``files_tools.read`` asks the same
+    guard of the same ``clients`` afterwards and gets the fast path, not a second REPORT.
+
     ``MAX_TEXT_BYTES`` is read here and not bound as a default in the signature, so the
     ceiling stays one module level constant that a caller can lower and a test can lower
     for the whole module.
     """
-    entry = await dav_client.find_by_fileid(clients.client, clients.creds, fileid)
+    scope, entry = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        dav_client.find_by_fileid(clients.client, clients.creds, fileid),
+        return_exceptions=True,
+    )
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if scope.excludes(fileid=fileid):
+        raise _no_file(fileid)
+    if isinstance(entry, BaseException):
+        raise entry
     if entry is None:
-        raise ToolError(
-            message=f"This account has no file with the id {fileid}.",
-            hint=(
-                "Run search again and use the id from the fresh answer: a file id stops "
-                "resolving once the file is deleted or the share is gone."
-            ),
-        )
-
+        raise _no_file(fileid)
     path = str(entry["path"])
+    if scope.excludes(path=path, fileid=fileid):
+        raise _no_file(fileid)
+
     limit = MAX_TEXT_BYTES if max_bytes is None else max_bytes
     answer = await files_tools.read(clients, path=path, max_bytes=limit)
 
@@ -274,6 +291,22 @@ async def _fetch_file(
         "url": f"{clients.creds.base_url}{provider_map.FILE_WEB_PREFIX}/{fileid}",
         "metadata": metadata,
     }
+
+
+def _no_file(fileid: str) -> ToolError:
+    """The one answer for a file id this account cannot read, whatever the reason.
+
+    An id that belongs to no file, a tagged file and a file below a tagged folder all
+    build this very object, so the three cannot be told apart (the pairing tests of phase
+    28 compare it byte for byte). No ``reason``, exactly as before phase 27.
+    """
+    return ToolError(
+        message=f"This account has no file with the id {fileid}.",
+        hint=(
+            "Run search again and use the id from the fresh answer: a file id stops "
+            "resolving once the file is deleted or the share is gone."
+        ),
+    )
 
 
 async def _fetch_note(clients: NcClients, note_id: str) -> dict[str, Any]:
