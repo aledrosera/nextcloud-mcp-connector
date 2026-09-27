@@ -201,6 +201,20 @@ async def create(
     title than the one that was asked for. That title is the truth and goes back
     unchanged; ``renamed`` marks the case so the model can mention it instead of telling
     the user about a note that does not exist under that name.
+
+    Before anything is written, the target is checked (Resolution Open Question 1 of phase
+    27). The folder is ``/`` plus ``notesPath`` from the Notes settings plus the category,
+    the candidate file is that folder plus the title plus ``fileSuffix``. A folder outside
+    ``NC_MCP_FILES_ROOT`` is refused with its own honest sentence, which says nothing about
+    a tag. A tagged folder, a tagged ancestor or a tagged candidate file is refused with
+    ``dav.parent_missing`` of the candidate, the sentence of an upload into a missing
+    folder (D-27-01 analogy: excluded means absent, for writing as well). That refusal comes
+    before the write, so a collision with a tagged note can never show up as ``renamed``.
+    When the check cannot be answered, or the settings are unusable, every write is refused
+    with ``withhold.unavailable_error()`` and no request is sent.
+
+    Known limit (phase 29): Notes sanitises the title into a file name, so the real name
+    can differ from the candidate path, and every refusal still differs from a success.
     """
     await _ready(clients)
 
@@ -210,6 +224,42 @@ async def create(
             message="A note needs a title.",
             hint="Give a short title, for example 'Protokoll 2026-08-14'.",
         )
+
+    scope, settings = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        notes_client.get_settings(clients.client, clients.creds),
+        return_exceptions=True,
+    )
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if isinstance(settings, Exception):
+        raise withhold.unavailable_error() from None
+    if isinstance(settings, BaseException):
+        raise settings
+    notes_path = settings.get("notesPath")
+    if not isinstance(notes_path, str) or not notes_path.strip().strip("/"):
+        raise withhold.unavailable_error()
+
+    folder = "/" + notes_path.strip().strip("/")
+    wanted_category = (category or "").strip().strip("/")
+    if wanted_category:
+        folder = f"{folder}/{wanted_category}"
+    raw_suffix = settings.get("fileSuffix")
+    suffix = raw_suffix if isinstance(raw_suffix, str) and raw_suffix.startswith(".") else ".md"
+    candidate = f"{folder}/{wanted}{suffix}"
+
+    if not dav.in_files_root(folder):
+        raise ToolError(
+            message=f"Notes are stored in {folder}, outside the folder this server may access.",
+            hint=(
+                "Ask an administrator to include the Notes folder in NC_MCP_FILES_ROOT, "
+                "or write the text with files_upload instead."
+            ),
+        )
+    if scope.excludes(path=candidate):
+        raise dav.parent_missing(candidate)
 
     note = await notes_client.create_note(
         clients.client,

@@ -1,0 +1,22 @@
+Rohbefund 27-04: Notes-Settings-Route (Annahme A5)
+Datum: 2026-09-27
+Instanz: Nextcloud 35.0.0 (lokale nc35, http://127.0.0.1:8082), User alice
+Notes-App: version 6.1.0, api_version ["0.2", "1.3", "1.4"], Capability notes_path "Notes"
+
+Kommando (Äquivalent, App-Passwort aus .env.nc35, nie in dieser Datei):
+  GET $NC_MCP_URL/index.php/apps/notes/api/v1/settings
+  Header: Accept: application/json, OCS-APIRequest: true
+  Auth: Basic $NC_MCP_TEST_USER:$NC_MCP_TEST_APP_PASSWORD
+
+Antwort: HTTP 200, Content-Type application/json; charset=utf-8
+{"notesPath":"Notes","fileSuffix":".md","noteMode":"rich","showHidden":false,"loadRecentOnStartUp":true}
+
+Befund:
+- Schlüssel der Antwort: notesPath, fileSuffix, noteMode, showHidden, loadRecentOnStartUp
+- notesPath ist relativ zum Home, ohne führenden Schrägstrich ("Notes"), also Ablage "/Notes"
+- fileSuffix beginnt mit Punkt (".md")
+- Form entspricht der Annahme des Plans; keine Anpassung der Implementierung nötig
+
+Nebenbefund (nicht genutzt): GET /notes?exclude=content,etag liefert je Notiz "internalPath"
+(z. B. "/Notes/Spike note e696e0f5.md"). Der Plan nutzt dafür bewusst dav.paths_of_fileids,
+weil nur dieser Weg zugleich NC_MCP_FILES_ROOT prüft.
