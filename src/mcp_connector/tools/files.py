@@ -482,6 +482,11 @@ async def upload(
     There is no overwrite mode and no force flag, by design (D-03, TOOL-09). If something
     already exists at the target, Nextcloud refuses the request and the caller gets a
     conflict it can act on: pick another name.
+
+    A destination tagged ``kein-ki``, or below a tagged folder, is refused before any
+    write with the sentence of a missing parent folder (D-27-01), also for a tagged file
+    under a visible parent; when the tag check cannot be answered, nothing is written
+    (D-27-02). The reasoning, including the residual oracle, sits in :func:`_writable`.
     """
     if (path or "").strip().endswith("/"):
         raise ToolError(
@@ -510,6 +515,7 @@ async def upload(
             hint="Send plain text; this tool does not upload binary content.",
         ) from None
 
+    await _writable(clients, target)
     return await dav.put_new_file(clients.client, clients.creds, target, data, content_type)
 
 
@@ -530,6 +536,11 @@ async def upload_binary(
     created by somebody else is refused rather than replaced. The returned upload id and
     ``next_chunk`` let a caller continue after a transient connection failure without any
     state in this process.
+
+    Every write of every chunk call first checks the destination against ``kein-ki``: a
+    tagged destination, or one below a tagged folder, gets the refusal of a missing parent
+    folder (D-27-01, also for a tagged file under a visible parent), and a check that
+    cannot be answered stops the call without any write (D-27-02). See :func:`_writable`.
     """
     if (path or "").strip().endswith("/"):
         raise ToolError(message=f"{path!r} names a folder, not a file.", hint=_FILE_TARGET_HINT)
@@ -626,6 +637,7 @@ async def upload_binary(
             hint="Use chunk_index=1, final=true and an empty base64 value.",
         )
     if total_bytes == 0:
+        await _writable(clients, target)
         result = await dav.put_new_file(clients.client, clients.creds, target, data, content_type)
         return {
             **result,
@@ -636,8 +648,14 @@ async def upload_binary(
             "completed": True,
         }
 
+    # The check guards every write of every chunk call, not only the first: a tag set
+    # between two calls stops the upload at the next one. It is the destination that is
+    # checked, never the temporary upload folder. One guard per tool call, so the checks
+    # of one call share a single REPORT.
     if chunk_index == 1:
+        await _writable(clients, target)
         await dav.start_chunked_upload(clients.client, clients.creds, target, raw_id)
+    await _writable(clients, target)
     await dav.put_upload_chunk(
         clients.client,
         clients.creds,
@@ -660,6 +678,7 @@ async def upload_binary(
             "next_chunk": chunk_index + 1,
         }
 
+    await _writable(clients, target)
     result = await dav.finish_chunked_upload(
         clients.client, clients.creds, target, raw_id, total_bytes
     )
@@ -671,6 +690,29 @@ async def upload_binary(
         "total_bytes": total_bytes,
         "completed": True,
     }
+
+
+async def _writable(clients: NcClients, target: str) -> None:
+    """Refuse a write into what is tagged ``kein-ki`` like a write into a missing folder.
+
+    D-27-01: a destination tagged itself or below a tagged folder gets exactly the refusal
+    Nextcloud gives when the parent folder does not exist, from the same factory. That
+    includes the edge case of a tagged file under a visible parent folder: "a file already
+    exists" would confirm the file outright, while "the parent does not exist" next to a
+    visible parent only tells that something is special there. Every refusal differs from
+    the 201 a free name would get, so this residual oracle cannot be avoided without
+    writing; one wording for all of them is the most consistent (documented in phase 29).
+
+    D-27-02: when the check cannot be answered, nothing is written, fail-closed; an
+    unchecked upload into a withheld subtree is never an option.
+
+    No stat before the check: a PROPFIND would itself tell existing from missing.
+    """
+    scope = await clients.exclusion.scope(clients)
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if scope.excludes(path=target):
+        raise dav.parent_missing(target)
 
 
 async def _visible_stat(clients: NcClients, target: str) -> dict[str, Any]:
@@ -694,7 +736,7 @@ async def _visible_stat(clients: NcClients, target: str) -> dict[str, Any]:
         raise withhold.unavailable_error()
     if isinstance(info, BaseException):
         raise info
-    if scope.excludes(path=target, fileid=str(info["fileid"]) or None):
+    if scope.excludes(path=target, fileid=str(info.get("fileid") or "") or None):
         raise dav.not_found(target)
     return info
 
