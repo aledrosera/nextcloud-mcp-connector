@@ -164,4 +164,6 @@ Der Guard kostet damit je Bündel eine Tag-Liste (ohne Tag) oder einen REPORT pl
 
 ## Abnahme
 
-Ausstehend. Der Owner-Checkpoint von Plan 27-08 (Task 3) ist erreicht; Antwort und Datum werden hier eingetragen.
+Owner-Entscheid 27.09.2026 am Checkpoint 27-08 (wörtlich): "Lückenplan".
+
+Die Überschreitung der Wanduhr-Schwelle (Szenario B, detail=full: Median 1,047 s gegen 0,97 s) wird NICHT akzeptiert. Es wird ein Lückenplan angelegt (/gsd:plan-phase 27 --gaps, Ansatzpunkt laut Checkpoint-Vorlage: fileid-Auflösung seltener aufrufen). Die Phase bleibt offen, bis die Messung unter der Schwelle liegt und die Abnahme erneut vorgelegt wurde. Alle übrigen Befunde (Erfolgskriterien 1-5, Request-Kosten, talk-message kein-leak, Merker für Phase 28/29) standen am Checkpoint nicht in Frage.
