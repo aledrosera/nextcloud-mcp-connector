@@ -1,0 +1,77 @@
+# 27-08 prepare_context wall clock 2026-09-27 13:55:03 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_ctx_bundle.py -m integration -s
+# nextcloud=35.0.0 (status.php), user=alice, query='Abnahme', runs=5 after 1 warm-up, fresh guard per call
+# topology: nc35-nc, nc_app_mcp_connector, nc35-harp, nc35-caddy, nc35-greenmail
+# threshold: reference phase 25 (short 0.72 s, full 0.81 s) + guard flight 0.107 s (tag list 48 ms + REPORT level 1 59 ms) + noise 0.05 s = 0.877 -> 0.88 s and 0.967 -> 0.97 s
+# test data: /wanduhr27-0c70b592-Abnahme/ (with one file) and /wanduhr27-0c70b592-Abnahme.txt
+LAUF szenario=A detail=short lauf=warmup s=0.791 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=0] testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=1 s=0.783 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=2 s=0.816 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=3 s=0.786 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=4 s=0.788 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=5 s=0.761 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] testdaten_im_buendel=ja degraded=empty
+WANDUHR szenario=A detail=short median=0.786 min=0.761 max=0.816 schwelle=0.88 urteil=innerhalb
+LAUF szenario=A detail=full lauf=warmup s=0.904 requests=28 guard[exclusion-tags=1,exclusion-report=0,files-search=3] testdaten_im_buendel=ja degraded=[{'source': 'file:22279', 'reason': '/wanduhr27-0c70b592-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=1 s=0.917 requests=28 guard[exclusion-tags=1,exclusion-report=0,files-search=3] testdaten_im_buendel=ja degraded=[{'source': 'file:22279', 'reason': '/wanduhr27-0c70b592-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=2 s=0.959 requests=28 guard[exclusion-tags=1,exclusion-report=0,files-search=3] testdaten_im_buendel=ja degraded=[{'source': 'file:22279', 'reason': '/wanduhr27-0c70b592-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=3 s=0.937 requests=28 guard[exclusion-tags=1,exclusion-report=0,files-search=3] testdaten_im_buendel=ja degraded=[{'source': 'file:22279', 'reason': '/wanduhr27-0c70b592-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=4 s=0.991 requests=28 guard[exclusion-tags=1,exclusion-report=0,files-search=3] testdaten_im_buendel=ja degraded=[{'source': 'file:22279', 'reason': '/wanduhr27-0c70b592-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=5 s=0.933 requests=27 guard[exclusion-tags=1,exclusion-report=0,files-search=3] testdaten_im_buendel=ja degraded=[{'source': 'mail', 'reason': 'Nextcloud did not find the mail accounts.'}, {'source': 'file:22279', 'reason': '/wanduhr27-0c70b592-Abnahme is a folder, not a file.'}]
+WANDUHR szenario=A detail=full median=0.937 min=0.917 max=0.991 schwelle=0.97 urteil=innerhalb
+# scenario B: tagged by occ tag:files:add: /wanduhr27-0c70b592-Abnahme/ and /wanduhr27-0c70b592-Abnahme.txt (tag created)
+LAUF szenario=B detail=short lauf=warmup s=0.981 requests=25 guard[exclusion-tags=1,exclusion-report=1,files-search=1] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=1 s=0.797 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=2 s=0.797 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=3 s=0.847 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=4 s=0.795 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=5 s=0.823 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=short median=0.797 min=0.795 max=0.847 schwelle=0.88 urteil=innerhalb
+LAUF szenario=B detail=full lauf=warmup s=1.009 requests=29 guard[exclusion-tags=0,exclusion-report=1,files-search=4] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=1.077 requests=29 guard[exclusion-tags=0,exclusion-report=1,files-search=4] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=2 s=1.047 requests=29 guard[exclusion-tags=0,exclusion-report=1,files-search=4] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=1.026 requests=29 guard[exclusion-tags=0,exclusion-report=1,files-search=4] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.000 requests=29 guard[exclusion-tags=0,exclusion-report=1,files-search=4] testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.079 requests=29 guard[exclusion-tags=0,exclusion-report=1,files-search=4] testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.047 min=1.000 max=1.079 schwelle=0.97 urteil=ueberschritten
+CLEANUP PROPFIND /wanduhr27-0c70b592-Abnahme: 404
+CLEANUP PROPFIND /wanduhr27-0c70b592-Abnahme.txt: 404
+CLEANUP tag kein-ki listed: 0
+REQUESTS cold total=23 calendar-dav=2 capabilities=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 navigation=1 search-providers=1 search-query=13 talk=1
+REQUESTS warm total=20 calendar-dav=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 search-providers=1 search-query=13 talk=1
+
+# ======================================================================================
+# Anhang 1: Vorlauf desselben Tests, 2026-09-27 13:52 +0200 (erster Lauf; die Datei oben
+# wurde vom Messlauf danach überschrieben, die vier Zeilen stehen hier unverändert aus der
+# pytest-Ausgabe; der Lauf endete nur am Protokolltest mit UnicodeEncodeError cp1252 der
+# Windows-Konsole, danach PYTHONIOENCODING=utf-8 gesetzt, kein Codefehler)
+# ======================================================================================
+VORLAUF WANDUHR szenario=A detail=short median=0.808 min=0.789 max=0.844 schwelle=0.88 urteil=innerhalb
+VORLAUF WANDUHR szenario=A detail=full median=1.033 min=0.917 max=1.094 schwelle=0.97 urteil=ueberschritten
+VORLAUF WANDUHR szenario=B detail=short median=0.855 min=0.823 max=0.960 schwelle=0.88 urteil=innerhalb
+VORLAUF WANDUHR szenario=B detail=full median=1.072 min=0.984 max=2.924 schwelle=0.97 urteil=ueberschritten
+
+# ======================================================================================
+# Anhang 2: Kontrolle mit dem Code VOR Phase 27 (Commit 2f03242, kein Guard in NcClients),
+# gleicher Host, gleiche Instanz, am selben Nachmittag. Zweck: Drift von Host/Instanz seit
+# dem 26.09. von den Kosten des Guards trennen.
+# Kommando: git archive 2f03242 src tests -> _control/ (nicht committet, danach gelöscht),
+#   dann mit PYTHONPATH=_control/src:_control/tests/integration:_control/tests/unit
+#   pytest _control/tests/integration/test_ctx_bundle.py -m integration -s
+#          -k "wall_clock or measurement_protocol or no_measured_line"
+#   (RUNS=3 wie in Phase 25, EIN NcClients über alle Läufe, Env aus .env.nc35 per Python-Lader)
+# Import geprüft: mcp_connector aus _control/src, NcClients-Felder ['client', 'creds'].
+# ======================================================================================
+# Kontrolle 0 (zwischen Vorlauf und Messlauf, 13:5x +0200; Zeilen aus der pytest-Ausgabe):
+KONTROLLE lauf=0 wall clock detail='short': min 0.74 s, median 0.78 s, max 3.15 s (3 runs, 0 excerpts, degraded=empty)
+KONTROLLE lauf=0 wall clock detail='full': min 0.97 s, median 0.99 s, max 1.05 s (3 runs, 3 excerpts, degraded=empty)
+# Kontrolle 1 und 2 (nach dem Messlauf, Ende 2026-09-27T11:56:11Z), stdout unverändert:
+KONTROLLE lauf=1 wall clock detail='short': min 0.75 s, median 0.85 s, max 1.47 s (3 runs, 0 excerpts, degraded=empty)
+KONTROLLE lauf=1 wall clock detail='full': min 0.94 s, median 1.05 s, max 1.08 s (3 runs, 3 excerpts, degraded=empty)
+KONTROLLE lauf=1 leg search: median 0.77 s, max 0.82 s over 3 runs
+KONTROLLE lauf=2 wall clock detail='short': min 0.72 s, median 0.82 s, max 1.01 s (3 runs, 0 excerpts, degraded=empty)
+KONTROLLE lauf=2 wall clock detail='full': min 0.92 s, median 1.07 s, max 1.09 s (3 runs, 3 excerpts, degraded=empty)
+KONTROLLE lauf=2 leg search: median 0.75 s, max 0.84 s over 3 runs
+# Deutung: Ohne jeden Phase-27-Code liegt full heute bei 0,99 bis 1,07 s (Median) und short
+# bei 0,78 bis 0,85 s; Phase 25 maß am 26.09. 0,81 s und 0,72 s. Die Referenz der Schwelle
+# ist auf diesem Host heute um etwa 0,2 s (full) bzw. 0,1 s (short) verschoben, bevor der
+# Guard etwas kostet. Der Messlauf oben (B full 1,047 s) liegt innerhalb der Kontrollspanne.

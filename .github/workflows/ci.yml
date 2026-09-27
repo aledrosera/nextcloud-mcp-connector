@@ -118,6 +118,14 @@ jobs:
         run: |
           set -a && . ./.env.exapp && set +a
           uv run pytest tests/integration/test_content_hit_fidelity.py -m integration
+      - name: Findling hits run through sandbox and exclusion (SBX-01)
+        # Findling entries carry only a file id, so the sandbox and the kein-ki check have
+        # to resolve them before they can decide. A document outside NC_MCP_FILES_ROOT and
+        # a document tagged kein-ki both vanish from unified_search with their excerpt. Only
+        # this job has a real Findling; locally the file skips with the reason named.
+        run: |
+          set -a && . ./.env.exapp && set +a
+          uv run pytest tests/integration/test_findling_sandbox.py -m integration
       - name: The OAuth connection over the full chain (AUTH-02, AUTH-03, SC 4, SC 5)
         # The five checks that prove phase 3: a token from the flow serves a tool call over
         # the chain, it survives a restart of the container, two accounts stay two, a

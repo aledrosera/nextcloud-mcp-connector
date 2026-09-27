@@ -23,12 +23,13 @@ reads a foreign table, and neither failure is loud (threats T-11-01, T-11-39). W
 of this instance carries no hit of a kind, the measurement is a **skip with a true reason**, and
 the reason names the terms that were tried.
 
-**This file creates nothing.** No table, no message, no mail, no conversation: every number
-below comes from what ``scripts/bootstrap_exapp.sh`` and the Nextcloud first run already put
-there. There is therefore no ``finally`` that cleans up, because a ``finally`` without content
-is a promise without cover. The one thing this run could change is exactly what measurement 5
-measures, and the last test of the file reads the conversation counters once more so the end
-state is measured rather than assumed.
+**This file creates almost nothing.** No table, no message, no mail, no conversation: every
+number below comes from what ``scripts/bootstrap_exapp.sh`` and the Nextcloud first run already
+put there. The one exception is measurement 1b of plan 27-08, which writes one test file and
+one test folder, tags them ``kein-ki`` through ``occ`` for its scenario B, and removes both
+(and a tag it created) in a ``finally`` whose result it asserts. The one thing the other runs
+could change is exactly what measurement 5 measures, and the last test of the file reads the
+conversation counters once more so the end state is measured rather than assumed.
 
 **A foreign provider error is not a failed leg.** The Deck comment provider of this instance
 answers 500 every few runs, and the search leg passes that on as its own ``degraded`` entry,
@@ -54,19 +55,30 @@ The rows it prints with ``-s`` are the deliverable: they go into
 the four budget comments in ``src/mcp_connector/tools/context.py`` quote them.
 """
 
+import dataclasses
+import json
 import os
+import shutil
+import subprocess
 import time
-from collections.abc import AsyncIterator
+import uuid
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from statistics import median
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 import pytest
-from topology import CONTAINERS
+from lxml import etree
+from topology import CONTAINERS, NC_CONTAINER
 
 from mcp_connector.config import normalize_base_url
 from mcp_connector.nextcloud import NcClients, capabilities
+from mcp_connector.nextcloud import exclusion as exclusion_core
 from mcp_connector.nextcloud.credentials import MODE_APPAPI, Credentials
+from mcp_connector.nextcloud.exclusion import ExclusionGuard
 from mcp_connector.tools import chatgpt
 from mcp_connector.tools import context as context_tools
 from mcp_connector.tools import mail as mail_tools
@@ -88,9 +100,36 @@ pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 #: would then be measuring the wrong leg.
 MEASUREMENT_QUERY = "Abnahme"
 
-#: How often each wall clock is taken. Three is enough for a minimum, a median and a maximum
-#: and cheap enough that the file stays a measurement instead of a load test.
-RUNS = 3
+#: How often each wall clock is taken. Phase 25 took three, which is enough for a minimum, a
+#: median and a maximum. Phase 27 measures against a threshold, and with three runs one slow
+#: run already moves the median; five runs after one warm-up run keep a single outlier (the
+#: 3.40 s and 5.66 s runs of phase 25) out of it.
+RUNS = 5
+
+#: The reference of phase 25 on nc35 (25-MESSBERICHT K3, raw/nc35-prepare-context-baseline.txt)
+#: and the thresholds derived from it in plan 27-08: reference plus one serial guard flight
+#: with a tag set (tag list 48 ms plus REPORT level 1 59 ms = 0.107 s) plus 0.05 s noise
+#: reserve. 0.72 + 0.107 + 0.05 = 0.877 -> 0.88 s; 0.81 + 0.107 + 0.05 = 0.967 -> 0.97 s.
+PHASE25_REFERENCE = {"short": 0.72, "full": 0.81}
+THRESHOLD = {"short": 0.88, "full": 0.97}
+
+#: The raw protocol of plan 27-08. The wall clock test writes it, the request cost test
+#: appends to it.
+RAW = (
+    Path(__file__).resolve().parents[2]
+    / ".planning"
+    / "phases"
+    / "27-familien-anschluss-und-sandbox-parit-t"
+    / "raw"
+    / "27-08-prepare-context.txt"
+)
+RAW_COMMAND = (
+    "set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest "
+    "tests/integration/test_ctx_bundle.py -m integration -s"
+)
+
+#: The categories of the exclusion guard in the request tally (Pitfall 7 of phase 27).
+GUARD_LEGS = ("exclusion-tags", "exclusion-report", "files-search")
 
 #: The reference of plan 04-04 (live proof 5, one MCP session over client, proxy, HaRP,
 #: container and Nextcloud, two legs), in seconds. Erfolgskriterium 2 of this phase is the
@@ -134,6 +173,24 @@ def note(line: str) -> None:
     _protocol.append(line)
 
 
+def raw(line: str, *, mode: str = "a") -> None:
+    """Write one line into the raw protocol of plan 27-08."""
+    RAW.parent.mkdir(parents=True, exist_ok=True)
+    with RAW.open(mode, encoding="utf-8") as fh:
+        fh.write(line.rstrip("\n") + "\n")
+
+
+def fresh(clients: NcClients) -> NcClients:
+    """The same client and identity with a guard nobody asked before (Pattern 7).
+
+    A production tool call builds its ``NcClients`` once, so its guard lives exactly one
+    call. The fixtures of this file hold one ``NcClients`` over many calls, and without this
+    every call after the first would reuse the scope of the first one (Pitfall 2) and measure
+    a guard that costs nothing.
+    """
+    return dataclasses.replace(clients, exclusion=ExclusionGuard())
+
+
 # --------------------------------------------------------------------------------------
 # The identity, and a client that counts what it sends
 # --------------------------------------------------------------------------------------
@@ -164,15 +221,26 @@ def _appapi_clients(
     )
 
 
-def leg_of(path: str) -> str:
-    """Which leg one request path belongs to, by prefix and never by guess.
+def leg_of(path: str, method: str = "GET") -> str:
+    """Which leg one request belongs to, by method and prefix and never by guess.
 
     The two mail names are separate because the cost sentence of CTX-02 is about exactly
     those two routes: one account list plus N mailbox lists. The two detection names are
     separate from each other for the same reason: Mail is recognised through the navigation
     of the signed in account and the other two apps through the capabilities document, so a
     single "detection" counter would hide which of the two a cold cache paid for.
+
+    The DAV requests of the exclusion guard (phase 27) come before the calendar rule, which
+    would otherwise swallow them: the tag list, the REPORT on the files home, the fileid
+    SEARCH on the DAV root, and the reads of the file excerpts.
     """
+    method = method.upper()
+    if path.startswith("/remote.php/dav/systemtags"):
+        return "exclusion-tags"
+    if path.startswith("/remote.php/dav/files/"):
+        return "exclusion-report" if method == "REPORT" else "files-read"
+    if method == "SEARCH" and path.rstrip("/") == "/remote.php/dav":
+        return "files-search"
     if path.endswith("/cloud/capabilities"):
         return "capabilities"
     if path.endswith("/core/navigation/apps"):
@@ -206,7 +274,7 @@ class RequestCounter:
         self.legs: list[str] = []
 
     async def __call__(self, request: httpx.Request) -> None:
-        self.legs.append(leg_of(request.url.path))
+        self.legs.append(leg_of(request.url.path, request.method))
 
     def reset(self) -> None:
         self.legs.clear()
@@ -255,7 +323,7 @@ async def first_hit(
     """
     for term in terms:
         answer = await search_tools.unified_search(
-            clients, query=term, limit=search_tools.MAX_LIMIT
+            fresh(clients), query=term, limit=search_tools.MAX_LIMIT
         )
         for hit in answer["results"]:
             if hit.get("kind") == kind and hit.get("resolvable") is not False:
@@ -272,7 +340,7 @@ async def room_counters(clients: NcClients, token: str) -> dict[str, Any]:
     conversation list shows it" is the honest scope of that statement.
     """
     answer = await talk_tools.browse(
-        clients, level="conversations", limit=talk_tools.MAX_CONVERSATIONS
+        fresh(clients), level="conversations", limit=talk_tools.MAX_CONVERSATIONS
     )
     room = next(
         (item for item in answer["results"] if str(item.get("token")) == token),
@@ -318,7 +386,7 @@ async def test_the_wall_clock_of_four_legs_stays_under_one_budget(alice: NcClien
         for _ in range(RUNS):
             started = time.perf_counter()
             bundle = await context_tools.prepare_context(
-                alice, query=MEASUREMENT_QUERY, detail=detail
+                fresh(alice), query=MEASUREMENT_QUERY, detail=detail
             )
             timings.append(time.perf_counter() - started)
             misses.extend(budget_misses(bundle))
@@ -366,16 +434,16 @@ async def test_the_wall_clock_of_four_legs_stays_under_one_budget(alice: NcClien
             "search",
             None,
             lambda: search_tools.unified_search(
-                alice, query=MEASUREMENT_QUERY, limit=context_tools.SEARCH_LIMIT
+                fresh(alice), query=MEASUREMENT_QUERY, limit=context_tools.SEARCH_LIMIT
             ),
         ),
         (
             "calendar",
             context_tools.CALENDAR_BUDGET,
-            lambda: context_tools._events(alice, start, end),
+            lambda: context_tools._events(fresh(alice), start, end),
         ),
-        ("talk", context_tools.TALK_BUDGET, lambda: context_tools._talk(alice)),
-        ("mail", context_tools.MAIL_BUDGET, lambda: context_tools._mail(alice)),
+        ("talk", context_tools.TALK_BUDGET, lambda: context_tools._talk(fresh(alice))),
+        ("mail", context_tools.MAIL_BUDGET, lambda: context_tools._mail(fresh(alice))),
     ):
         taken: list[float] = []
         for _ in range(RUNS):
@@ -399,6 +467,251 @@ async def test_the_wall_clock_of_four_legs_stays_under_one_budget(alice: NcClien
 
 
 # --------------------------------------------------------------------------------------
+# Measurement 1b: the wall clock against the phase 25 reference, untagged and tagged
+# --------------------------------------------------------------------------------------
+
+_PROPFIND_FILEID = (
+    b'<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">'
+    b"<d:prop><oc:fileid/></d:prop></d:propfind>"
+)
+
+
+def occ(*argv: str, check_status: bool = True) -> str:
+    """One ``occ`` call inside the Nextcloud container (harness only, EXCL-07)."""
+    finished = subprocess.run(  # noqa: S603 - fixed argv, test harness
+        ["docker", "exec", "-u", "www-data", NC_CONTAINER, "php", "occ", *argv],  # noqa: S607
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    output = ((finished.stdout or "") + (finished.stderr or "")).replace("\r", "").strip()
+    if check_status and finished.returncode != 0:
+        raise AssertionError(f"occ {' '.join(argv)} failed: {output[:300]}")
+    return output
+
+
+def exclude_tag_ids() -> list[str]:
+    """The ids of every tag ``occ tag:list`` knows under a spelling of ``kein-ki``."""
+    output = occ("tag:list", "--output=json", check_status=False)
+    start = min((i for i in (output.find("{"), output.find("[")) if i >= 0), default=-1)
+    try:
+        data = json.loads(output[start:]) if start >= 0 else []
+    except json.JSONDecodeError:
+        return []
+    items: list[tuple[str, str]] = []
+    if isinstance(data, dict):
+        items = [(str(k), str(v.get("name", ""))) for k, v in data.items() if isinstance(v, dict)]
+    elif isinstance(data, list):
+        items = [
+            (str(v.get("id", "")), str(v.get("name", ""))) for v in data if isinstance(v, dict)
+        ]
+    return [tag_id for tag_id, name in items if exclusion_core.is_exclude_name(name)]
+
+
+class TagFixture:
+    """A test file and a test folder of alice, written with the app password, tagged by occ.
+
+    Never through the tools under test, and never with a session cookie: on nc35 the cookie
+    of a Notes answer turned every later WebDAV request of the same client into 401 (27-07).
+    """
+
+    def __init__(self, base_url: str, user: str, password: str) -> None:
+        self.base_url = base_url
+        self.user = user
+        self.hexid = uuid.uuid4().hex[:8]
+        self.http = httpx.Client(auth=(user, password), timeout=30.0, follow_redirects=False)
+        # The query word sits in both names so the search leg really meets the tagged nodes.
+        self.folder = f"/wanduhr27-{self.hexid}-{MEASUREMENT_QUERY}"
+        self.inner = f"{self.folder}/innen-{self.hexid}-{MEASUREMENT_QUERY}.txt"
+        self.file = f"/wanduhr27-{self.hexid}-{MEASUREMENT_QUERY}.txt"
+        self.created_tag: str | None = None
+        self.tagged: list[str] = []
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        self.http.cookies.clear()
+        url = f"{self.base_url}/remote.php/dav/files/{quote(self.user)}{quote(path)}"
+        return self.http.request(method, url, **kwargs)
+
+    def status(self, path: str) -> tuple[int, str]:
+        response = self._request(
+            "PROPFIND",
+            path,
+            headers={"Depth": "0", "Content-Type": "application/xml"},
+            content=_PROPFIND_FILEID,
+        )
+        if response.status_code != 207:
+            return response.status_code, ""
+        fileid = etree.fromstring(response.content).findtext(".//{http://owncloud.org/ns}fileid")
+        return 207, (fileid or "").strip()
+
+    def build(self) -> None:
+        assert self._request("MKCOL", self.folder).status_code == 201, self.folder
+        for path in (self.inner, self.file):
+            answer = self._request("PUT", path, content=f"{MEASUREMENT_QUERY} {self.hexid}\n")
+            assert answer.status_code in (201, 204), f"PUT {path}: {answer.status_code}"
+
+    def tag(self) -> None:
+        if not exclude_tag_ids():
+            output = occ("tag:add", exclusion_core.EXCLUDE_TAG, "public", "--output=json")
+            start = output.find("{")
+            created = json.loads(output[start:]) if start >= 0 else {}
+            self.created_tag = str(created.get("id") or "")
+            assert self.created_tag.isdigit(), f"occ tag:add gave no id: {output[:200]}"
+        for path in (self.file, self.folder):
+            status, fileid = self.status(path)
+            assert status == 207, f"no fileid for {path}: {status}"
+            occ("tag:files:add", fileid, exclusion_core.EXCLUDE_TAG, "public")
+            self.tagged.append(fileid)
+
+    def cleanup(self) -> list[str]:
+        if self.created_tag:
+            occ("tag:delete", self.created_tag, check_status=False)
+        else:
+            for fileid in self.tagged:
+                occ(
+                    "tag:files:delete",
+                    fileid,
+                    exclusion_core.EXCLUDE_TAG,
+                    "public",
+                    check_status=False,
+                )
+        for path in (self.folder, self.file):
+            self._request("DELETE", path)
+        lines = [
+            f"CLEANUP PROPFIND {path}: {self.status(path)[0]}" for path in (self.folder, self.file)
+        ]
+        if self.created_tag:
+            lines.append(
+                f"CLEANUP tag {exclusion_core.EXCLUDE_TAG} listed: {len(exclude_tag_ids())}"
+            )
+        self.http.close()
+        return lines
+
+
+@contextmanager
+def tag_fixture(exapp_env: dict[str, str]) -> Iterator[TagFixture]:
+    """The test data of measurement 1b, removed again whatever happens, the removal proven."""
+    password = (os.environ.get("NC_MCP_TEST_APP_PASSWORD") or "").strip()
+    if not password:
+        pytest.skip("NC_MCP_TEST_APP_PASSWORD is not set, the harness cannot write test data")
+    if shutil.which("docker") is None:
+        pytest.skip("docker is not on PATH, occ cannot tag")
+    probe = subprocess.run(  # noqa: S603 - fixed argv, test harness
+        ["docker", "inspect", "-f", "{{.State.Running}}", NC_CONTAINER],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if probe.returncode != 0 or "true" not in probe.stdout:
+        pytest.skip(f"the container {NC_CONTAINER} is not running, occ cannot tag")
+    fixture = TagFixture(normalize_base_url(exapp_env["base_url"]), exapp_env["alice"], password)
+    lines: list[str] = []
+    try:
+        fixture.build()
+        yield fixture
+    finally:
+        lines = fixture.cleanup()
+        exclusion_core.clear_cache()
+        for line in lines:
+            raw(line)
+    assert all(line.endswith(": 404") for line in lines if "PROPFIND" in line), lines
+    assert all(line.endswith(": 0") for line in lines if "listed" in line), lines
+
+
+def _guard_tally(tally: dict[str, int]) -> str:
+    return ",".join(f"{leg}={tally.get(leg, 0)}" for leg in GUARD_LEGS)
+
+
+async def test_the_wall_clock_against_the_phase_25_reference(exapp_env: dict[str, str]) -> None:
+    """Median, minimum and maximum over five runs per scenario and detail, fresh guard each.
+
+    Scenario A has no ``kein-ki`` tag on the instance, scenario B tags one test file and one
+    test folder whose names carry the query word, so the guard really withholds hits. Both
+    run on the same data: the files are written before A and only tagged before B.
+
+    The threshold is **not** asserted, for the reason of the wall clock test above: a bound
+    taken from the reference itself goes red on a busy laptop and measures the machine rather
+    than the code. The verdict goes into the raw protocol, and an overrun is a finding for the
+    owner checkpoint of plan 27-08, never a silent pass. The upper bound this does assert is
+    :data:`context.CALENDAR_BUDGET`, as above.
+    """
+    counter = RequestCounter()
+    clients = _appapi_clients(exapp_env, exapp_env["alice"], {"request": [counter]})
+    async with clients.client:
+        status = (await clients.client.get(f"{clients.creds.base_url}/status.php")).json()
+        raw(f"# 27-08 prepare_context wall clock {time.strftime('%Y-%m-%d %H:%M:%S %z')}", mode="w")
+        raw(f"# command: {RAW_COMMAND}")
+        raw(
+            f"# nextcloud={status.get('versionstring')} (status.php), user={clients.creds.user}, "
+            f"query={MEASUREMENT_QUERY!r}, runs={RUNS} after 1 warm-up, fresh guard per call"
+        )
+        raw(f"# topology: {', '.join(CONTAINERS)}")
+        raw(
+            "# threshold: reference phase 25 (short 0.72 s, full 0.81 s) + guard flight "
+            "0.107 s (tag list 48 ms + REPORT level 1 59 ms) + noise 0.05 s = 0.877 -> 0.88 s "
+            "and 0.967 -> 0.97 s"
+        )
+        existing = exclude_tag_ids()
+        if existing:
+            pytest.skip(
+                f"a kein-ki tag already exists on this instance ({existing}); scenario A needs "
+                "an instance without one and this harness deletes no tag it did not create"
+            )
+
+        with tag_fixture(exapp_env) as data:
+            raw(f"# test data: {data.folder}/ (with one file) and {data.file}")
+            for scenario in ("A", "B"):
+                if scenario == "B":
+                    data.tag()
+                    raw(
+                        f"# scenario B: tagged by occ tag:files:add: {data.folder}/ and "
+                        f"{data.file} (tag {'created' if data.created_tag else 'existed'})"
+                    )
+                capabilities.clear_cache()
+                exclusion_core.clear_cache()
+                for detail in (context_tools.SHORT, context_tools.FULL):
+                    timings: list[float] = []
+                    misses: list[dict[str, str]] = []
+                    for run in range(RUNS + 1):
+                        counter.reset()
+                        started = time.perf_counter()
+                        bundle = await context_tools.prepare_context(
+                            fresh(clients), query=MEASUREMENT_QUERY, detail=detail
+                        )
+                        taken = time.perf_counter() - started
+                        tally = counter.tally()
+                        blob = json.dumps(bundle, ensure_ascii=False, default=str)
+                        seen = data.hexid in blob
+                        raw(
+                            f"LAUF szenario={scenario} detail={detail} lauf="
+                            f"{'warmup' if run == 0 else run} s={taken:.3f} "
+                            f"requests={counter.total} guard[{_guard_tally(tally)}] "
+                            f"testdaten_im_buendel={'ja' if seen else 'nein'} "
+                            f"degraded={bundle.get('degraded') or 'empty'}"
+                        )
+                        if scenario == "B":
+                            assert not seen, f"a tagged test node reached the bundle: {blob[:400]}"
+                        if run == 0:
+                            continue
+                        timings.append(taken)
+                        misses.extend(budget_misses(bundle))
+
+                    assert not misses, f"a leg ran into its budget: {misses!r}"
+                    assert max(timings) <= context_tools.CALENDAR_BUDGET, timings
+                    middle = float(median(timings))
+                    limit = THRESHOLD[detail]
+                    verdict = "innerhalb" if middle <= limit else "ueberschritten"
+                    line = (
+                        f"WANDUHR szenario={scenario} detail={detail} median={middle:.3f} "
+                        f"min={min(timings):.3f} max={max(timings):.3f} schwelle={limit:.2f} "
+                        f"urteil={verdict}"
+                    )
+                    raw(line)
+                    note(line)
+
+
+# --------------------------------------------------------------------------------------
 # Measurement 2: the requests of one bundle, cold cache and warm cache
 # --------------------------------------------------------------------------------------
 
@@ -417,17 +730,37 @@ async def test_the_request_cost_of_one_bundle_cold_and_warm(
     clients, counter = counted
 
     capabilities.clear_cache()
+    exclusion_core.clear_cache()
     counter.reset()
-    await context_tools.prepare_context(clients, query=MEASUREMENT_QUERY)
+    await context_tools.prepare_context(fresh(clients), query=MEASUREMENT_QUERY)
     cold = counter.tally()
     cold_total = counter.total
 
     counter.reset()
-    await context_tools.prepare_context(clients, query=MEASUREMENT_QUERY)
+    await context_tools.prepare_context(fresh(clients), query=MEASUREMENT_QUERY)
     warm = counter.tally()
     warm_total = counter.total
 
-    accounts = await mail_tools.browse(clients, level="accounts", limit=mail_tools.MAX_LIMIT)
+    # The guard of one bundle, measured on nc35 in 2026-09 (plan 27-08) instead of estimated:
+    # without a kein-ki tag on the instance it is exactly one tag list per bundle, cold and
+    # warm, because an empty name-to-id answer is never cached (a new tag has to show at
+    # once); no REPORT and no fileid SEARCH follow. One flight per call, never one per leg.
+    for label, tally, total in (("cold", cold, cold_total), ("warm", warm, warm_total)):
+        raw(
+            f"REQUESTS {label} total={total} "
+            + " ".join(f"{name}={count}" for name, count in sorted(tally.items()))
+        )
+        assert tally.get("exclusion-tags", 0) == 1, (
+            f"{label}: {tally.get('exclusion-tags', 0)} tag lists in one bundle: {tally!r}"
+        )
+        assert tally.get("exclusion-report", 0) == 0, (
+            f"{label}: a REPORT went out without a kein-ki tag on the instance: {tally!r}"
+        )
+        assert tally.get("files-search", 0) == 0, (
+            f"{label}: a fileid SEARCH went out without a kein-ki tag: {tally!r}"
+        )
+
+    accounts = await mail_tools.browse(fresh(clients), level="accounts", limit=mail_tools.MAX_LIMIT)
     instance_accounts = len(accounts["results"])
     expected_boxes = min(instance_accounts, context_tools.MAX_MAIL_ACCOUNTS)
 
@@ -510,15 +843,15 @@ async def test_the_digest_passes_the_counter_of_the_app_and_not_a_message_count(
     the reading cannot be what moves a counter.
     """
     rooms = await talk_tools.browse(
-        alice, level="conversations", limit=talk_tools.MAX_CONVERSATIONS
+        fresh(alice), level="conversations", limit=talk_tools.MAX_CONVERSATIONS
     )
-    bundle = await context_tools.prepare_context(alice, query=MEASUREMENT_QUERY)
+    bundle = await context_tools.prepare_context(fresh(alice), query=MEASUREMENT_QUERY)
     digest = bundle["talk"]
 
     pairs: list[dict[str, Any]] = []
     for room in rooms["results"]:
         history = await talk_tools.browse(
-            alice, level="messages", token=str(room["token"]), limit=talk_tools.MAX_LIMIT
+            fresh(alice), level="messages", token=str(room["token"]), limit=talk_tools.MAX_LIMIT
         )
         pairs.append(
             {
@@ -597,7 +930,7 @@ async def test_the_mail_counter_equals_the_mailbox_list_and_carries_no_subject(
     Without the assertion a subject arriving through the search leg would fail this test for the
     wrong reason, or worse, a query that happened to match nothing would make the gate vacuous.
     """
-    bundle = await context_tools.prepare_context(alice, query=MEASUREMENT_QUERY)
+    bundle = await context_tools.prepare_context(fresh(alice), query=MEASUREMENT_QUERY)
     counters = bundle["mail"]
     assert isinstance(counters, list), f"the mail key is not a list: {counters!r}"
 
@@ -607,7 +940,7 @@ async def test_the_mail_counter_equals_the_mailbox_list_and_carries_no_subject(
         f"below would be measuring the search leg: {providers!r}"
     )
 
-    accounts = await mail_tools.browse(alice, level="accounts", limit=mail_tools.MAX_LIMIT)
+    accounts = await mail_tools.browse(fresh(alice), level="accounts", limit=mail_tools.MAX_LIMIT)
     assert accounts["count"] >= 1, (
         "this account owns no mail account; run bash scripts/bootstrap_exapp.sh against the "
         "running topology"
@@ -619,7 +952,7 @@ async def test_the_mail_counter_equals_the_mailbox_list_and_carries_no_subject(
 
     for entry in counters:
         boxes = await mail_tools.browse(
-            alice,
+            fresh(alice),
             level="mailboxes",
             account_id=str(entry["account_id"]),
             limit=mail_tools.MAX_LIMIT,
@@ -674,7 +1007,9 @@ async def test_reading_one_talk_message_in_full_moves_no_counter(alice: NcClient
     hit, term = found
 
     candidates = [hit]
-    answer = await search_tools.unified_search(alice, query=term, limit=search_tools.MAX_LIMIT)
+    answer = await search_tools.unified_search(
+        fresh(alice), query=term, limit=search_tools.MAX_LIMIT
+    )
     candidates.extend(
         item
         for item in answer["results"]
@@ -691,7 +1026,7 @@ async def test_reading_one_talk_message_in_full_moves_no_counter(alice: NcClient
     token = identifier.split(":")[1]
     before = await room_counters(alice, token)
 
-    fetched = await chatgpt.fetch(alice, identifier)
+    fetched = await chatgpt.fetch(fresh(alice), identifier)
     assert str(fetched["text"]), "the read that is supposed to change nothing returned nothing"
     assert fetched["id"] == identifier
 
@@ -728,7 +1063,7 @@ async def test_one_fetch_per_new_id_kind_from_a_real_search_hit(
         )
     hit, term = found
 
-    fetched = await chatgpt.fetch(alice, str(hit["id"]))
+    fetched = await chatgpt.fetch(fresh(alice), str(hit["id"]))
     text = str(fetched["text"])
     metadata = fetched["metadata"] or {}
 
@@ -774,7 +1109,7 @@ async def test_the_measurement_protocol_of_this_run(alice: NcClients) -> None:
     its topology is a number without a unit.
     """
     rooms = await talk_tools.browse(
-        alice, level="conversations", limit=talk_tools.MAX_CONVERSATIONS
+        fresh(alice), level="conversations", limit=talk_tools.MAX_CONVERSATIONS
     )
     end_state = {str(item["token"]): int(item["unread"]) for item in rooms["results"]}
     note(f"end state, unread per conversation: {end_state}")
