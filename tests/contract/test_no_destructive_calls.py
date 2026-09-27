@@ -398,15 +398,27 @@ def test_the_gate_would_notice_a_destructive_call_in_real_code() -> None:
     Without this test the previous one could be green because the filter eats everything.
     ``clients/dav.py`` is the honest fixture for it: its module docstring names all four
     verbs, and it must still be reported when the same word appears in an actual request.
+    The injected line runs through ``_violations`` like every other counter proof in this
+    file: a string built with the word DELETE and then searched for the word DELETE would
+    stay green even if the gate swallowed every line carrying it. The clean run over the
+    real module doubles as the counter proof for the MOVE exemption: dav.py carries the one
+    exempt chunk-assembly MOVE and must still report nothing.
     """
-    dav = SRC / "nextcloud" / "clients" / "dav.py"
-    docstring_text = "\n".join(text for _, text in _code_lines(dav))
+    relative = "nextcloud/clients/dav.py"
+    real = _code_lines(SRC / "nextcloud" / "clients" / "dav.py")
+    docstring_text = "\n".join(text for _, text in real)
     assert "no DELETE, no MOVE, no COPY" not in docstring_text, (
         "the filter must remove the module docstring of dav.py"
     )
 
-    with_a_violation = docstring_text + '\n    await client.request("DELETE", url)\n'
-    assert "DELETE" in with_a_violation, "a real call is still visible after filtering"
+    assert _violations(relative, real) == [], (
+        "dav.py must be clean before the injected call can prove anything; its one MOVE is "
+        "the exempt chunk assembly"
+    )
+    findings = _violations(relative, [*real, (10_000, '    await client.request("DELETE", url)')])
+    assert any("'DELETE'" in finding for finding in findings), (
+        "the gate must report an injected DELETE through _violations"
+    )
 
 
 def test_the_sql_exemption_covers_sql_and_nothing_else() -> None:
