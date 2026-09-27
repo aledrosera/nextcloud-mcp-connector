@@ -466,21 +466,21 @@ occ(container, "tag:files:add", fileid, "kein-ki", "public")
 | A7 | Nextcloud-Pfade sind NFC-normalisiert, externe Speicher können case-insensitiv sein | Pitfall 6 | Teilbaum-Lücke auf Sonderspeichern, dokumentieren |
 | A8 | "Im Rahmen der Phase-25-Referenz" heißt: Median short/full höchstens rund 0,1 bis 0,15 s über 0,72/0,81 s (eine Tag-Liste plus REPORT, parallel angestoßen) | prepare_context | Abnahmekriterium unscharf; Schwelle im Plan festlegen oder beim Owner bestätigen |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **notes_create in Scope?**
+1. **notes_create in Scope?** , RESOLVED: ja, siehe 27-04-PLAN.md Task 2 (parent-missing-Stil, unavailable bei unverifiable)
    - What we know: SBX-02 sagt "Notes laufen durch Sandbox- und Ausschlussprüfung"; notes_create schreibt in `notesPath/<Kategorie>` auch außerhalb von NC_MCP_FILES_ROOT, und das Feld `renamed` verrät eine Namenskollision in einer getaggten Kategorie (Existenz-Orakel wie beim Upload).
    - What's unclear: ob der Owner das Anlegen in dieser Phase anfassen will (Verhaltensänderung).
    - Recommendation: mitbauen wie D-27-01: Kategorieordner (notesPath aus settings plus Kategorie) ausgeschlossen oder außerhalb der Sandbox → Abweisung im parent-missing-Stil; bei unverifiable → unavailable_error. Sonst im Plan ausdrücklich als Grenze für Phase 29 benennen.
-2. **Datei-Konversationen (Talk) mitnehmen?**
+2. **Datei-Konversationen (Talk) mitnehmen?** , RESOLVED: ja, siehe 27-05-PLAN.md (Filter in one_room und _conversations, byte-gleich zu unbekanntem Token)
    - What we know: Raumname kann der Dateiname sein; drei Werkzeuge zeigen ihn.
    - Recommendation: in `one_room` und `_conversations` filtern (billig, eine Stelle, byte-gleich zu "token not in list"); talk_send wird damit im Freeze von Phase 28 "betroffen". Live bestätigen (A3).
-3. **talk-message-Suchtreffer bei unverifiable und bei Datei-Freigaben?**
+3. **talk-message-Suchtreffer bei unverifiable und bei Datei-Freigaben?** , RESOLVED: Live-Messung zuerst, siehe 27-03-PLAN.md Task 1 (beide Ausgaenge festgelegt)
    - Recommendation: zuerst live messen (Datei mit eindeutigem Namen teilen, nach dem Namen und nach einer Beschriftung suchen). Trifft die Suche, message-Treffer als dateitragend behandeln, wenn der subline den Namen eines Datei-Parameters tragen kann; sonst als nicht dateitragend klassifizieren und dokumentieren.
-4. **Findling live in dieser Phase?**
+4. **Findling live in dieser Phase?** , RESOLVED: Unit mit echter Eintragsform + comments-Provider live + Findling-CI-Test, siehe 27-07-PLAN.md und 27-08-PLAN.md
    - What we know: Findling ist weder auf nc35 noch auf der nc-mcp-exapp-Topologie installiert; die CI-Strecke `exapp` installiert es per `scripts/install_findling.sh` (NC 34) und fährt `test_content_hit_fidelity.py`. [VERIFIED: occ app:list, ci.yml]
    - Recommendation: Erfolgskriterium 3 unit-seitig mit der echten Findling-Eintragsform (Provider.php) beweisen und live mit dem Stock-`comments`-Provider (gleiche Klasse "fileid nur in URL"); einen Findling-Livefall als CI-Test in den bestehenden Findling-Schritt hängen.
-5. **Abnahmeschwelle Wanduhr (A8):** im Plan als Zahl festlegen.
+5. **Abnahmeschwelle Wanduhr (A8):** RESOLVED: 0,88 s (short) / 0,97 s (full) als Median, Herleitung in 27-08-PLAN.md.
 
 ## Environment Availability
 
