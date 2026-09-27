@@ -219,6 +219,7 @@ Gilt erst nach dem Owner-Entscheid (D-25-05); der Entscheid oben liegt vor. Jede
 - **Varianten (K5):** Exakt gleichnamige Tags (X public, Y restricted) liefern je Id schon die Vereinigung; eine Variante in anderer Groß/Klein-Schreibung (W) ist getrennt. Der Guard löst daher alle Tags auf, deren Name casefold gleich `kein-ki` ist, und vereinigt die Mengen je Id. Ein für den Nutzer unsichtbares Tag (Z) liefert 412 und fehlt in seiner Liste: Es wird nicht zur Abfrage herangezogen und zählt nicht als "nicht prüfbar". Grenze: nur SQLite gemessen (A3), PostgreSQL folgt in 25-05.
 - **Zielpfad-Regel (K5):** Der REPORT filtert auf keiner Version nach Zielpfad; er liefert immer die ganze für den Nutzer sichtbare getaggte Menge. Der Guard schickt ihn auf die Home-Wurzel und prüft die Menge selbst per Präfixvergleich nach der bestehenden Segmentregel (EXCL-02). Einen engeren Zielpfad als Kostenhebel gibt es nicht.
 - **Batch-Form (E3): offen.** Der Median warm bei 5000 liegt mit 8,848 s über der Schwelle D-25-04 (mit Ballast 249,6 s). Ob Phase 26 "ein REPORT je Antwort" baut oder eine Tag-Prüfung an den Antwortknoten und ihren Vorfahren (mit Änderung am Wortlaut von EXCL-02), entscheidet der Owner nach Plan 25-05. Bis dahin plant Phase 26 die Batch-Form nicht fest; unabhängig davon gelten die Punkte oben.
+- Entschieden am 2026-09-27 (Plan 25-05): report-je-antwort (Option `empfehlung`), siehe Owner-Entscheid E3. Batch-Form: ein REPORT je Antwort, bestätigt durch die PostgreSQL-Messung (Stufe 5000 `median=182` ms, mit Ballast `median=172` ms). Merker für Phase 29: SQLite-Grenze (REPORT mit einem Treffer bei 140.000 Zuordnungen `ms=240298`, der Guard steht dort praktisch immer auf "nicht prüfbar").
 
 ### Phase 27 (Werkzeug-Anschluss, EXCL-01, EXCL-03, EXCL-05)
 
@@ -344,3 +345,11 @@ Entwurf für den Fall, dass der Owner statt der Empfehlung Option `vorfahren-pro
 > **EXCL-02 (Entwurf vorfahren-propfind):** Subtree-Semantik: ein Tag auf einem Ordner deckt alles darunter. Je Antwort werden die nc:system-tags der Antwortknoten (wo möglich im selben Listing- oder Suchaufruf) und ihrer deduplizierten Vorfahren bis zur Home-Wurzel gelesen; ein Knoten ist ausgeschlossen, wenn er selbst oder ein Vorfahr ein Tag trägt, dessen Name casefold gleich `kein-ki` ist (alle Schreib- und Sichtbarkeitsvarianten laut Messbericht G4). Nichts davon wird über den Aufruf hinaus gecacht. Fail-closed: jede Antwort außer 207 mit vorhandener Eigenschaft nc:system-tags gilt als "nicht prüfbar" (E2 gilt damit für den PROPFIND-Ausgang statt für den REPORT-Ausgang; K1 belegt nc:system-tags unverändert 207 bei ausgeschalteter App).
 
 > **Phase 26, Kriterium 2 (Entwurf vorfahren-propfind):** Je Tool-Aufruf werden die nc:system-tags der Antwortknoten und ihrer deduplizierten Vorfahren bis zur Home-Wurzel gelesen, Antwortknoten wo möglich im selben Listing- oder Suchaufruf, Vorfahren je einmal auch bei parallelen Teilaufrufen (per respx gezählt); ein zweiter Tool-Aufruf liest neu, nichts wird über den Aufruf hinaus gecacht; jede Antwort außer 207 mit vorhandener Eigenschaft nc:system-tags ergibt "nicht prüfbar".
+
+## Owner-Entscheid E3 (Plan 25-05)
+
+**Datum:** 2026-09-27, Checkpoint 25-05 Task 4. Owner-Antwort, vom Orchestrator wörtlich übermittelt: "ok machen wir wie die empfehlung".
+
+- **Gewählte Option:** `empfehlung`, also nach Regel A `report-je-antwort`.
+- **EXCL-02** bleibt unverändert bei "ein REPORT je Antwort". Einen neuen Wortlaut hat der Owner nicht freigegeben, deshalb sind REQUIREMENTS.md und ROADMAP.md unverändert. Der Entwurf vorfahren-propfind oben ist verworfen.
+- **SQLite-Grenze** als dokumentierte Grenze für Phase 29: Bei 140.000 Zuordnungen braucht auf SQLite schon ein REPORT mit einem Treffer rund 240 s (`ms=240298`). Der Guard steht dort praktisch immer auf "nicht prüfbar" und hält dateitragende Einträge zurück (E2).
