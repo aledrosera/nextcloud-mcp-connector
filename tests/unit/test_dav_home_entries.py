@@ -93,12 +93,47 @@ def test_a_longer_account_name_is_not_this_user(creds: Credentials) -> None:
         "/remote.php/dav/files/alice/A%01B",
         "/remote.php/dav/files/alice/A%7FB",
         "/remote.php/dav/files/alice/./A",
+        # IN-02: an encoded slash must not turn one segment into two, and an encoded NUL
+        # must not survive decoding either.
+        "/remote.php/dav/files/alice/A%2Fkein",
+        "/remote.php/dav/files/alice/A%2fkein",
+        "/remote.php/dav/files/alice/A%00B",
+        # IN-03: a double slash is not a plain path.
+        "/remote.php/dav/files/alice/A//B",
     ],
 )
 def test_unsafe_segments_become_none(creds: Credentials, href: str) -> None:
     entries = dav.home_entries(multistatus(href), creds)
 
     assert [path for path, _props in entries] == [None]
+
+
+@pytest.mark.parametrize(
+    "href",
+    [
+        "/remote.php/dav/files/alice/A%2Fkein",
+        "/remote.php/dav/files/alice/A//B",
+        "/remote.php/dav/files/alice%2FA/B",
+    ],
+)
+def test_the_sandboxed_parser_drops_an_encoded_slash_or_a_double_slash(
+    creds: Credentials, href: str
+) -> None:
+    body = multistatus(href, "/remote.php/dav/files/alice/Docs/")
+
+    assert [entry["path"] for entry in dav.parse_entries(body, creds)] == ["/Docs"]
+
+
+def test_an_encoded_space_in_a_segment_is_decoded(creds: Credentials) -> None:
+    entries = dav.home_entries(multistatus("/remote.php/dav/files/alice/My%20Docs/a.md"), creds)
+
+    assert [path for path, _props in entries] == ["/My Docs/a.md"]
+
+
+def test_a_double_slash_is_outside_the_files_root() -> None:
+    assert dav.in_files_root("/A//B") is False
+    assert dav.in_files_root("/") is True
+    assert dav.in_files_root("/A/B") is True
 
 
 def test_the_home_root_maps_to_slash(creds: Credentials) -> None:

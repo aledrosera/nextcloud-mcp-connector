@@ -537,6 +537,27 @@ async def test_a_href_under_a_foreign_prefix_is_unverifiable_never_an_empty_set(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("suffix", ["A%2Fkein", "A%2fkein/", "A//B", "A%00B"])
+async def test_an_encoded_slash_or_a_double_slash_in_a_tagged_href_is_unverifiable(
+    clients: NcClients, suffix: str
+) -> None:
+    """IN-02/IN-03: ``A%2Fkein`` is one segment; decoding it into two would move the boundary."""
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="PROPFIND", url=TAGS).mock(
+            return_value=listed(tag_list(("64", "kein-ki")))
+        )
+        report = mock.route(method="REPORT", url=HOME).mock(
+            return_value=listed(report_207(("A/doc.md", "957", False), (suffix, "958", True)))
+        )
+
+        scope = await exclusion.ExclusionGuard().scope(clients)
+
+    assert scope.state == "unverifiable"
+    assert scope.reason == "foreign_href"
+    assert report.call_count == 1
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("status", [500, 401, 404])
 async def test_a_listing_status_other_than_207_is_unverifiable(
     clients: NcClients, status: int
