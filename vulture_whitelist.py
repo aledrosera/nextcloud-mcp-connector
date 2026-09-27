@@ -313,19 +313,28 @@ _._decode_payload
 # that calls them, block_vorfahren (section D) and gegenmessung (section E).
 
 # --- The tag query client of plan 26-01, called by plan 26-02 ---------------------------
-# nextcloud/clients/systemtags.py was built one plan before the exclusion guard that calls
-# it, so the client and its request shapes are pinned by tests before any policy sits on top.
+# Empty again, as announced, but for one field: tagged_nodes left the list with plan 26-02,
+# whose load_scope calls it once per spelling of the exclusion tag (list_tags was never here,
+# the measuring script carries a function of the same name).
 #
-# tagged_nodes: the REPORT oc:filter-files with exactly one tag rule, sent to the home root.
-#   Its caller is the exclusion guard of plan 26-02, which asks it once per spelling of the
-#   exclusion tag. It is driven directly by tests/unit/test_systemtags_client.py::
-#   test_the_report_goes_to_the_home_root_even_inside_a_sandbox and the status tests next to
-#   it, and it leaves this list with plan 26-02. list_tags is not here: the measuring script
-#   carries a function of the same name, so vulture already sees a reader.
-#
-# is_collection: the folder flag of a TaggedNode. The guard of plan 26-02 reads it to tell a
-#   tagged folder (which covers its subtree) from a tagged file. It is asserted on in
-#   tests/unit/test_systemtags_client.py::test_tagged_nodes_maps_every_response, and it
-#   leaves this list with plan 26-02.
-tagged_nodes
+# is_collection: the folder flag of a TaggedNode, and the one name that stays. The guard of
+#   plan 26-02 turned out not to need it: nextcloud/exclusion.ancestors covers the subtree
+#   below any tagged path, and a file has no subtree, so folder and file are treated alike
+#   without asking. The field stays because it is what the REPORT answers (d:resourcetype is
+#   asked for) and it is asserted on in tests/unit/test_systemtags_client.py::
+#   test_tagged_nodes_maps_every_response. Phase 27 either reads it (a withheld folder named
+#   as such) or removes the field together with this entry.
 _.is_collection
+
+# --- The guard core of phase 26, wired in by phase 27 ------------------------------------
+# nextcloud/exclusion.py was built one phase before the tool families that call it, so the
+# three states, the one-flight guard and the 412 automaton are pinned by tests before any
+# tool withholds anything. NcClients deliberately gets no guard field in phase 26.
+#
+# excludes: TagScope.excludes, the question every tool family asks per entry ("withhold this
+#   path or file id?"), raising in the unverifiable state. Driven by tests/unit/
+#   test_exclusion.py::test_an_active_scope_covers_the_tagged_folder_and_below_but_not_a_sibling,
+#   test_an_untagged_scope_excludes_nothing_and_leaves_no_trace and
+#   test_an_unverifiable_scope_refuses_to_answer. It leaves this list with the plan of phase
+#   27 that wires in the families.
+_.excludes
