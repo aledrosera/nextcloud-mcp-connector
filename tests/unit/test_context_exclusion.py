@@ -17,6 +17,7 @@ Three properties are proven here and nowhere else:
 
 import asyncio
 import json
+import re
 from typing import Any
 
 import guard_routes
@@ -310,3 +311,126 @@ async def test_untagged_answers_exactly_as_without_the_guard(
     assert json.dumps(wired, sort_keys=True) == json.dumps(before, sort_keys=True)
     assert wired["talk"][0]["last_message"] == "Siehe geheim.txt"
     assert "degraded" not in wired
+
+
+# --- the whole bundle, all families at once (EXCL-03, E3) ---------------------------------
+
+#: Where each file id lives, for the SEARCH lookups of the search screen and of ``fetch``.
+PATHS = {"901": "/Docs/geheim.txt", "902": "/Projekt/a.txt", "903": "/Docs/offen.txt"}
+
+_LITERAL = re.compile(rb"<d:literal>(\d+)</d:literal>")
+
+
+def _lookup(request: httpx.Request) -> httpx.Response:
+    """Answer a file id SEARCH with every asked id this home knows, in the fetch shape."""
+    responses = "".join(
+        f"<d:response><d:href>/remote.php/dav/files/{USER}{PATHS[fileid]}</d:href>"
+        "<d:propstat><d:prop>"
+        f"<d:displayname>{PATHS[fileid].rsplit('/', 1)[-1]}</d:displayname>"
+        "<d:getcontenttype>text/plain</d:getcontenttype>"
+        f"<d:getcontentlength>{len(CONTENT)}</d:getcontentlength>"
+        f"<d:resourcetype/><oc:fileid>{fileid}</oc:fileid>"
+        "</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+        for fileid in (match.decode() for match in _LITERAL.findall(request.content))
+        if fileid in PATHS
+    )
+    return httpx.Response(
+        207,
+        text='<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" '
+        f'xmlns:oc="http://owncloud.org/ns">{responses}</d:multistatus>',
+    )
+
+
+def _stat(path: str, fileid: str) -> httpx.Response:
+    return httpx.Response(
+        207,
+        text=f"""<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+  <d:response><d:href>/remote.php/dav/files/{USER}{path}</d:href><d:propstat><d:prop>
+    <d:getcontentlength>{len(CONTENT)}</d:getcontentlength>
+    <d:getcontenttype>text/plain</d:getcontenttype>
+    <d:getlastmodified>Thu, 14 Aug 2026 10:00:00 GMT</d:getlastmodified>
+    <d:getetag>&quot;etag-1&quot;</d:getetag>
+    <d:resourcetype/><oc:fileid>{fileid}</oc:fileid><oc:permissions>RGDNVW</oc:permissions>
+  </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>""",
+    )
+
+
+def _keys(value: Any) -> list[str]:
+    """Every key of a nested answer, for the "no counter, no hint" check."""
+    if isinstance(value, dict):
+        return [key for name, item in value.items() for key in (name, *_keys(item))]
+    if isinstance(value, list):
+        return [key for item in value for key in _keys(item)]
+    return []
+
+
+@pytest.mark.anyio
+async def test_the_full_bundle_costs_one_report_and_shows_nothing_tagged() -> None:
+    """Search, excerpts through fetch and the Talk digest share one guard: one REPORT."""
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        listing, report = guard_routes.active(
+            mock, (SECRET_PATH, "901", False), ("Projekt", "900", True)
+        )
+        lookup = mock.route(method="SEARCH", url=DAV_ROOT).mock(side_effect=_lookup)
+        mock.route(method="PROPFIND", url=f"{FILES_ROOT}/Docs/offen.txt").mock(
+            return_value=_stat("/Docs/offen.txt", "903")
+        )
+        read = mock.route(method="GET", url=f"{FILES_ROOT}/Docs/offen.txt").mock(
+            return_value=httpx.Response(200, content=CONTENT)
+        )
+        mock.get(PROVIDERS_URL).mock(return_value=providers("files", "findling"))
+        mock.get(search_url("files")).mock(
+            return_value=answer(
+                [
+                    files_entry("901", SECRET_PATH),
+                    files_entry("902", "Projekt/a.txt"),
+                    files_entry("903", "Docs/offen.txt"),
+                ]
+            )
+        )
+        mock.get(search_url("findling")).mock(
+            return_value=answer([findling_entry("901", SECRET_NAME)])
+        )
+        mock_talk(mock, [waiting_room()])
+
+        result = await context_tools.prepare_context(fresh(), "docs", detail="full")
+
+    assert report.call_count == 1
+    assert listing.call_count == 1
+    assert lookup.call_count >= 1
+    assert read.call_count == 1
+    assert [hit["id"] for hit in result["results"]["file"]] == ["file:903"]
+    assert result["results"]["file"][0]["excerpt"] == CONTENT.decode()
+    assert all(result["results"][name] == [] for name in ("note", "card", "other"))
+    assert [entry["last_message"] for entry in result["talk"]] == ["Siehe {file}"]
+    assert "degraded" not in result
+
+    dumped = json.dumps(result, ensure_ascii=False)
+    for secret in (SECRET_NAME, "901", "Projekt/a.txt"):
+        assert secret not in dumped
+    assert not [key for key in _keys(result) if "withheld" in key or "excluded" in key]
+
+
+@pytest.mark.anyio
+async def test_the_cap_sentence_counts_the_filtered_hits() -> None:
+    """Seven visible and three tagged files: "5 of 7", the tagged three are not counted."""
+    visible = [files_entry(str(4700 + n), f"Docs/offen-{n}.txt") for n in range(7)]
+    tagged = [files_entry(str(5000 + n), f"Docs/geheim-{n}.txt") for n in range(3)]
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        _, report = guard_routes.active(
+            mock, *((f"Docs/geheim-{n}.txt", str(5000 + n), False) for n in range(3))
+        )
+        mock.get(PROVIDERS_URL).mock(return_value=providers("files"))
+        mock.get(search_url("files")).mock(return_value=answer([*tagged[:2], *visible, tagged[2]]))
+        mock_talk(mock, [])
+
+        result = await context_tools.prepare_context(fresh(), "docs")
+
+    assert report.call_count == 1
+    assert len(result["results"]["file"]) == context_tools.MAX_PER_BUCKET
+    assert result["degraded"] == [
+        {"source": "file", "reason": "Only the first 5 of 7 hits are listed."}
+    ]
+    assert "geheim" not in json.dumps(result, ensure_ascii=False)
