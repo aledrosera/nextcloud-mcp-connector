@@ -363,13 +363,17 @@ async def test_file_conversation_probe(clients: NcClients) -> None:
             headers=dict(ocs.OCS_HEADERS),
             auth=clients.creds.auth(),
         )
-        route_lines.append(f"# POST .../room/<token>/participants/active: HTTP {joined.status_code}")
+        route_lines.append(
+            f"# POST .../room/<token>/participants/active: HTTP {joined.status_code}"
+        )
         left = await clients.client.delete(
             ocs.ocs_url(clients.creds, f"/apps/spreed/api/v4/room/{token}/participants/active"),
             headers=dict(ocs.OCS_HEADERS),
             auth=clients.creds.auth(),
         )
-        route_lines.append(f"# DELETE .../room/<token>/participants/active: HTTP {left.status_code}")
+        route_lines.append(
+            f"# DELETE .../room/<token>/participants/active: HTTP {left.status_code}"
+        )
 
         rooms = await talk_client.get_rooms(
             clients.client, clients.creds, include_last_message=True
@@ -409,7 +413,10 @@ async def test_file_conversation_probe(clients: NcClients) -> None:
                 auth=clients.creds.auth(),
             )
         after_status = await _delete_probe(clients, name)
-    lines += ["", f"# cleanup: participation left, share removed, PROPFIND after DELETE {after_status}"]
+    lines += [
+        "",
+        f"# cleanup: participation left, share removed, PROPFIND after DELETE {after_status}",
+    ]
     RAW_FILE_ROOM.parent.mkdir(parents=True, exist_ok=True)
     RAW_FILE_ROOM.write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert after_status == 404, f"the probe file survived the cleanup: {after_status}"

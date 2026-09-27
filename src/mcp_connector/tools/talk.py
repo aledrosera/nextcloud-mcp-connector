@@ -536,10 +536,20 @@ async def _conversations(clients: NcClients, limit: int) -> dict[str, Any]:
         for room in ordered
         if not room.get("isArchived") and str(room.get("token") or "").strip()
     ]
-    # One screen for every preview of the list: at most one guard flight per call, and none
-    # at all when no preview references a file.
-    screen = await file_screen(clients, [room.get("lastMessage") for room in listed])
-    entries = [_conversation(clients.creds, room, screen) for room in listed]
+    # One screen for every preview and every file conversation of the list: at most one guard
+    # flight per call, and none at all when nothing in the list references a file.
+    screen = await file_screen(
+        clients,
+        [room.get("lastMessage") for room in listed],
+        room_fileids=[fileid for room in listed if (fileid := _room_fileid(room))],
+    )
+    # A withheld file conversation leaves before the cut, like a put-aside one: its name is the
+    # file name, and ``total`` must not count what the list does not show (D-27-03).
+    entries = [
+        _conversation(clients.creds, room, screen)
+        for room in listed
+        if not ((fileid := _room_fileid(room)) and screen.hides_room(fileid))
+    ]
     # No cursor on this level, and that is a decision rather than an omission. The app does
     # not paginate this list, so a handle could only fetch the whole list again and cut it
     # somewhere else, which is a round trip for a different slice of the same read. The cut
@@ -824,17 +834,52 @@ async def one_room(clients: NcClients, token: str, *, include_last_message: bool
 
     A token that is not in the list therefore becomes our own sentence, and Nextcloud never
     sees it in a path at all.
+
+    A file conversation of a file the ``kein-ki`` guard withholds is refused with exactly that
+    sentence (:func:`_unknown_token`), so ``talk_browse``, ``talk_send`` and ``fetch`` cannot
+    tell it apart from a token that never existed. While the check cannot be answered, a file
+    conversation is refused with :func:`withhold.unavailable_error`. Every other conversation
+    costs no guard request here.
     """
     rooms = await talk_client.get_rooms(
         clients.client, clients.creds, include_last_message=include_last_message
     )
     for room in rooms:
-        if str(room.get("token") or "").strip() == token:
-            return room
-    raise ToolError(
+        if str(room.get("token") or "").strip() != token:
+            continue
+        fileid = _room_fileid(room)
+        if fileid:
+            screen = await file_screen(clients, (), room_fileids=[fileid])
+            if screen.unavailable:
+                raise withhold.unavailable_error()
+            if screen.hides_room(fileid):
+                raise _unknown_token(token)
+        return room
+    raise _unknown_token(token)
+
+
+def _unknown_token(token: str) -> ToolError:
+    """The one refusal of a token this account cannot address, known or not."""
+    return ToolError(
         message=f"The token {token!r} is not in the conversation list of this account.",
         hint=_CONVERSATION_HINT,
     )
+
+
+def _room_fileid(room: dict[str, Any]) -> str | None:
+    """The file id of a file conversation, or ``None`` for every other conversation.
+
+    Measured on nc35 (NC 35.0.0, spreed 25.0.0, raw/27-05-file-conversation-probe.txt): a
+    conversation Talk opens for a file carries ``objectType`` ``file``, its ``objectId`` is
+    the file id (``OBJECT_ID_IST_FILEID=ja``) and its ``displayName`` is the file name
+    (``NAME_IST_DATEINAME=ja``). A file conversation whose ``objectId`` is not ASCII digits
+    gets the id ``"-"``, which no file carries: it resolves to nothing and is withheld
+    whenever anything is tagged (fail-closed), and shown only when nothing is.
+    """
+    if str(room.get("objectType") or "") != "file":
+        return None
+    fileid = str(room.get("objectId") or "").strip()
+    return fileid if fileid.isascii() and fileid.isdigit() else "-"
 
 
 # The trap of this family, and the third instance of the same class in this project after
