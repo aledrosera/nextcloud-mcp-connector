@@ -27,9 +27,7 @@ def test_ancestors_lists_the_path_and_every_parent_up_to_the_root() -> None:
 
 @pytest.mark.parametrize("path", ["/A/kein", "/A/kein/x", "/A/keine", "/A", "/", "/A/kein/x/y.md"])
 @pytest.mark.parametrize("tagged", [{"/A/kein"}, {"/"}, {"/A/keine"}])
-def test_ancestors_draws_the_same_boundary_as_the_segment_rule(
-    path: str, tagged: set[str]
-) -> None:
+def test_ancestors_draws_the_same_boundary_as_the_segment_rule(path: str, tagged: set[str]) -> None:
     by_ancestors = any(a in tagged for a in exclusion.ancestors(path))
     by_within = any(dav.within(path, t) for t in tagged)
 
