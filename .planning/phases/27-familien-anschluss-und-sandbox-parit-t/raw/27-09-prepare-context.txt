@@ -1,0 +1,81 @@
+# 27-09 prepare_context wall clock 2026-09-27 15:04:31 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_ctx_bundle.py -m integration -s
+# nextcloud=35.0.0 (status.php), user=alice, query='Abnahme', runs=5 after 1 warm-up, fresh guard per call
+# topology: nc35-nc, nc_app_mcp_connector, nc35-harp, nc35-caddy, nc35-greenmail
+# threshold: reference phase 25 (short 0.72 s, full 0.81 s) + guard flight 0.107 s (tag list 48 ms + REPORT level 1 59 ms) + noise 0.05 s = 0.877 -> 0.88 s and 0.967 -> 0.97 s
+# test data: /wanduhr27-56f4096a-Abnahme/ (with one file) and /wanduhr27-56f4096a-Abnahme.txt
+LAUF szenario=A detail=short lauf=warmup s=0.819 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=1 s=0.746 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=2 s=0.776 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=3 s=0.732 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=4 s=0.786 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=5 s=0.851 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=[{'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}]
+WANDUHR szenario=A detail=short median=0.776 min=0.732 max=0.851 schwelle=0.88 urteil=innerhalb
+LAUF szenario=A detail=full lauf=warmup s=0.920 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22288', 'reason': '/wanduhr27-56f4096a-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=1 s=1.011 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22288', 'reason': '/wanduhr27-56f4096a-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=2 s=0.877 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22288', 'reason': '/wanduhr27-56f4096a-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=3 s=0.893 requests=22 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}, {'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}, {'source': 'file:22288', 'reason': '/wanduhr27-56f4096a-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=4 s=0.919 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22288', 'reason': '/wanduhr27-56f4096a-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=5 s=0.942 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22288', 'reason': '/wanduhr27-56f4096a-Abnahme is a folder, not a file.'}]
+WANDUHR szenario=A detail=full median=0.919 min=0.877 max=1.011 schwelle=0.97 urteil=innerhalb
+# scenario B: tagged by occ tag:files:add: /wanduhr27-56f4096a-Abnahme/ and /wanduhr27-56f4096a-Abnahme.txt (tag created)
+LAUF szenario=B detail=short lauf=warmup s=0.894 requests=25 guard[exclusion-tags=1,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=1 s=0.829 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=2 s=0.862 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=3 s=0.780 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=4 s=0.811 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=5 s=0.827 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=short median=0.827 min=0.780 max=0.862 schwelle=0.88 urteil=innerhalb
+LAUF szenario=B detail=full lauf=warmup s=0.998 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=0.942 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'mail', 'reason': 'Nextcloud did not find the mail accounts.'}]
+LAUF szenario=B detail=full lauf=2 s=0.980 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=1.402 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=0.992 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.080 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=0.992 min=0.942 max=1.402 schwelle=0.97 urteil=ueberschritten
+CLEANUP PROPFIND /wanduhr27-56f4096a-Abnahme: 404
+CLEANUP PROPFIND /wanduhr27-56f4096a-Abnahme.txt: 404
+CLEANUP tag kein-ki listed: 0
+REQUESTS cold total=23 calendar-dav=2 capabilities=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 navigation=1 search-providers=1 search-query=13 talk=1
+REQUESTS warm total=20 calendar-dav=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 search-providers=1 search-query=13 talk=1
+
+# ---------------------------------------------------------------------------
+# Anhang 1: Wiederholung Code nach 27-09 (nur der Wanduhr-Test per -k, 15:06:19 +0200)
+# Massgeblich ist der Messlauf oben (15:04:31 +0200, ganze Datei test_ctx_bundle.py, 10 passed);
+# die Wiederholung zeigt die Streuung desselben Codes wenige Minuten spaeter.
+WANDUHR szenario=A detail=short median=0.795 min=0.724 max=0.894 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.919 min=0.911 max=0.955 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.811 min=0.779 max=0.891 schwelle=0.88 urteil=innerhalb
+LAUF szenario=B detail=full lauf=warmup s=0.964 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}]
+LAUF szenario=B detail=full lauf=1 s=0.981 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}]
+LAUF szenario=B detail=full lauf=2 s=0.965 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-comment', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-comment.'}]
+LAUF szenario=B detail=full lauf=3 s=1.380 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.028 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.146 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.028 min=0.965 max=1.380 schwelle=0.97 urteil=ueberschritten
+
+# ---------------------------------------------------------------------------
+# Anhang 2: Kontrolle Code vor 27-09 (Code von Commit ac479c6, gleicher Host, gleiche Instanz, gleiche Sitzung)
+# Herstellung, ohne den Worktree-Branch zu bewegen:
+#   Kontrolle 1 (14:43:19 +0200): im Worktree auf dem unveraenderten Stand fc57ae2 (Code gleich ac479c6),
+#     vor dem ersten 27-09-Commit; die dabei ueberschriebene raw/27-08-prepare-context.txt wurde danach
+#     per git checkout wiederhergestellt.
+#   Kontrollen 2 (15:05:36 +0200) und 3 (15:06:59 +0200): "git archive ac479c6" in ein nicht committetes
+#     Verzeichnis im Worktree entpackt, dort nur der Wanduhr-Test per -k, Verzeichnis danach geloescht.
+# Gleiche Szenarien, RUNS=5 nach 1 Aufwaermlauf, frischer Guard je Aufruf, Schwellen unveraendert.
+# files-search je Lauf dort: A full 3, B full 4; requests A full 28, B full 28-29.
+# Kontrolle 1 (14:43:19 +0200)
+WANDUHR szenario=A detail=short median=0.910 min=0.800 max=1.225 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=0.991 min=0.962 max=1.014 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=0.855 min=0.800 max=0.877 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=1.059 min=0.999 max=1.182 schwelle=0.97 urteil=ueberschritten
+# Kontrolle 2 (15:05:36 +0200)
+WANDUHR szenario=A detail=short median=0.786 min=0.755 max=0.806 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.994 min=0.966 max=1.020 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=0.813 min=0.778 max=0.831 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=1.020 min=0.997 max=1.103 schwelle=0.97 urteil=ueberschritten
+# Kontrolle 3 (15:06:59 +0200)
+WANDUHR szenario=A detail=short median=0.761 min=0.744 max=0.801 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=1.095 min=0.962 max=3.121 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=0.848 min=0.798 max=0.953 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=1.035 min=1.005 max=1.053 schwelle=0.97 urteil=ueberschritten

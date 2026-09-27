@@ -53,8 +53,12 @@ of all to try it: anybody may write one.
 """
 
 import asyncio
+import re
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
+
+import httpx
 
 from .. import ids, provider_map
 from ..errors import ToolError
@@ -65,6 +69,7 @@ from ..nextcloud.clients import deck as deck_client
 from ..nextcloud.clients import mail as mail_client
 from ..nextcloud.clients import tables as tables_client
 from ..nextcloud.clients import talk as talk_client
+from ..nextcloud.exclusion import TagScope
 from . import deck as deck_tools
 from . import files as files_tools
 from . import html_text, marks, withhold
@@ -149,6 +154,14 @@ _NO_SUBJECT = "(no subject)"
 _NO_CONVERSATION = "(conversation without a name)"
 _NO_TABLE_TITLE = "(table without a title)"
 
+#: A file id the batch lookup may take: ASCII digits, the same rule as the DAV layer.
+#: Anything else goes the single lookup and gets the error it always got there.
+_FILEID = re.compile(r"[0-9]+")
+
+#: What a failed :func:`file_entries` may raise. A caller that catches exactly these takes
+#: the single lookup instead, which then words the failure as it always did.
+LOOKUP_FAILURES: tuple[type[Exception], ...] = (ToolError, httpx.HTTPError, ValueError)
+
 _UNFETCHABLE = "This search result cannot be fetched: it belongs to an app this server cannot read."
 
 
@@ -189,7 +202,11 @@ def _as_hit(clients: NcClients, hit: dict[str, Any]) -> dict[str, str]:
 
 
 async def fetch(
-    clients: NcClients, resource_id: str, *, max_bytes: int | None = None
+    clients: NcClients,
+    resource_id: str,
+    *,
+    max_bytes: int | None = None,
+    resolved: Mapping[str, dict[str, Any] | None] | None = None,
 ) -> dict[str, Any]:
     """Read one search result in full and answer in the OpenAI fetch shape.
 
@@ -205,11 +222,16 @@ async def fetch(
     nothing to apply to. A mail is not an exception to that: it arrives whole or not at all,
     and what it is cut to is a ceiling of its own (:data:`MAX_MAIL_BYTES`), because a slice
     of it cannot be continued by a second call.
+
+    ``resolved`` is Python only as well: the answer of :func:`file_entries` for the file
+    ids of the same tool call, so a bundle of several file excerpts pays one file id
+    SEARCH instead of one per excerpt (plan 27-09). An id it does not contain goes the
+    single lookup; the other kinds ignore it.
     """
     kind, parts = ids.parse(resource_id)
     match kind:
         case "file":
-            return await _fetch_file(clients, parts[0], max_bytes)
+            return await _fetch_file(clients, parts[0], max_bytes, resolved)
         case "note":
             return await _fetch_note(clients, parts[0])
         case "card":
@@ -229,8 +251,40 @@ async def fetch(
             )
 
 
+async def file_entries(
+    clients: NcClients, identifiers: Sequence[str]
+) -> dict[str, dict[str, Any] | None]:
+    """Resolve the file ids among ``identifiers`` with one lookup, for one tool call.
+
+    Only ``file:<digits>`` ids are taken; every other or unparsable id is passed over and
+    later goes its own way through :func:`fetch`, with exactly the error it always had.
+    The answer maps a file id onto its entry, onto ``None`` when it certainly belongs to
+    no file inside the sandbox, and leaves out an id the batch could not settle
+    (:func:`dav_client.entries_of_fileids`), which then goes the single lookup.
+
+    A failure of the lookup (:data:`LOOKUP_FAILURES`) is left to the caller, whose answer
+    is to take the single route. Nothing is kept: no module
+    variable, no cache, the entries belong to this one call (E3, D-25-05).
+    """
+    wanted: list[str] = []
+    for identifier in identifiers:
+        try:
+            kind, parts = ids.parse(identifier)
+        except ToolError:
+            continue
+        if kind == "file" and _FILEID.fullmatch(parts[0]):
+            wanted.append(parts[0])
+    wanted = list(dict.fromkeys(wanted))
+    if not wanted:
+        return {}
+    return await dav_client.entries_of_fileids(clients.client, clients.creds, wanted)
+
+
 async def _fetch_file(
-    clients: NcClients, fileid: str, max_bytes: int | None = None
+    clients: NcClients,
+    fileid: str,
+    max_bytes: int | None = None,
+    resolved: Mapping[str, dict[str, Any] | None] | None = None,
 ) -> dict[str, Any]:
     """Turn a file id back into a path, then read that path with the ordinary reader.
 
@@ -245,12 +299,23 @@ async def _fetch_file(
     ``MAX_TEXT_BYTES`` is read here and not bound as a default in the signature, so the
     ceiling stays one module level constant that a caller can lower and a test can lower
     for the whole module.
+
+    With ``resolved`` holding this id, the lookup already happened for the whole bundle
+    and only the guard is awaited; the decisions below run line for line the same. The
+    entry then goes into ``files_tools.read`` as ``known`` on both routes, so the stat
+    PROPFIND after the lookup is not asked again (plan 27-09).
     """
-    scope, entry = await asyncio.gather(
-        clients.exclusion.scope(clients),
-        dav_client.find_by_fileid(clients.client, clients.creds, fileid),
-        return_exceptions=True,
-    )
+    scope: TagScope | BaseException
+    entry: dict[str, Any] | BaseException | None
+    if resolved is not None and fileid in resolved:
+        entry = resolved[fileid]
+        scope = await clients.exclusion.scope(clients)
+    else:
+        scope, entry = await asyncio.gather(
+            clients.exclusion.scope(clients),
+            dav_client.find_by_fileid(clients.client, clients.creds, fileid),
+            return_exceptions=True,
+        )
     if isinstance(scope, BaseException):
         raise scope
     if scope.state == "unverifiable":
@@ -266,7 +331,7 @@ async def _fetch_file(
         raise _no_file(fileid)
 
     limit = MAX_TEXT_BYTES if max_bytes is None else max_bytes
-    answer = await files_tools.read(clients, path=path, max_bytes=limit)
+    answer = await files_tools.read(clients, path=path, max_bytes=limit, known=entry)
 
     # The document's own copy of either marker goes before this server writes one of its
     # own (BL-09, ME-03): a complete file that carries the note would claim to be cut, and

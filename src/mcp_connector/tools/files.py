@@ -21,6 +21,7 @@ import asyncio
 import base64
 import re
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 from .. import config, ids, paging
@@ -317,6 +318,8 @@ async def read(
     path: str,
     offset: int = 0,
     max_bytes: int = DEFAULT_MAX_BYTES,
+    *,
+    known: Mapping[str, Any] | None = None,
 ) -> dict:
     """Read a text file and return stable fields: path, content, size, content_type.
 
@@ -326,6 +329,13 @@ async def read(
     A file tagged ``kein-ki``, or below a tagged folder, answers exactly like a path that
     does not exist (EXCL-01); when the tag check cannot be answered, every path gets the
     same uniform refusal (D-27-03).
+
+    ``known`` is for Python callers only and not on the wire (``files_read`` keeps its
+    schema): the entry of a file id SEARCH that the same tool call just made inside the
+    sandbox scope, which already carries what the stat PROPFIND would answer (plan 27-09,
+    the wall clock gap of phase 27). It replaces that PROPFIND and nothing else: the guard
+    is asked and applied exactly as on the stat route. An entry that does not describe
+    ``path`` is ignored and the stat runs as always.
     """
     if offset < 0:
         raise ToolError(
@@ -339,7 +349,7 @@ async def read(
         )
 
     target = dav.safe_path(path)
-    info = await _visible_stat(clients, target)
+    info = await _visible_stat(clients, target, known)
 
     if info["is_collection"]:
         raise ToolError(
@@ -715,7 +725,9 @@ async def _writable(clients: NcClients, target: str) -> None:
         raise dav.parent_missing(target)
 
 
-async def _visible_stat(clients: NcClients, target: str) -> dict[str, Any]:
+async def _visible_stat(
+    clients: NcClients, target: str, known: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
     """``dav.stat`` of ``target``, or the error a path that does not exist would get.
 
     The guard is asked alongside the PROPFIND, so a tagged path costs the same requests as
@@ -724,7 +736,26 @@ async def _visible_stat(clients: NcClients, target: str) -> dict[str, Any]:
     read the same; then the error of the PROPFIND as it would be without any tag; then the
     tag, before any check of the entry's form (folder, type, offset), because each of
     those would tell a withheld entry from a missing one.
+
+    With a ``known`` entry of exactly this path and a file id, the PROPFIND is skipped and
+    the guard alone is awaited; the decisions keep their order, only the PROPFIND error
+    step has nothing to decide (T-27-92).
     """
+    fileid = str(known.get("fileid") or "") if known is not None else ""
+    if known is not None and known.get("path") == target and fileid:
+        scope = await clients.exclusion.scope(clients)
+        if scope.state == "unverifiable":
+            raise withhold.unavailable_error()
+        if scope.excludes(path=target, fileid=fileid):
+            raise dav.not_found(target)
+        return {
+            "path": target,
+            "is_collection": bool(known.get("is_collection")),
+            "content_type": str(known.get("content_type") or ""),
+            "size": int(known.get("size") or 0),
+            "fileid": fileid,
+        }
+
     scope, info = await asyncio.gather(
         clients.exclusion.scope(clients),
         dav.stat(clients.client, clients.creds, target),
