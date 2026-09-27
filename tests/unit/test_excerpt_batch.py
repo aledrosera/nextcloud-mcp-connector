@@ -987,10 +987,12 @@ async def test_a_failed_batch_leaves_the_note_its_own_sentences(
     assert new.searches[0] == ["11", "12", "31"], "the batch was tried first"
     assert ["31"] in new.searches[1:], "then the note asked on its own"
     degraded = {entry["source"]: entry["reason"] for entry in new.answer.get("degraded", [])}
+    assert "note:31" not in degraded
     if search == "fail_all":
-        assert degraded["note:31"] == withhold.unavailable_error().message
+        # The note's own lookup failed as well: withheld, said once for the bundle.
+        assert degraded["exclusion"] == withhold.EXCLUSION_UNAVAILABLE
     else:
-        assert "note:31" not in degraded
+        assert new.answer["results"]["note"][0]["excerpt"] == NOTES["31"][1]
 
 
 @pytest.mark.anyio
@@ -1051,7 +1053,8 @@ async def test_a_note_without_path_check_never_waits_for_the_batch(
     elif guard == "active":
         assert degraded == {"note:31": notes_tools._note_not_found("31").message}
     else:
-        assert set(degraded) == {"file:11", "note:31"}
+        # Every excerpt is withheld; the bundle says so once and no excerpt timed out.
+        assert set(degraded) == {"exclusion"}
 
 
 @pytest.mark.anyio

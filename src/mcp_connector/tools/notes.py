@@ -35,6 +35,7 @@ tells a note from any other file id, which would make the tool an oracle over fi
 """
 
 import asyncio
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -57,6 +58,14 @@ DEFAULT_LIMIT = 25
 MAX_LIMIT = 100
 
 _ID_HINT = "Use an id from notes_search, for example note:12."
+
+#: The shared file id lookup of one ``prepare_context`` bundle, as a note excerpt awaits it
+#: (plan 27-10): a file id onto its entry, onto ``None``, or left out.
+NoteBatch = Callable[[], Awaitable[Mapping[str, Mapping[str, Any] | None]]]
+
+#: What a failed path lookup may raise; the same tuple as ``chatgpt.LOOKUP_FAILURES``,
+#: spelled out here because this module must not import ``chatgpt`` (it imports this one).
+_LOOKUP_FAILURES: tuple[type[Exception], ...] = (ToolError, httpx.HTTPError, ValueError)
 
 
 async def search(clients: NcClients, query: str, limit: int = DEFAULT_LIMIT) -> dict[str, Any]:
@@ -147,7 +156,12 @@ async def search(clients: NcClients, query: str, limit: int = DEFAULT_LIMIT) -> 
     return result
 
 
-async def read(clients: NcClients, note_id: str) -> dict[str, Any]:
+async def read(
+    clients: NcClients,
+    note_id: str,
+    *,
+    batch: NoteBatch | None = None,
+) -> dict[str, Any]:
     """Read one note including its full content.
 
     The note id is the file id of the note (K4), so the guard and the sandbox (SBX-02) ask
@@ -156,6 +170,10 @@ async def read(clients: NcClients, note_id: str) -> dict[str, Any]:
     sentence of :func:`_note_not_found`; the note fetched in parallel never leaves this
     function in any of those branches. When the check cannot be answered, every id gets
     the same ``withhold.unavailable_error()``.
+
+    ``batch`` is Python only and never on the wire: ``prepare_context`` hands it in so the
+    path check of a note excerpt rides in the one file id SEARCH of its bundle (plan
+    27-10). It is only awaited where the path is needed, see :func:`_check_note_path`.
     """
     await _ready(clients)
     raw = _plain_note_id(note_id)
@@ -177,7 +195,7 @@ async def read(clients: NcClients, note_id: str) -> dict[str, Any]:
     if isinstance(fetched, BaseException):
         raise fetched
     if withhold.needs_paths(scope):
-        await _check_note_path(clients, scope, raw)
+        await _check_note_path(clients, scope, raw, batch)
 
     note = fetched
     stored_id = str(note.get("id", raw))
@@ -314,11 +332,36 @@ def _withheld_search(skipped: int) -> dict[str, Any]:
     return result
 
 
-async def _check_note_path(clients: NcClients, scope: TagScope, note_id: str) -> None:
-    """Resolve the note's path and refuse it outside the sandbox or below a tagged folder."""
+async def _check_note_path(
+    clients: NcClients,
+    scope: TagScope,
+    note_id: str,
+    batch: NoteBatch | None = None,
+) -> None:
+    """Resolve the note's path and refuse it outside the sandbox or below a tagged folder.
+
+    With ``batch``, the source of the path changes and the decision does not (plan 27-10,
+    the wall clock gap left after 27-09). The entry comes from the one file id SEARCH of
+    the same tool call, asked in the sandbox scope, so ``None`` there means what a missing
+    id means below: the first response for the id lies outside ``NC_MCP_FILES_ROOT`` or
+    there is none. An id the batch left out (crowded out of a full block) and a batch that
+    failed take the single lookup below, which words every outcome as it always did. The
+    path never leaves this function, and nothing of the batch outlives the call (E3).
+    """
+    if batch is not None:
+        try:
+            entries = await batch()
+        except _LOOKUP_FAILURES:
+            entries = None
+        if entries is not None and note_id in entries:
+            entry = entries[note_id]
+            batched = None if entry is None else str(entry["path"])
+            if batched is None or scope.excludes(path=batched, fileid=note_id):
+                raise _note_not_found(note_id)
+            return
     try:
         paths = await dav.paths_of_fileids(clients.client, clients.creds, [note_id])
-    except (ToolError, httpx.HTTPError, ValueError):
+    except _LOOKUP_FAILURES:
         raise withhold.unavailable_error() from None
     path = paths.get(note_id)
     if path is None or scope.excludes(path=path, fileid=note_id):

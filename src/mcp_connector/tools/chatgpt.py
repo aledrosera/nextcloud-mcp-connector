@@ -207,6 +207,7 @@ async def fetch(
     *,
     max_bytes: int | None = None,
     resolved: Mapping[str, dict[str, Any] | None] | None = None,
+    note_batch: notes_tools.NoteBatch | None = None,
 ) -> dict[str, Any]:
     """Read one search result in full and answer in the OpenAI fetch shape.
 
@@ -227,13 +228,17 @@ async def fetch(
     ids of the same tool call, so a bundle of several file excerpts pays one file id
     SEARCH instead of one per excerpt (plan 27-09). An id it does not contain goes the
     single lookup; the other kinds ignore it.
+
+    ``note_batch`` is the note side of the same idea (plan 27-10): an awaitable over that
+    lookup, handed to ``notes.read`` so a note excerpt checks its path in the SEARCH of the
+    bundle instead of one of its own. Only a note reads it, and only where it needs a path.
     """
     kind, parts = ids.parse(resource_id)
     match kind:
         case "file":
             return await _fetch_file(clients, parts[0], max_bytes, resolved)
         case "note":
-            return await _fetch_note(clients, parts[0])
+            return await _fetch_note(clients, parts[0], note_batch)
         case "card":
             return await _fetch_card(clients, parts)
         case "event":
@@ -252,12 +257,18 @@ async def fetch(
 
 
 async def file_entries(
-    clients: NcClients, identifiers: Sequence[str]
+    clients: NcClients,
+    identifiers: Sequence[str],
+    *,
+    kinds: tuple[str, ...] = ("file",),
 ) -> dict[str, dict[str, Any] | None]:
     """Resolve the file ids among ``identifiers`` with one lookup, for one tool call.
 
-    Only ``file:<digits>`` ids are taken; every other or unparsable id is passed over and
-    later goes its own way through :func:`fetch`, with exactly the error it always had.
+    Only ``<kind>:<digits>`` ids of a kind in ``kinds`` are taken, by default files only;
+    every other or unparsable id is passed over and later goes its own way through
+    :func:`fetch`, with exactly the error it always had. With ``"note"`` in ``kinds`` the
+    note ids join the same SEARCH, because a note id is the file id of the note's file
+    (25-MESSBERICHT K4, plan 27-10); an id that is both a file and a note id is asked once.
     The answer maps a file id onto its entry, onto ``None`` when it certainly belongs to
     no file inside the sandbox, and leaves out an id the batch could not settle
     (:func:`dav_client.entries_of_fileids`), which then goes the single lookup.
@@ -272,7 +283,7 @@ async def file_entries(
             kind, parts = ids.parse(identifier)
         except ToolError:
             continue
-        if kind == "file" and _FILEID.fullmatch(parts[0]):
+        if kind in kinds and _FILEID.fullmatch(parts[0]):
             wanted.append(parts[0])
     wanted = list(dict.fromkeys(wanted))
     if not wanted:
@@ -374,9 +385,13 @@ def _no_file(fileid: str) -> ToolError:
     )
 
 
-async def _fetch_note(clients: NcClients, note_id: str) -> dict[str, Any]:
+async def _fetch_note(
+    clients: NcClients,
+    note_id: str,
+    note_batch: notes_tools.NoteBatch | None = None,
+) -> dict[str, Any]:
     """Read one note. The reader checks the Notes app itself, so a missing app is named."""
-    note = await notes_tools.read(clients, note_id)
+    note = await notes_tools.read(clients, note_id, batch=note_batch)
 
     metadata = {"kind": "note"}
     if note.get("category"):
