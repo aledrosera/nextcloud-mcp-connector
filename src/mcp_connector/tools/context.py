@@ -754,8 +754,13 @@ async def _excerpts(
     by each file excerpt inside its own budget, and its entries replace the stat PROPFIND
     of the read as well. Measured in plan 27-09 against the wall clock gap of
     27-VERIFICATION (scenario B, ``detail="full"``): three serial round trips per excerpt
-    became two, and a bundle sends five requests less. Notes and cards never wait for it.
-    When the shared lookup fails, every file excerpt takes the single route of ``fetch``
+    became two, and a bundle sends five requests less. Since plan 27-10 the note excerpts
+    check their path in the same SEARCH (a note id is a file id, K4): a note starts its
+    guard and its read at once and waits for the lookup only where ``notes.read`` needs the
+    path, so a note without a path check and every card never wait for it. A bundle without
+    a file excerpt starts no shared lookup at all, because without a tagged folder its
+    notes check no path and the SEARCH would be one request more.
+    When the shared lookup fails, every excerpt takes the single route of ``fetch``
     and so gets exactly the sentence it always got. The entries live in this call only and
     the task is cancelled before the answer leaves (E3, D-25-05).
     """
@@ -766,14 +771,16 @@ async def _excerpts(
         if hit.get("resolvable") is not False
     ][:MAX_EXCERPTS]
 
-    file_ids = [str(hit["id"]) for hit in targets if hit.get("kind") == "file"]
+    batch_ids = [str(hit["id"]) for hit in targets if hit.get("kind") in ("file", "note")]
     lookup = (
-        asyncio.create_task(chatgpt_tools.file_entries(clients, file_ids)) if file_ids else None
+        asyncio.create_task(chatgpt_tools.file_entries(clients, batch_ids, kinds=("file", "note")))
+        if any(hit.get("kind") == "file" for hit in targets)
+        else None
     )
     try:
         outcomes = await asyncio.gather(
             *(
-                _excerpt(clients, str(hit["id"]), lookup if hit.get("kind") == "file" else None)
+                _excerpt(clients, str(hit["id"]), lookup, str(hit.get("kind") or ""))
                 for hit in targets
             ),
             return_exceptions=True,
@@ -798,6 +805,7 @@ async def _excerpt(
     clients: NcClients,
     identifier: str,
     lookup: asyncio.Task[dict[str, dict[str, Any] | None]] | None = None,
+    kind: str = "file",
 ) -> str:
     """One excerpt, under its own two ceilings, through the routing that already exists.
 
@@ -807,10 +815,25 @@ async def _excerpt(
     A file excerpt waits for the shared ``lookup`` of its bundle inside its own budget,
     through ``asyncio.shield`` so its own timeout never cancels the lookup of the others.
     A lookup that failed sends it the single route, with the sentence it always had.
+
+    A note excerpt does not wait before its read (plan 27-10): it hands ``fetch`` a
+    ``note_batch`` that awaits the same shielded lookup, and ``notes.read`` calls it only
+    where it would otherwise ask its own path SEARCH. The budget still covers that wait,
+    so a lookup that misses it reads like any timed out excerpt.
     """
     async with asyncio.timeout(EXCERPT_TIMEOUT):
         resolved: dict[str, dict[str, Any] | None] | None = None
-        if lookup is not None:
+        if lookup is not None and kind == "note":
+            shared = lookup
+
+            async def note_batch() -> dict[str, dict[str, Any] | None]:
+                return await asyncio.shield(shared)
+
+            fetched = await chatgpt_tools.fetch(
+                clients, identifier, max_bytes=EXCERPT_READ_BYTES, note_batch=note_batch
+            )
+            return _capped(str(fetched.get("text") or ""))
+        if lookup is not None and kind == "file":
             try:
                 resolved = await asyncio.shield(lookup)
             except chatgpt_tools.LOOKUP_FAILURES:

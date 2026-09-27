@@ -669,6 +669,7 @@ class FakeFetch:
         self.ids: list[str] = []
         self.limits: list[int | None] = []
         self.resolved: list[Any] = []
+        self.note_batches: list[Any] = []
 
     async def __call__(
         self,
@@ -677,10 +678,12 @@ class FakeFetch:
         *,
         max_bytes: int | None = None,
         resolved: Any = None,
+        note_batch: Any = None,
     ) -> dict[str, Any]:
         self.ids.append(resource_id)
         self.limits.append(max_bytes)
         self.resolved.append(resolved)
+        self.note_batches.append(note_batch)
         if self.barrier is not None:
             await asyncio.wait_for(self.barrier.wait(), timeout=5)
         if self.hang:
@@ -703,8 +706,12 @@ def wire_fetch(monkeypatch: pytest.MonkeyPatch, fetch: FakeFetch) -> FakeFetch:
     against the transport; the batch itself is tested in ``test_excerpt_batch.py``.
     """
 
-    async def file_entries(_clients: NcClients, identifiers: Any) -> dict[str, Any]:
-        numbers = [str(i).partition(":")[2] for i in identifiers if str(i).startswith("file:")]
+    async def file_entries(
+        _clients: NcClients, identifiers: Any, *, kinds: Any = ("file",)
+    ) -> dict[str, Any]:
+        # 27-10: with "note" in kinds the note ids of the bundle join the lookup as well.
+        prefixes = tuple(f"{kind}:" for kind in kinds)
+        numbers = [str(i).partition(":")[2] for i in identifiers if str(i).startswith(prefixes)]
         return {n: {"path": f"/{n}.md", "fileid": n} for n in numbers}
 
     monkeypatch.setattr(chatgpt_tools, "fetch", fetch)
