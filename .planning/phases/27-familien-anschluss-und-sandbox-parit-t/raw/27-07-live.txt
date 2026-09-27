@@ -43,3 +43,32 @@ CLEANUP PROPFIND offen_path: 404
 CLEANUP PROPFIND geheim_path: 404
 CLEANUP notes left: 0
 CLEANUP tag kein-ki listed: 0
+
+# 27-07 live run 2026-09-27 13:31:11 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_exclusion_live.py -m integration -s
+# nextcloud=35.0.0 (status.php), user=alice
+# tree: /live27-cd74d776
+SC2 fetch vorher gelesen vor dem Taggen: ja (scope=untagged text='vorher inhaltwortcd74d776 vorherwortcd74d776')
+# tagged by occ tag:files:add: geheim, Projekt/, vorher, note B, /Notes/Live27Geheim-cd74d776 (tag created)
+SC2 unified_search Laufkennung ohne getaggten Treffer: ja (count=8 providers=['comments', 'files', 'notes'] leaks=[])
+SC2 unified_search geheim-Name ohne getaggten Treffer: ja (count=0 providers=[] leaks=[])
+SC2 unified_search Projekt-Name ohne getaggten Treffer: ja (count=0 providers=[] leaks=[])
+SC2 unified_search Gegenprobe offen gefunden: ja (count=8)
+SC2 chatgpt_search Laufkennung ohne getaggten Treffer: ja (count=8 leaks=[])
+SC2 chatgpt_search geheim-Name ohne getaggten Treffer: ja (count=0 leaks=[])
+SC2 fetch vor dem Taggen gelesene fileid danach wie unbekannte Id: ja (vorher=45 Zeichen, danach 'This account has no file with the id 22134.')
+SC2 unified_search systemtags-Provider nennt keine getaggte Datei: ja (roh=6 roh_mit_attributes=5 antwort=1 ohne_fileId=1 leaks=[])
+SC2 prepare_context weder Treffer noch Ausschnitt noch Digest-Name getaggt: ja (treffer=8 ausschnitte=2 degraded=['mail', 'file:22139'])
+SC4 talk_browse messages zeigt die getaggte Freigabe nur als {file}: ja (platzhalter_id=60 name_im_text=False)
+SC4 talk_browse conversations last_message ohne den Namen: ja (last_message='{file}')
+SC4 fetch message ohne den Namen: ja (text='From: alice\n{file}')
+SC4 talk_browse Gegenprobe offene Freigabe zeigt den Namen: ja (offen_im_text=True)
+SC4 talk_browse Datei-Raum fehlt in conversations: ja (roh_in_liste=True antwort=False)
+SC4 talk_browse Datei-Raum messages wie erfundenes Token: ja ("The token '<T>' is not in the conversation list of this account.")
+CLEANUP SC4 shares left: 0, file conversation still listed: False
+CLEANUP PROPFIND root: 404
+CLEANUP PROPFIND out: 404
+CLEANUP PROPFIND offen_path: 404
+CLEANUP PROPFIND geheim_path: 404
+CLEANUP notes left: 0
+CLEANUP tag kein-ki listed: 0

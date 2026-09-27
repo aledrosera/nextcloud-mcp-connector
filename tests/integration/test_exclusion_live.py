@@ -29,6 +29,7 @@ import asyncio
 import dataclasses
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -49,12 +50,15 @@ from mcp_connector.errors import ToolError
 from mcp_connector.nextcloud import NcClients, capabilities
 from mcp_connector.nextcloud import exclusion as exclusion_core
 from mcp_connector.nextcloud.clients import dav
+from mcp_connector.nextcloud.clients import talk as talk_client
 from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.nextcloud.exclusion import ExclusionGuard
 from mcp_connector.tools import chatgpt as chatgpt_tools
+from mcp_connector.tools import context as context_tools
 from mcp_connector.tools import files as files_tools
 from mcp_connector.tools import notes as notes_tools
 from mcp_connector.tools import search as search_tools
+from mcp_connector.tools import talk as talk_tools
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
@@ -779,3 +783,241 @@ async def test_sc3_notes(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
             and title not in after.values(),
             f"{refused.message!r} notes={len(before)}->{len(after)}",
         )
+
+
+# --- success criterion 2: search, fetch by an old file id, systemtags, prepare_context ---
+
+_DIGITS_AT_END = re.compile(r"(\d+)$")
+_FILE_URL = re.compile(r"/f/(\d+)")
+
+
+def _numbers_of(hit: dict[str, Any]) -> set[str]:
+    """Every file or note id a normalised hit names, in its id and in its url."""
+    found: set[str] = set()
+    identifier = str(hit.get("id") or "")
+    if identifier.startswith(("file:", "note:")) and (match := _DIGITS_AT_END.search(identifier)):
+        found.add(match.group(1))
+    found.update(_FILE_URL.findall(str(hit.get("url") or "")))
+    return found
+
+
+def _leaks(world: World, hits: list[dict[str, Any]]) -> list[str]:
+    """The tagged ids among the hits, plus any hit text naming a tagged entry."""
+    tagged = world.tagged_fileids()
+    leaked = sorted({n for hit in hits for n in _numbers_of(hit)} & tagged)
+    text = dumps(hits)
+    leaked += [name for name in world.tagged_names() if name in text]
+    leaked += [word for word in (f"geheimwort{world.hexid}", "Live27 geheim") if word in text]
+    return leaked
+
+
+def _bundle_hits(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+    results = bundle.get("results")
+    if not isinstance(results, dict):
+        return []
+    return [hit for group in results.values() if isinstance(group, list) for hit in group]
+
+
+async def test_sc2_search_and_fetch(world: World) -> None:
+    h = world.hexid
+    async with live(world) as fresh:
+        for label, term in (
+            ("Laufkennung", h),
+            ("geheim-Name", f"geheim-{h}"),
+            ("Projekt-Name", f"Projekt-{h}"),
+        ):
+            answer = await search_tools.unified_search(fresh(), term)
+            leaked = _leaks(world, answer["results"])
+            providers = sorted({str(hit.get("provider")) for hit in answer["results"]})
+            check(
+                "SC2",
+                "unified_search",
+                f"{label} ohne getaggten Treffer",
+                not leaked,
+                f"count={answer['count']} providers={providers} leaks={leaked}",
+            )
+        visible = await search_tools.unified_search(fresh(), h)
+        offen_seen = world.fileids["offen"] in {
+            n for hit in visible["results"] for n in _numbers_of(hit)
+        }
+        check(
+            "SC2",
+            "unified_search",
+            "Gegenprobe offen gefunden",
+            offen_seen,
+            f"count={visible['count']}",
+        )
+
+        for label, term in (("Laufkennung", h), ("geheim-Name", f"geheim-{h}")):
+            hits = await chatgpt_tools.search(fresh(), term)
+            leaked = _leaks(world, hits)
+            check(
+                "SC2",
+                "chatgpt_search",
+                f"{label} ohne getaggten Treffer",
+                not leaked,
+                f"count={len(hits)} leaks={leaked}",
+            )
+
+        vorher = world.fileids["vorher"]
+        refused = await refusal(chatgpt_tools.fetch(fresh(), ids.encode_file(vorher)))
+        reference = await refusal(chatgpt_tools.fetch(fresh(), ids.encode_file(UNKNOWN_FILEID)))
+        check(
+            "SC2",
+            "fetch",
+            "vor dem Taggen gelesene fileid danach wie unbekannte Id",
+            bool(world.before_tag)
+            and shape(refused, (vorher, "<ID>")) == shape(reference, (UNKNOWN_FILEID, "<ID>"))
+            and f"vorherwort{h}" not in refused.message,
+            f"vorher={len(world.before_tag)} Zeichen, danach {refused.message!r}",
+        )
+
+        raw_entries = world.harness.provider_entries("systemtags", TAG)
+        raw_with_file = [
+            e for e in raw_entries if isinstance(e.get("attributes"), dict) and e["attributes"]
+        ]
+        tags_answer = await search_tools.unified_search(fresh(), TAG, providers=["systemtags"])
+        leaked = _leaks(world, tags_answer["results"])
+        without_file = [hit for hit in tags_answer["results"] if not _numbers_of(hit)]
+        check(
+            "SC2",
+            "unified_search",
+            "systemtags-Provider nennt keine getaggte Datei",
+            not leaked and "degraded" not in tags_answer,
+            f"roh={len(raw_entries)} roh_mit_attributes={len(raw_with_file)} "
+            f"antwort={tags_answer['count']} ohne_fileId={len(without_file)} leaks={leaked}",
+        )
+
+        bundle = await context_tools.prepare_context(fresh(), h, detail=context_tools.FULL)
+        hits = _bundle_hits(bundle)
+        excerpts = [str(hit.get("excerpt") or "") for hit in hits]
+        text = dumps(bundle)
+        check(
+            "SC2",
+            "prepare_context",
+            "weder Treffer noch Ausschnitt noch Digest-Name getaggt",
+            not _leaks(world, hits)
+            and not any(f"geheimwort{h}" in excerpt for excerpt in excerpts)
+            and f"geheim-{h}" not in text
+            and f"geheimwort{h}" not in text,
+            f"treffer={len(hits)} ausschnitte={sum(1 for e in excerpts if e)} "
+            f"degraded={[d.get('source') for d in bundle.get('degraded', [])]}",
+        )
+
+
+# --- success criterion 4: Talk --------------------------------------------------------
+
+INVENTED_TOKEN = "zz27nope"
+
+
+async def _room_token(world: World) -> str:
+    async with live(world) as fresh:
+        clients = fresh()
+        rooms = await talk_client.get_rooms(
+            clients.client, clients.creds, include_last_message=False
+        )
+    for room in rooms:
+        if str(room.get("displayName") or "") == world.talk_room:
+            return str(room["token"])
+    pytest.skip(f"the conversation {world.talk_room!r} does not exist for this account")
+
+
+def _newest_placeholder(messages: dict[str, Any]) -> dict[str, Any] | None:
+    placeholders = [m for m in messages["results"] if m.get("message") == "{file}"]
+    return max(placeholders, key=lambda m: int(m["id"])) if placeholders else None
+
+
+async def test_sc4_talk(world: World) -> None:
+    harness = world.harness
+    token = await _room_token(world)
+    secret = world.name("geheim")
+    share_ids: list[str] = []
+    file_token = ""
+    try:
+        share_ids.append(harness.share(world.paths["geheim"], 10, token))
+        async with live(world) as fresh:
+            messages = await talk_tools.browse(fresh(), level="messages", token=token, limit=20)
+            newest = _newest_placeholder(messages)
+            text = dumps(messages)
+            check(
+                "SC4",
+                "talk_browse",
+                "messages zeigt die getaggte Freigabe nur als {file}",
+                newest is not None and secret not in text and world.root not in text,
+                f"platzhalter_id={newest and newest['id']} name_im_text={secret in text}",
+            )
+            conversations = await talk_tools.browse(
+                fresh(), level="conversations", limit=talk_tools.MAX_LIMIT
+            )
+            room = [c for c in conversations["results"] if c.get("token") == token]
+            check(
+                "SC4",
+                "talk_browse",
+                "conversations last_message ohne den Namen",
+                len(room) == 1 and secret not in dumps(room) and secret not in dumps(conversations),
+                f"last_message={str(room[0].get('last_message') if room else None)[:80]!r}",
+            )
+            assert newest is not None
+            fetched = await chatgpt_tools.fetch(fresh(), ids.encode_message(token, newest["id"]))
+            check(
+                "SC4",
+                "fetch",
+                "message ohne den Namen",
+                "{file}" in str(fetched.get("text")) and secret not in dumps(fetched),
+                f"text={str(fetched.get('text'))[:80]!r}",
+            )
+
+        share_ids.append(harness.share(world.paths["offen"], 10, token))
+        async with live(world) as fresh:
+            messages = await talk_tools.browse(fresh(), level="messages", token=token, limit=20)
+            check(
+                "SC4",
+                "talk_browse",
+                "Gegenprobe offene Freigabe zeigt den Namen",
+                world.name("offen") in dumps(messages) and secret not in dumps(messages),
+                f"offen_im_text={world.name('offen') in dumps(messages)}",
+            )
+
+        share_ids.append(harness.share(world.paths["geheim"], 0, world.user2))
+        status, data = harness.ocs("GET", f"/apps/spreed/api/v1/file/{world.fileids['geheim']}")
+        file_token = str((data or {}).get("token") or "") if isinstance(data, dict) else ""
+        assert file_token, f"no file conversation: {status} {data}"
+        harness.ocs("POST", f"/apps/spreed/api/v4/room/{file_token}/participants/active")
+        harness.ocs("DELETE", f"/apps/spreed/api/v4/room/{file_token}/participants/active")
+        _, raw_rooms = harness.ocs("GET", "/apps/spreed/api/v4/room")
+        raw_tokens = [str(r.get("token")) for r in raw_rooms or [] if isinstance(r, dict)]
+        async with live(world) as fresh:
+            conversations = await talk_tools.browse(
+                fresh(), level="conversations", limit=talk_tools.MAX_LIMIT
+            )
+            listed = dumps(conversations)
+            check(
+                "SC4",
+                "talk_browse",
+                "Datei-Raum fehlt in conversations",
+                file_token in raw_tokens and file_token not in listed and secret not in listed,
+                f"roh_in_liste={file_token in raw_tokens} antwort={file_token in listed}",
+            )
+            refused = await refusal(talk_tools.browse(fresh(), level="messages", token=file_token))
+            reference = await refusal(
+                talk_tools.browse(fresh(), level="messages", token=INVENTED_TOKEN)
+            )
+            check(
+                "SC4",
+                "talk_browse",
+                "Datei-Raum messages wie erfundenes Token",
+                shape(refused, (file_token, "<T>")) == shape(reference, (INVENTED_TOKEN, "<T>")),
+                f"{shape(refused, (file_token, '<T>'))[1]!r}",
+            )
+    finally:
+        if file_token:
+            harness.ocs("DELETE", f"/apps/spreed/api/v4/room/{file_token}/participants/self")
+        for share_id in share_ids:
+            harness.unshare(share_id)
+    _, left = harness.ocs("GET", "/apps/files_sharing/api/v1/shares")
+    mine = [s for s in left or [] if isinstance(s, dict) and str(s.get("id")) in share_ids]
+    _, rooms_after = harness.ocs("GET", "/apps/spreed/api/v4/room")
+    still_in = file_token in [str(r.get("token")) for r in rooms_after or [] if isinstance(r, dict)]
+    record(f"CLEANUP SC4 shares left: {len(mine)}, file conversation still listed: {still_in}")
+    assert not mine, mine
+    assert not still_in, "the file conversation is still in the list of this account"
