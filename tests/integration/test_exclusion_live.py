@@ -31,17 +31,19 @@ import json
 import os
 import re
 import shutil
+import statistics
 import subprocess
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Iterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 import pytest
+import respx
 from lxml import etree
 
 from mcp_connector import config, ids
@@ -50,6 +52,7 @@ from mcp_connector.errors import ToolError
 from mcp_connector.nextcloud import NcClients, capabilities
 from mcp_connector.nextcloud import exclusion as exclusion_core
 from mcp_connector.nextcloud.clients import dav
+from mcp_connector.nextcloud.clients import systemtags as systemtags_client
 from mcp_connector.nextcloud.clients import talk as talk_client
 from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.nextcloud.exclusion import ExclusionGuard
@@ -59,6 +62,7 @@ from mcp_connector.tools import files as files_tools
 from mcp_connector.tools import notes as notes_tools
 from mcp_connector.tools import search as search_tools
 from mcp_connector.tools import talk as talk_tools
+from mcp_connector.tools import withhold
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
@@ -1021,3 +1025,226 @@ async def test_sc4_talk(world: World) -> None:
     record(f"CLEANUP SC4 shares left: {len(mine)}, file conversation still listed: {still_in}")
     assert not mine, mine
     assert not still_in, "the file conversation is still in the list of this account"
+
+
+# --- success criterion 5: degradation with an injected REPORT 500, silence on success ---
+
+
+@contextmanager
+def report_500(world: World) -> Iterator[respx.Route]:
+    """Let the tag REPORT answer 500 and pass every other request through to nc35.
+
+    Without a cached tag id the tag listing goes out first (passed through), then the
+    REPORT (500), so the guard ends ``unverifiable`` exactly as on a broken instance.
+    """
+    home = systemtags_client.home_url(world.creds)
+    with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+        failing = router.route(method="REPORT", url=home).mock(return_value=httpx.Response(500))
+        router.route().pass_through()
+        yield failing
+
+
+_FILE_PROVIDERS = frozenset({"files", "comments", "notes", "systemtags"})
+
+
+def _exclusion_entries(answer: dict[str, Any]) -> list[dict[str, Any]]:
+    degraded = answer.get("degraded")
+    if not isinstance(degraded, list):
+        return []
+    return [
+        d
+        for d in degraded
+        if isinstance(d, dict) and d.get("reason") == withhold.EXCLUSION_UNAVAILABLE
+    ]
+
+
+async def test_sc5_unverifiable(world: World) -> None:
+    h, harness = world.hexid, world.harness
+    unavailable = exact(withhold.unavailable_error())
+    one_source = [withhold.degraded_entry("source")]
+    token = await _room_token(world)
+    share_id = harness.share(world.paths["offen"], 10, token)
+    try:
+        with report_500(world) as failing:
+            async with live(world) as fresh:
+                listing = await files_tools.list_dir(fresh(), world.root)
+                check(
+                    "SC5",
+                    "files_list",
+                    "leer mit genau einem degraded-Eintrag",
+                    listing["items"] == [] and listing.get("degraded") == one_source,
+                    f"items={len(listing['items'])} degraded={listing.get('degraded')}",
+                )
+
+                opened = await refusal(files_tools.read(fresh(), world.paths["offen"]))
+                invented = await refusal(files_tools.read(fresh(), f"{world.root}/erfunden.txt"))
+                check(
+                    "SC5",
+                    "files_read",
+                    "offen und erfundener Pfad identisch uniform",
+                    exact(opened) == exact(invented) == unavailable,
+                    f"{opened.message!r}",
+                )
+
+                target = f"{world.root}/neu-sc5-{h}.txt"
+                refused = await refusal(files_tools.upload(fresh(), target, "x"))
+                written = harness.stat(target)[0]
+                check(
+                    "SC5",
+                    "files_upload",
+                    "uniformer Fehler, nichts geschrieben",
+                    exact(refused) == unavailable and written == 404,
+                    f"{refused.message!r} PROPFIND={written}",
+                )
+
+                searched = await search_tools.unified_search(fresh(), h)
+                file_hits = [
+                    hit for hit in searched["results"] if hit.get("provider") in _FILE_PROVIDERS
+                ]
+                check(
+                    "SC5",
+                    "unified_search",
+                    "keine dateitragenden Treffer, ein exclusion-degraded",
+                    not file_hits
+                    and _exclusion_entries(searched) == [withhold.degraded_entry("provider")],
+                    f"treffer={searched['count']} datei={len(file_hits)} "
+                    f"degraded={[d.get('provider') for d in searched.get('degraded', [])]}",
+                )
+
+                notes = await notes_tools.search(fresh(), world.note_word)
+                check(
+                    "SC5",
+                    "notes_search",
+                    "leer mit genau einem degraded-Eintrag",
+                    notes["results"] == [] and notes.get("degraded") == one_source,
+                    f"count={notes['count']} degraded={notes.get('degraded')}",
+                )
+
+                messages = await talk_tools.browse(fresh(), level="messages", token=token, limit=20)
+                check(
+                    "SC5",
+                    "talk_browse",
+                    "alle Dateien roh als {file}, ein degraded-Eintrag",
+                    _newest_placeholder(messages) is not None
+                    and world.name("offen") not in dumps(messages)
+                    and messages.get("degraded") == one_source,
+                    f"degraded={messages.get('degraded')}",
+                )
+
+                fetched = await refusal(
+                    chatgpt_tools.fetch(fresh(), ids.encode_file(world.fileids["offen"]))
+                )
+                check(
+                    "SC5",
+                    "fetch",
+                    "file offen uniformer Fehler",
+                    exact(fetched) == unavailable,
+                    f"{fetched.message!r}",
+                )
+
+                bundle = await context_tools.prepare_context(fresh(), h, detail=context_tools.FULL)
+                entries = _exclusion_entries(bundle)
+                check(
+                    "SC5",
+                    "prepare_context",
+                    "genau ein degraded-Eintrag EXCLUSION_UNAVAILABLE",
+                    entries == one_source and not _leaks(world, _bundle_hits(bundle)),
+                    f"exclusion={len(entries)} "
+                    f"degraded={[d.get('source') for d in bundle.get('degraded', [])]}",
+                )
+            record(f"# SC5 injected REPORT 500 answered {failing.call_count} times")
+    finally:
+        harness.unshare(share_id)
+
+
+_TELLTALE_KEYS = frozenset({"withheld", "excluded", "hidden", "exclusion"})
+
+
+def _keys(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        return {str(k) for k in value} | {k for v in value.values() for k in _keys(v)}
+    if isinstance(value, list):
+        return {k for v in value for k in _keys(v)}
+    return set()
+
+
+async def test_sc5_silence_on_success(world: World) -> None:
+    h = world.hexid
+    token = await _room_token(world)
+    share_id = world.harness.share(world.paths["geheim"], 10, token)
+    answers: dict[str, Any] = {}
+    try:
+        async with live(world) as fresh:
+            answers["files_list"] = await files_tools.list_dir(fresh(), world.root)
+            answers["files_search"] = await files_tools.search(fresh(), h)
+            answers["files_read"] = await files_tools.read(fresh(), world.paths["offen"])
+            answers["files_download"] = await files_tools.download(fresh(), world.paths["offen"])
+            answers["unified_search"] = await search_tools.unified_search(fresh(), h)
+            answers["systemtags"] = await search_tools.unified_search(
+                fresh(), TAG, providers=["systemtags"]
+            )
+            answers["chatgpt_search"] = await chatgpt_tools.search(fresh(), h)
+            answers["fetch_file"] = await chatgpt_tools.fetch(
+                fresh(), ids.encode_file(world.fileids["offen"])
+            )
+            answers["notes_search"] = await notes_tools.search(fresh(), world.note_word)
+            answers["notes_read"] = await notes_tools.read(fresh(), world.notes["offen_a"])
+            messages = await talk_tools.browse(fresh(), level="messages", token=token, limit=20)
+            answers["talk_messages"] = messages
+            answers["talk_conversations"] = await talk_tools.browse(
+                fresh(), level="conversations", limit=talk_tools.MAX_LIMIT
+            )
+            newest = _newest_placeholder(messages)
+            assert newest is not None, "the tagged share is not in the window"
+            answers["fetch_message"] = await chatgpt_tools.fetch(
+                fresh(), ids.encode_message(token, newest["id"])
+            )
+            answers["prepare_context"] = await context_tools.prepare_context(
+                fresh(), h, detail=context_tools.FULL
+            )
+    finally:
+        world.harness.unshare(share_id)
+
+    loud: dict[str, list[str]] = {}
+    for name, answer in answers.items():
+        found = sorted(_keys(answer) & _TELLTALE_KEYS)
+        if withhold.EXCLUSION_UNAVAILABLE in dumps(answer):
+            found.append("EXCLUSION_UNAVAILABLE")
+        if found:
+            loud[name] = found
+    check(
+        "SC5",
+        "alle Werkzeuge",
+        "Schweigen im Erfolgsfall",
+        not loud,
+        f"{len(answers)} Antworten ohne Zähler/Hinweis, laut={loud}",
+    )
+
+
+# --- A1: cost of the file id resolution -------------------------------------------------
+
+
+async def test_a1_paths_of_fileids_latency(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Median and maximum of ``dav.paths_of_fileids`` for 1, 25 and 50 ids (a measurement)."""
+    monkeypatch.delenv(config.ENV_FILES_ROOT, raising=False)
+    folder = f"{world.root}/A1"
+    world.harness.mkcol(folder)
+    fileids: list[str] = []
+    for index in range(50):
+        path = f"{folder}/f{index:02d}-{world.hexid}.txt"
+        world.harness.put(path, f"a1 {index}\n".encode())
+        fileids.append(world.harness.fileid(path))
+    async with httpx.AsyncClient(follow_redirects=False, timeout=30.0) as client:
+        for count in (1, 25, 50):
+            wanted = fileids[:count]
+            await dav.paths_of_fileids(client, world.creds, wanted)
+            samples: list[float] = []
+            for _ in range(5):
+                started = time.perf_counter()
+                found = await dav.paths_of_fileids(client, world.creds, wanted)
+                samples.append((time.perf_counter() - started) * 1000)
+                assert len(found) == count, f"n={count}: {len(found)} resolved"
+            record(
+                f"A1 paths_of_fileids n={count}: median={statistics.median(samples):.1f} "
+                f"max={max(samples):.1f} (ms, 5 runs after 1 warm-up)"
+            )
