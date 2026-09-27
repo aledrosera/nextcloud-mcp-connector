@@ -191,7 +191,34 @@ Plans:
   4. talk_browse setzt den Dateinamen einer getaggten Datei nicht mehr in den Nachrichtentext ein (gemessen an einer Nachricht mit geteilter getaggter Datei)
   5. Ist die Prüfung nicht beantwortbar, hält jede betroffene Familie ihre dateitragenden Einträge zurück und benennt die Degradation in einem degraded-Eintrag; im Erfolgsfall trägt keine Antwort einen Zähler oder Hinweis auf zurückgehaltene Einträge
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 27-01-PLAN.md , Fundament: IN-01/02/03, Fehlerfabriken not_found/parent_missing, paths_of_fileids, NcClients.exclusion ohne Importzyklus, TagScope.has_folders, tools/withhold.py (D-27-05), guard_routes-Testhelfer und autouse-Fixture, Vulture-Parkabschnitt
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 27-02-PLAN.md , Datei-Familie: files_read/download/list/search orakelfrei, Upload-Orakel geschlossen (D-27-01/02)
+- [ ] 27-03-PLAN.md , Such-Familie: Live-Probe talk-message/comments, unified_search mit Sandbox für pfadlose Treffer (SBX-01) und lautlosem Tag-Filter, fetch(file) mit alter fileid
+- [ ] 27-04-PLAN.md , Notes: notes_search/read/create mit Guard und Sandbox (EXCL-05, SBX-02), ein Not-found-Satz
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 27-05-PLAN.md , Talk: {file} bleibt roh (D-27-06), Datei-Konversationen gefiltert, fetch(message), Vulture-Räumung
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 27-06-PLAN.md , prepare_context: Guard als erstes gather-Mitglied (Merker (c)), ein REPORT je Bündel, ein degraded-Eintrag
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 27-07-PLAN.md , Live-Beweis nc35 für die Erfolgskriterien 1 bis 5 (ohne Wanduhr), A1-Latenz
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 27-08-PLAN.md , Wanduhr prepare_context gegen Schwelle 0,88/0,97 s, Request-Kosten, Findling-CI-Test, 27-LIVE-BEWEIS.md, Owner-Checkpoint
 **Research flag**: Notes-Teil hängt vollständig an Phase 25; fällt "Notiz-Id = fileid" durch, braucht der Teil eine kurze eigene Recherche zur Notes-REST-API
 **Offene Punkte für die discuss-phase (nicht entschieden)**:
 
