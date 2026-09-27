@@ -17,6 +17,7 @@ one page, not one context window (threat T-01-34).
 could turn it into a replace is refused before the request or by Nextcloud itself.
 """
 
+import asyncio
 import base64
 import re
 import uuid
@@ -26,6 +27,7 @@ from .. import config, ids, paging
 from ..errors import ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
+from . import withhold
 
 DEFAULT_MAX_BYTES = 512 * 1024
 HARD_MAX_BYTES = 2 * 1024 * 1024
@@ -228,6 +230,10 @@ async def read(
 
     ``truncated`` is true when the answer stops before the end of the file; only then is
     ``next_offset`` present, so the caller never has to guess whether it saw everything.
+
+    A file tagged ``kein-ki``, or below a tagged folder, answers exactly like a path that
+    does not exist (EXCL-01); when the tag check cannot be answered, every path gets the
+    same uniform refusal (D-27-03).
     """
     if offset < 0:
         raise ToolError(
@@ -241,7 +247,7 @@ async def read(
         )
 
     target = dav.safe_path(path)
-    info = await dav.stat(clients.client, clients.creds, target)
+    info = await _visible_stat(clients, target)
 
     if info["is_collection"]:
         raise ToolError(
@@ -308,6 +314,10 @@ async def download(
     Unlike :func:`read`, this path accepts every MIME type and never decodes the body. A
     caller can therefore assemble a file of any total size while each response stays
     bounded by :data:`HARD_DOWNLOAD_BYTES`.
+
+    A file tagged ``kein-ki``, or below a tagged folder, answers exactly like a path that
+    does not exist (EXCL-01); when the tag check cannot be answered, every path gets the
+    same uniform refusal (D-27-03).
     """
     if offset < 0:
         raise ToolError(
@@ -321,7 +331,7 @@ async def download(
         )
 
     target = dav.safe_path(path)
-    info = await dav.stat(clients.client, clients.creds, target)
+    info = await _visible_stat(clients, target)
 
     if info["is_collection"]:
         raise ToolError(
@@ -569,6 +579,32 @@ async def upload_binary(
         "total_bytes": total_bytes,
         "completed": True,
     }
+
+
+async def _visible_stat(clients: NcClients, target: str) -> dict[str, Any]:
+    """``dav.stat`` of ``target``, or the error a path that does not exist would get.
+
+    The guard is asked alongside the PROPFIND, so a tagged path costs the same requests as
+    a free one. The order of the decisions is fixed: a guard that could not answer wins
+    over everything, even over a 404 of the PROPFIND, so an existing and a missing path
+    read the same; then the error of the PROPFIND as it would be without any tag; then the
+    tag, before any check of the entry's form (folder, type, offset), because each of
+    those would tell a withheld entry from a missing one.
+    """
+    scope, info = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        dav.stat(clients.client, clients.creds, target),
+        return_exceptions=True,
+    )
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if isinstance(info, BaseException):
+        raise info
+    if scope.excludes(path=target, fileid=str(info["fileid"]) or None):
+        raise dav.not_found(target)
+    return info
 
 
 def _is_text(content_type: str) -> bool:
