@@ -48,13 +48,17 @@ import asyncio
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import httpx
 
 from ..errors import ToolError
-from . import NcClients
 from .clients import systemtags
+
+if TYPE_CHECKING:
+    # Annotations only: ``NcClients`` carries a guard of this module as a field, so a
+    # runtime import here would be a cycle (the package imports this module first).
+    from . import NcClients
 
 __all__ = [
     "EXCLUDE_TAG",
@@ -155,11 +159,17 @@ def ancestors(path: str) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class TagScope:
-    """The answer to "what is tagged ``kein-ki``" for one tool call, as a value."""
+    """The answer to "what is tagged ``kein-ki``" for one tool call, as a value.
+
+    ``has_folders`` says whether a folder is among the tagged nodes. Without a tagged
+    folder the file id alone decides, so a family can skip resolving ids into paths
+    when nothing but files carries the tag (and the sandbox is off).
+    """
 
     state: State
     paths: frozenset[str] = frozenset()
     fileids: frozenset[str] = frozenset()
+    has_folders: bool = False
     reason: Why | None = None
 
     def excludes(self, path: str | None = None, fileid: str | None = None) -> bool:
@@ -197,7 +207,7 @@ def _unverifiable(reason: Why) -> TagScope:
     return TagScope("unverifiable", reason=reason)
 
 
-async def load_scope(clients: NcClients) -> TagScope:
+async def load_scope(clients: "NcClients") -> TagScope:
     """Ask Nextcloud what is tagged ``kein-ki`` for this user and return it as a value.
 
     Every Nextcloud outcome ends in one of the three states and nothing raises for it: the
@@ -222,7 +232,7 @@ async def load_scope(clients: NcClients) -> TagScope:
         return _unverifiable("unparsable")
 
 
-async def _fresh_ids(clients: NcClients, key: tuple[str, str]) -> tuple[str, ...] | TagScope:
+async def _fresh_ids(clients: "NcClients", key: tuple[str, str]) -> tuple[str, ...] | TagScope:
     """List the tags and return one id per spelling, or the state the listing already decides."""
     listing = await systemtags.list_tags(clients.client, clients.creds)
     if listing.status != 207:
@@ -234,7 +244,7 @@ async def _fresh_ids(clients: NcClients, key: tuple[str, str]) -> tuple[str, ...
     return ids
 
 
-async def _flight(clients: NcClients) -> TagScope:
+async def _flight(clients: "NcClients") -> TagScope:
     """The D-25-05 automaton: 207 is a set, one 412 re-lists once, anything else is a refusal."""
     key = (clients.creds.base_url, clients.creds.user)
     ids = _cached_ids(key)
@@ -267,7 +277,7 @@ async def _flight(clients: NcClients) -> TagScope:
     return _unverifiable("status")
 
 
-async def _report_all(clients: NcClients, ids: tuple[str, ...]) -> list[systemtags.TaggedSet]:
+async def _report_all(clients: "NcClients", ids: tuple[str, ...]) -> list[systemtags.TaggedSet]:
     """One REPORT per id, each with exactly that one id, all at once.
 
     Every request is allowed to finish before the first failure is raised again, so the
@@ -293,13 +303,20 @@ def _active(sets: Iterable[systemtags.TaggedSet]) -> TagScope:
     """
     paths: set[str] = set()
     fileids: set[str] = set()
+    has_folders = False
     for tagged in sets:
         for node in tagged.nodes:
             if node.path is None:
                 return _unverifiable("foreign_href")
             paths.add(node.path)
             fileids.add(node.fileid)
-    return TagScope("active", paths=frozenset(paths), fileids=frozenset(fileids))
+            has_folders = has_folders or node.is_collection
+    return TagScope(
+        "active",
+        paths=frozenset(paths),
+        fileids=frozenset(fileids),
+        has_folders=has_folders,
+    )
 
 
 class ExclusionGuard:
@@ -327,7 +344,7 @@ class ExclusionGuard:
         self._scope: TagScope | None = None
         self._key: tuple[str, str] | None = None
 
-    async def scope(self, clients: NcClients) -> TagScope:
+    async def scope(self, clients: "NcClients") -> TagScope:
         """The scope of this tool call, asked for at most once however many parts need it."""
         # The identity check runs before the fast path on purpose: a cached scope must never
         # be handed to a caller with different credentials. No await sits between check and
