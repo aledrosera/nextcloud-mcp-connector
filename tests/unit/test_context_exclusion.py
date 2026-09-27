@@ -248,9 +248,7 @@ async def test_unverifiable_is_one_degraded_entry_however_many_legs_report_it(
 
     assert report.call_count == 1
     unavailable = [
-        entry
-        for entry in result["degraded"]
-        if entry["reason"] == withhold.EXCLUSION_UNAVAILABLE
+        entry for entry in result["degraded"] if entry["reason"] == withhold.EXCLUSION_UNAVAILABLE
     ]
     assert unavailable == [EXCLUSION]
     assert result["degraded"] == [

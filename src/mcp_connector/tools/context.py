@@ -85,7 +85,7 @@ from ..nextcloud import NcClients
 from . import calendar as calendar_tools
 from . import chatgpt as chatgpt_tools
 from . import mail as mail_tools
-from . import marks
+from . import marks, withhold
 from . import search as search_tools
 from . import talk as talk_tools
 
@@ -245,7 +245,13 @@ async def prepare_context(clients: NcClients, query: str, detail: str = SHORT) -
         raise ToolError(message=f"{detail!r} is not a known detail level.", hint=_DETAIL_HINT)
 
     start, end = _window()
-    search_out, calendar_out, talk_out, mail_out = await asyncio.gather(
+    # The guard is the first member, outside every leg budget (Merker (c), pattern 6): the
+    # flight of this call is held here, so no leg with a short ceiling can cancel it at its
+    # timeout and make the next leg ask again. 5000 tagged nodes on SQLite take 8 to 10 s,
+    # longer than TALK_BUDGET. Its outcome is not read: every leg asks the same guard itself
+    # and decides fail-closed there, so an exception here is ignored on purpose.
+    _, search_out, calendar_out, talk_out, mail_out = await asyncio.gather(
+        clients.exclusion.scope(clients),
         search_tools.unified_search(clients, query=term, limit=SEARCH_LIMIT),
         _events(clients, start, end),
         _talk(clients),
@@ -274,6 +280,7 @@ async def prepare_context(clients: NcClients, query: str, detail: str = SHORT) -
     if mode == FULL:
         await _excerpts(clients, results, degraded)
 
+    degraded = _one_exclusion_entry(degraded)
     result: dict[str, Any] = {
         "query": term,
         "window": {"start": start, "end": end},
@@ -795,6 +802,28 @@ def _capped(text: str) -> str:
     if len(encoded) <= EXCERPT_MAX_BYTES:
         return body
     return f"{encoded[:EXCERPT_MAX_BYTES].decode('utf-8', errors='ignore')}\n\n{EXCERPT_TRUNCATION}"
+
+
+def _one_exclusion_entry(degraded: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Fold every "could not check" entry of the legs into one, at the place of the first.
+
+    D-27-03: one ``degraded`` entry per family, and this bundle is one family. The search
+    names it under ``provider``, Talk under ``source``, a refused excerpt under the id of
+    its hit; all three carry :data:`withhold.EXCLUSION_UNAVAILABLE` (D-27-05), so the
+    sentence is what they are recognised by. The one entry left follows the idiom of this
+    answer (``source``) and names no hit, so it cannot point at a single entry. Every other
+    entry stays unchanged and in its order.
+    """
+    folded: list[dict[str, str]] = []
+    seen = False
+    for entry in degraded:
+        if entry.get("reason") != withhold.EXCLUSION_UNAVAILABLE:
+            folded.append(entry)
+            continue
+        if not seen:
+            folded.append(withhold.degraded_entry("source"))
+            seen = True
+    return folded
 
 
 def _degraded_of(answer: dict[str, Any]) -> list[dict[str, str]]:
