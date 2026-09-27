@@ -12,6 +12,7 @@ from mcp_connector.errors import ToolError
 from mcp_connector.nextcloud import NcClients
 from mcp_connector.nextcloud.clients import dav
 from mcp_connector.nextcloud.credentials import Credentials
+from mcp_connector.nextcloud.exclusion import UNTAGGED
 from mcp_connector.tools import files, search
 
 CREDS = Credentials("https://nc.test", "alice", "test-password")
@@ -68,7 +69,10 @@ async def test_ignored_range_stops_reading_and_closes_the_stream() -> None:
 @pytest.mark.parametrize("path", ["/Docs2/secret", "/Docs/../secret", "/Other/secret"])
 def test_search_metadata_cannot_escape_root(path: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(config.ENV_FILES_ROOT, "/Docs")
-    assert not search._entry_in_files_root("files", {"attributes": {"path": path}})
+    clients = NcClients(httpx.AsyncClient(), CREDS)
+    screened = search._screen(clients, "files", [{"attributes": {"path": path}}], UNTAGGED)
+    assert screened.kept == []
+    assert screened.skipped == 1
 
 
 def test_dav_filters_returned_paths_and_supports_subpath_installations(
