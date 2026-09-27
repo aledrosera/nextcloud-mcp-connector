@@ -223,6 +223,10 @@ Plans:
 **Wave 7** *(Lückenplan, blocked on Wave 6 completion)*
 
 - [ ] 27-09-PLAN.md , Lücke Wanduhr B full: eine fileid-SEARCH je Bündel für die Ausschnitte, Lesen ohne zweiten PROPFIND, byte-gleiche Antworten, Neumessung, Owner-Abnahme
+
+**Wave 8** *(zweiter Lückenplan, blocked on Wave 7 completion)*
+
+- [ ] 27-10-PLAN.md , Restlücke Wanduhr B full: Pfadprüfung der Notiz-Ausschnitte in derselben Sammel-SEARCH, byte-gleiche Antworten, Neumessung, Owner-Abnahme
 **Research flag**: Notes-Teil hängt vollständig an Phase 25; fällt "Notiz-Id = fileid" durch, braucht der Teil eine kurze eigene Recherche zur Notes-REST-API
 **Offene Punkte für die discuss-phase (nicht entschieden)**:
 
