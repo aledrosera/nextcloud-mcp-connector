@@ -167,7 +167,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 26-01-PLAN.md , Policy-freie Tag-Abfrage: dav.within (eine Segmentregel), dav.home_entries (ohne Sandbox-Drop), clients/systemtags.py (Tag-Liste, REPORT mit genau einer Regel auf die Home-Wurzel)
+- [x] 26-01-PLAN.md , Policy-freie Tag-Abfrage: dav.within (eine Segmentregel), dav.home_entries (ohne Sandbox-Drop), clients/systemtags.py (Tag-Liste, REPORT mit genau einer Regel auf die Home-Wurzel)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -258,7 +258,7 @@ Plans:
 | 23. Konto-Mapping und Credential-Wege | v1.6 | 6/6 | Complete | 2026-09-23 |
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
-| 26. Guard-Kern | v1.7 | 0/TBD | Not started | - |
+| 26. Guard-Kern | v1.7 | 1/2 | In Progress|  |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 0/TBD | Not started | - |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
