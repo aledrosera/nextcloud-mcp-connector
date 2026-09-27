@@ -117,7 +117,7 @@ def safe_path(path: str) -> str:
         return requested
     # A configured root becomes the virtual `/` for agents: `/scan.pdf` means a file below
     # the bound directory, while its explicit absolute spelling remains accepted as well.
-    if requested == root or requested.startswith(root + "/"):
+    if within(requested, root):
         return requested
     return root if requested == "/" else f"{root}{requested}"
 
@@ -480,14 +480,48 @@ def parse_entries(body: str | bytes, creds: Credentials) -> list[dict[str, Any]]
     return entries
 
 
+def home_entries(body: str | bytes, creds: Credentials) -> list[tuple[str | None, dict[str, str]]]:
+    """Map a Multi-Status onto ``(path, props)`` pairs, one per ``d:response``, unfiltered.
+
+    Built for the answer of a ``REPORT oc:filter-files``: a tagged ancestor above
+    ``NC_MCP_FILES_ROOT`` has to take effect on everything below it, so unlike
+    ``parse_entries`` nothing is dropped by the sandbox here.
+
+    Nothing is dropped silently either. A href that does not map onto this user's home,
+    or whose path carries a backslash, a control character or a dot segment, comes back
+    with the path ``None``. The caller has to turn that into "not verifiable" and never
+    into an empty set, because a set with a hole in it would read as "nothing tagged".
+    A ``ToolError`` from an unparsable body is left to the caller as well.
+    """
+    home = f"{urlsplit(creds.base_url).path.rstrip('/')}{DAV_FILES_PREFIX}{creds.user}"
+    entries: list[tuple[str | None, dict[str, str]]] = []
+    for href, props in xml.parse_multistatus(body):
+        path = _home_path_of(href, home)
+        if path is not None and not _plain_path(path):
+            path = None
+        entries.append((path, props))
+    return entries
+
+
+def within(path: str, root: str) -> bool:
+    """The one segment rule of this project: is ``path`` the root or below it?
+
+    Shared by the sandbox (``NC_MCP_FILES_ROOT``) and the exclusion guard (EXCL-02), so
+    both draw the same boundary: ``/A/kein`` covers ``/A/kein/x`` but not ``/A/keine``.
+    """
+    return root == "/" or path == root or path.startswith(root + "/")
+
+
 def in_files_root(path: str) -> bool:
     """Check a returned absolute path without remapping it into the virtual root."""
+    return _plain_path(path) and within(path, config.files_root())
+
+
+def _plain_path(path: str) -> bool:
+    """Refuse backslashes, control characters and dot segments in a returned path."""
     if "\\" in path or any(ord(char) < 32 or ord(char) == 127 for char in path):
         return False
-    if any(part in (".", "..") for part in path.split("/")):
-        return False
-    root = config.files_root()
-    return root == "/" or path == root or path.startswith(root + "/")
+    return not any(part in (".", "..") for part in path.split("/"))
 
 
 def _home_path_of(href: str, home: str) -> str | None:
