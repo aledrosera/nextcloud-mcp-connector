@@ -309,3 +309,107 @@ async def test_comments_provider_probe(clients: NcClients) -> None:
     RAW.parent.mkdir(parents=True, exist_ok=True)
     RAW.write_text((kept + "\n\n" if kept else "") + "\n".join(lines) + "\n", encoding="utf-8")
     assert after_status == 404, f"the probe file survived the cleanup: {after_status}"
+
+
+#: Plan 27-05, resolution open question 2: what a file conversation looks like in the list.
+RAW_FILE_ROOM = RAW.with_name("27-05-file-conversation-probe.txt")
+FILE_ROOM_COMMAND = (
+    "set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest "
+    "tests/integration/test_exclusion_probe.py -m integration -s -k file_conversation"
+)
+#: The two spellings of the file conversation route; the probe records which one answers.
+FILE_ROOM_ROUTES = ("/apps/spreed/api/v1/file/{fileid}", "/apps/spreed/api/v4/file/{fileid}")
+ROOM_FIELDS = ("token", "type", "name", "displayName", "objectType", "objectId")
+
+
+async def test_file_conversation_probe(clients: NcClients) -> None:
+    """Create a file conversation for a shared probe file and record its raw list entry.
+
+    The file is shared with the second test account (shareType 0), because Talk only opens a
+    conversation for a file that is shared. Joining the conversation makes this account a
+    participant, which is what puts it into the conversation list at all; the session is
+    left again right away. Removed in ``finally``: the participation, the share and the file.
+    """
+    user2 = (os.environ.get("NC_MCP_TEST_USER2") or "").strip()
+    if not user2:
+        pytest.skip("no second test account configured (NC_MCP_TEST_USER2)")
+    name = f"probe27-05-{uuid.uuid4().hex[:10]}.txt"
+    share_id: str | None = None
+    token = ""
+    lines: list[str] = []
+    after_status = 0
+    try:
+        fileid = await _put_probe(clients, name)
+        shared = await ocs.ocs_post(
+            clients.client,
+            clients.creds,
+            SHARES,
+            {"path": f"/{name}", "shareType": 0, "shareWith": user2},
+        )
+        share_id = str(ocs.parse_ocs(shared, what="the probe share").get("id"))
+
+        route_lines: list[str] = []
+        for template in FILE_ROOM_ROUTES:
+            route = template.format(fileid=fileid)
+            response = await ocs.ocs_get(clients.client, clients.creds, route)
+            route_lines.append(f"# GET {route}: HTTP {response.status_code} {response.text[:300]}")
+            if response.status_code == 200 and not token:
+                payload = ocs.parse_ocs(response, what="the file conversation")
+                token = str(payload.get("token") or "") if isinstance(payload, dict) else ""
+        assert token, "no route answered with a conversation token:\n" + "\n".join(route_lines)
+
+        joined = await clients.client.post(
+            ocs.ocs_url(clients.creds, f"/apps/spreed/api/v4/room/{token}/participants/active"),
+            headers=dict(ocs.OCS_HEADERS),
+            auth=clients.creds.auth(),
+        )
+        route_lines.append(f"# POST .../room/<token>/participants/active: HTTP {joined.status_code}")
+        left = await clients.client.delete(
+            ocs.ocs_url(clients.creds, f"/apps/spreed/api/v4/room/{token}/participants/active"),
+            headers=dict(ocs.OCS_HEADERS),
+            auth=clients.creds.auth(),
+        )
+        route_lines.append(f"# DELETE .../room/<token>/participants/active: HTTP {left.status_code}")
+
+        rooms = await talk_client.get_rooms(
+            clients.client, clients.creds, include_last_message=True
+        )
+        found = [room for room in rooms if str(room.get("token") or "") == token]
+        raw_room = {field: found[0].get(field) for field in ROOM_FIELDS} if found else {}
+        object_id = str(raw_room.get("objectId") or "")
+        lines += [
+            f"# 27-05 file conversation probe, {time.strftime('%Y-%m-%d %H:%M:%S %z')}",
+            f"# command: {FILE_ROOM_COMMAND}",
+            f"# {await _versions(clients)}",
+            f"# probe file: /{name} (fileid {fileid}), shared with the second test account",
+            *route_lines,
+            f"# conversation in the list of this account: {'ja' if found else 'nein'}",
+            "",
+            f"OBJECT_TYPE={raw_room.get('objectType', '<fehlt>')}",
+            f"OBJECT_ID_IST_FILEID={'ja' if object_id == fileid else 'nein'}",
+            f"NAME_IST_DATEINAME={'ja' if raw_room.get('displayName') == name else 'nein'}",
+            "",
+            "--- raw list entry (selected fields)",
+            json.dumps(raw_room, indent=2, ensure_ascii=False),
+            "--- raw list entry (all fields)",
+            json.dumps(found[0] if found else {}, indent=2, ensure_ascii=False),
+        ]
+        assert found, "the file conversation is not in the conversation list of this account"
+    finally:
+        if token:
+            await clients.client.delete(
+                ocs.ocs_url(clients.creds, f"/apps/spreed/api/v4/room/{token}/participants/self"),
+                headers=dict(ocs.OCS_HEADERS),
+                auth=clients.creds.auth(),
+            )
+        if share_id:
+            await clients.client.delete(
+                ocs.ocs_url(clients.creds, f"{SHARES}/{share_id}"),
+                headers=dict(ocs.OCS_HEADERS),
+                auth=clients.creds.auth(),
+            )
+        after_status = await _delete_probe(clients, name)
+    lines += ["", f"# cleanup: participation left, share removed, PROPFIND after DELETE {after_status}"]
+    RAW_FILE_ROOM.parent.mkdir(parents=True, exist_ok=True)
+    RAW_FILE_ROOM.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert after_status == 404, f"the probe file survived the cleanup: {after_status}"
