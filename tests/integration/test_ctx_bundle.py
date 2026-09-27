@@ -113,17 +113,18 @@ RUNS = 5
 PHASE25_REFERENCE = {"short": 0.72, "full": 0.81}
 THRESHOLD = {"short": 0.88, "full": 0.97}
 
-#: The raw protocol of plan 27-09 (after the gap closure: one file id lookup per bundle).
-#: The wall clock test writes it, the request cost test appends to it. The protocol of plan
-#: 27-08, raw/27-08-prepare-context.txt, stays in the repository as the finding before the
-#: fix.
+#: The raw protocol of plan 27-10 (after the second gap closure: the note excerpts check
+#: their path in the one file id lookup of the bundle). The wall clock test writes it, the
+#: request cost test appends to it. The protocols of plan 27-08 and 27-09,
+#: raw/27-08-prepare-context.txt and raw/27-09-prepare-context.txt, stay in the repository
+#: as the findings before the respective fix.
 RAW = (
     Path(__file__).resolve().parents[2]
     / ".planning"
     / "phases"
     / "27-familien-anschluss-und-sandbox-parit-t"
     / "raw"
-    / "27-09-prepare-context.txt"
+    / "27-10-prepare-context.txt"
 )
 RAW_COMMAND = (
     "set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest "
@@ -176,7 +177,7 @@ def note(line: str) -> None:
 
 
 def raw(line: str, *, mode: str = "a") -> None:
-    """Write one line into the raw protocol of plan 27-09."""
+    """Write one line into the raw protocol of plan 27-10."""
     RAW.parent.mkdir(parents=True, exist_ok=True)
     with RAW.open(mode, encoding="utf-8") as fh:
         fh.write(line.rstrip("\n") + "\n")
@@ -658,7 +659,7 @@ async def test_the_wall_clock_against_the_phase_25_reference(exapp_env: dict[str
     clients = _appapi_clients(exapp_env, exapp_env["alice"], {"request": [counter]})
     async with clients.client:
         status = (await clients.client.get(f"{clients.creds.base_url}/status.php")).json()
-        raw(f"# 27-09 prepare_context wall clock {time.strftime('%Y-%m-%d %H:%M:%S %z')}", mode="w")
+        raw(f"# 27-10 prepare_context wall clock {time.strftime('%Y-%m-%d %H:%M:%S %z')}", mode="w")
         raw(f"# command: {RAW_COMMAND}")
         raw(
             f"# nextcloud={status.get('versionstring')} (status.php), user={clients.creds.user}, "
@@ -715,14 +716,18 @@ async def test_the_wall_clock_against_the_phase_25_reference(exapp_env: dict[str
                             assert not seen, f"a tagged test node reached the bundle: {blob[:400]}"
                         if detail == context_tools.FULL:
                             # Plan 27-09: one file id SEARCH for all file excerpts of a
-                            # bundle, plus in scenario B the guard SEARCH of the search leg
-                            # and the path check of each note excerpt (notes.read resolves
-                            # a note id below a tagged folder on its own, plan 27-04, and
-                            # never joins the file batch); no stat, one REPORT per answer.
+                            # bundle, plus in scenario B the guard SEARCH of the search leg.
+                            # Plan 27-10: with a file excerpt the note excerpts check their
+                            # path in that same SEARCH; only a bundle without a file
+                            # excerpt starts no batch, and then each note excerpt in B
+                            # resolves its path on its own (plan 27-04). No stat, one
+                            # REPORT per answer.
                             kinds = _excerpt_kinds(bundle)
-                            bound = (1 if "file" in kinds else 0) + (
-                                1 + kinds.count("note") if scenario == "B" else 0
-                            )
+                            if "file" in kinds:
+                                bound = 1
+                            else:
+                                bound = kinds.count("note") if scenario == "B" else 0
+                            bound += 1 if scenario == "B" else 0
                             assert tally.get("files-search", 0) <= bound, (kinds, tally)
                             assert tally.get("exclusion-report", 0) <= 1, tally
                         if run == 0:

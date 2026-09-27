@@ -1,0 +1,178 @@
+# 27-10 prepare_context wall clock 2026-09-27 15:44:28 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_ctx_bundle.py -m integration -s
+# nextcloud=35.0.0 (status.php), user=alice, query='Abnahme', runs=5 after 1 warm-up, fresh guard per call
+# topology: nc35-nc, nc_app_mcp_connector, nc35-harp, nc35-caddy, nc35-greenmail
+# threshold: reference phase 25 (short 0.72 s, full 0.81 s) + guard flight 0.107 s (tag list 48 ms + REPORT level 1 59 ms) + noise 0.05 s = 0.877 -> 0.88 s and 0.967 -> 0.97 s
+# test data: /wanduhr27-3ead9e0c-Abnahme/ (with one file) and /wanduhr27-3ead9e0c-Abnahme.txt
+LAUF szenario=A detail=short lauf=warmup s=1.347 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=1 s=1.394 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=2 s=1.601 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=3 s=1.938 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=4 s=1.620 requests=19 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}]
+LAUF szenario=A detail=short lauf=5 s=1.994 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+WANDUHR szenario=A detail=short median=1.620 min=1.394 max=1.994 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=A detail=full lauf=warmup s=1.694 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22369', 'reason': '/wanduhr27-3ead9e0c-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=1 s=1.772 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22369', 'reason': '/wanduhr27-3ead9e0c-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=2 s=1.639 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22369', 'reason': '/wanduhr27-3ead9e0c-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=3 s=1.768 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22369', 'reason': '/wanduhr27-3ead9e0c-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=4 s=1.888 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22369', 'reason': '/wanduhr27-3ead9e0c-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=5 s=1.931 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22369', 'reason': '/wanduhr27-3ead9e0c-Abnahme is a folder, not a file.'}]
+WANDUHR szenario=A detail=full median=1.772 min=1.639 max=1.931 schwelle=0.97 urteil=ueberschritten
+# scenario B: tagged by occ tag:files:add: /wanduhr27-3ead9e0c-Abnahme/ and /wanduhr27-3ead9e0c-Abnahme.txt (tag created)
+LAUF szenario=B detail=short lauf=warmup s=1.984 requests=25 guard[exclusion-tags=1,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=1 s=3.045 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=[{'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}]
+LAUF szenario=B detail=short lauf=2 s=2.152 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=3 s=2.471 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=4 s=2.358 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=5 s=3.616 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=short median=2.471 min=2.152 max=3.616 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=2.014 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=2.175 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=2 s=2.163 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=2.194 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.217 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.208 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=2.163 min=1.208 max=2.194 schwelle=0.97 urteil=ueberschritten
+CLEANUP PROPFIND /wanduhr27-3ead9e0c-Abnahme: 404
+CLEANUP PROPFIND /wanduhr27-3ead9e0c-Abnahme.txt: 404
+CLEANUP tag kein-ki listed: 0
+REQUESTS cold total=23 calendar-dav=2 capabilities=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 navigation=1 search-providers=1 search-query=13 talk=1
+REQUESTS warm total=20 calendar-dav=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 search-providers=1 search-query=13 talk=1
+# ---------------------------------------------------------------------------
+# Anhang 1: Wiederholungen Code nach 27-10 (Code e9e022f)
+# Massgeblich nach Plan ist der Messlauf oben (2026-09-27 15:44:28 +0200, ganze Datei test_ctx_bundle.py,
+# 10 passed). Er lag in einer Phase starker Host-Drift (siehe Anhang 3: die Kontrolle mit dem Code
+# vor 27-10 davor und danach war genauso langsam). Deshalb abwechselnd mit den Kontrollen aus
+# Anhang 2 vier Wiederholungen nur des Wanduhr-Tests per -k und ein zweiter Lauf der ganzen Datei
+# (Messlauf 2, 10 passed). Keine Zahl weggelassen; je Lauf die WANDUHR-Zeilen und die LAUF-Zeilen B full.
+# Wiederholung 1 (2026-09-27 15:46:23 +0200)
+WANDUHR szenario=A detail=short median=1.311 min=1.111 max=1.394 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=1.568 min=1.331 max=1.643 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=1.201 min=1.049 max=2.856 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=3.035 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=3.951 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}]
+LAUF szenario=B detail=full lauf=2 s=2.055 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=2.917 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=3.302 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=2.189 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=2.917 min=2.055 max=3.951 schwelle=0.97 urteil=ueberschritten
+# Wiederholung 2 (2026-09-27 15:48:51 +0200)
+WANDUHR szenario=A detail=short median=1.527 min=1.194 max=3.157 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=1.600 min=1.133 max=1.998 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=1.629 min=1.331 max=4.103 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=1.581 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=1.759 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=2 s=1.787 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=1.737 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.849 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.711 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.759 min=1.711 max=1.849 schwelle=0.97 urteil=ueberschritten
+# Wiederholung 3 (2026-09-27 15:52:18 +0200)
+WANDUHR szenario=A detail=short median=0.863 min=0.803 max=1.093 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.967 min=0.912 max=1.256 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.799 min=0.782 max=1.071 schwelle=0.88 urteil=innerhalb
+LAUF szenario=B detail=full lauf=warmup s=0.924 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=1.087 requests=24 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-comment', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-comment.'}, {'source': 'mail', 'reason': 'Nextcloud did not find the mail accounts.'}]
+LAUF szenario=B detail=full lauf=2 s=0.997 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=0.942 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=0.963 requests=24 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}]
+LAUF szenario=B detail=full lauf=5 s=0.901 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}]
+WANDUHR szenario=B detail=full median=0.963 min=0.901 max=1.087 schwelle=0.97 urteil=innerhalb
+# Messlauf 2 (ganze Datei, 10 passed) (2026-09-27 15:53:39 +0200)
+WANDUHR szenario=A detail=short median=0.928 min=0.903 max=1.010 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=1.125 min=0.889 max=2.779 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=1.008 min=0.932 max=1.101 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=0.984 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=0.936 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=2 s=1.119 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=1.323 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=0.968 requests=24 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}]
+LAUF szenario=B detail=full lauf=5 s=1.039 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.039 min=0.936 max=1.323 schwelle=0.97 urteil=ueberschritten
+# Wiederholung 4 (2026-09-27 15:55:09 +0200)
+WANDUHR szenario=A detail=short median=1.159 min=0.859 max=1.675 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=1.082 min=1.037 max=1.268 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=1.198 min=1.123 max=1.223 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=1.400 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=1.365 requests=24 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}]
+LAUF szenario=B detail=full lauf=2 s=1.245 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=1.475 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.386 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.383 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.383 min=1.245 max=1.475 schwelle=0.97 urteil=ueberschritten
+# ---------------------------------------------------------------------------
+# Anhang 2: Kontrolle Code vor 27-10 (Code von Commit 43c5a9d, gleicher Host, gleiche Instanz, gleiche Sitzung)
+# Herstellung, ohne den Worktree-Branch zu bewegen: "git archive -o <tar> 43c5a9d", in ein nicht
+# committetes Verzeichnis im Worktree (.tmp-27-10/control) entpackt, dort nur der Wanduhr-Test per
+# -k test_the_wall_clock_against_the_phase_25_reference mit PYTHONPATH auf dessen src; der Lauf schrieb
+# seine Rohdatei in das entpackte Verzeichnis, die Zeilen stehen hier; Verzeichnis danach geloescht.
+# Abwechselnd mit den Laeufen nach 27-10: Kontrolle 1 vor dem Messlauf, danach je eine zwischen den
+# Wiederholungen. Gleiche Szenarien, RUNS=5 nach 1 Aufwaermlauf, frischer Guard je Aufruf, Schwellen
+# unveraendert. Beleg, dass es der alte Code war: files-search=3 in jeder LAUF-Zeile B full.
+# Kontrolle 1 (2026-09-27 15:42:29 +0200)
+WANDUHR szenario=A detail=short median=1.288 min=1.156 max=1.305 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=2.185 min=1.395 max=3.405 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=2.140 min=1.975 max=4.266 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=2.186 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-comment', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-comment.'}]
+LAUF szenario=B detail=full lauf=1 s=4.353 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=2 s=2.086 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=1.825 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=2.151 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=2.686 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=2.151 min=1.825 max=4.353 schwelle=0.97 urteil=ueberschritten
+# Kontrolle 2 (2026-09-27 15:47:35 +0200)
+WANDUHR szenario=A detail=short median=1.767 min=1.645 max=2.604 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=1.926 min=1.868 max=5.181 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=1.746 min=1.583 max=1.934 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=2.068 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=2.506 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=2 s=1.821 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=2.031 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.971 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.895 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.971 min=1.821 max=2.506 schwelle=0.97 urteil=ueberschritten
+# Kontrolle 3 (2026-09-27 15:51:36 +0200)
+WANDUHR szenario=A detail=short median=0.929 min=0.859 max=1.019 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=1.039 min=0.917 max=3.343 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=0.911 min=0.807 max=1.112 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=1.022 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=1.197 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'settings', 'reason': 'Nextcloud answered the search results of the provider settings with an HTML page instead of JSON.'}, {'source': 'mail', 'reason': 'Nextcloud did not find the mail accounts.'}]
+LAUF szenario=B detail=full lauf=2 s=3.285 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-card-board', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-card-board.'}]
+LAUF szenario=B detail=full lauf=3 s=1.769 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.786 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=0.927 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.769 min=0.927 max=3.285 schwelle=0.97 urteil=ueberschritten
+# Kontrolle 4 (2026-09-27 15:52:53 +0200)
+WANDUHR szenario=A detail=short median=0.887 min=0.830 max=1.124 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=0.894 min=0.875 max=1.085 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.849 min=0.776 max=1.032 schwelle=0.88 urteil=innerhalb
+LAUF szenario=B detail=full lauf=warmup s=1.001 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'mail', 'reason': 'Nextcloud did not find the mail accounts.'}]
+LAUF szenario=B detail=full lauf=1 s=1.079 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-card-board', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-card-board.'}]
+LAUF szenario=B detail=full lauf=2 s=1.107 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=0.969 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=0.981 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=0.973 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=0.981 min=0.969 max=1.107 schwelle=0.97 urteil=ueberschritten
+# Kontrolle 5 (2026-09-27 15:54:25 +0200)
+WANDUHR szenario=A detail=short median=1.442 min=1.303 max=1.564 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=1.749 min=1.440 max=1.991 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=1.310 min=0.844 max=1.547 schwelle=0.88 urteil=ueberschritten
+LAUF szenario=B detail=full lauf=warmup s=1.139 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=1.133 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-comment', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-comment.'}]
+LAUF szenario=B detail=full lauf=2 s=1.061 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=1.076 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=1.130 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=5 s=1.149 requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=full median=1.130 min=1.061 max=1.149 schwelle=0.97 urteil=ueberschritten
+# ---------------------------------------------------------------------------
+# Anhang 3: Host-Drift in dieser Sitzung (Diagnose, keine Messung des Connectors)
+# Der Messlauf 27-09 am selben Tag (15:04:31 +0200) lag bei A short 0.776 s; ab 15:42 lagen Kontrolle
+# und Code nach 27-10 gleichermassen bei 1.3 bis 2.9 s. Einzelaufrufe mit curl gegen nc35 um 15:49 bis
+# 15:51 +0200 (alice, App-Passwort):
+#   status.php 0.029 bis 0.035 s; /ocs/v2.php/cloud/capabilities 0.090 s;
+#   /ocs/v2.php/search/providers/files/search?term=Abnahme 0.067 bis 0.141 s;
+#   /ocs/v2.php/search/providers/notes/search?term=Abnahme 0.637 bis 1.059 s (25 Proben, einmal 3.52 s).
+# PHP-Rechenschleife im Container nc35-nc 0.075 bis 0.079 s (CPU unauffaellig); Windows-Defender
+# (MsMpEng.exe) mit 4:11 h CPU-Zeit. Der Notes-Provider der Suche war damit der langsame Pfad jedes
+# Buendels, unabhaengig vom Code; ab etwa 15:52 erholte sich der Host zeitweise (Wiederholung 3,
+# Kontrolle 4), danach wieder langsamer.
