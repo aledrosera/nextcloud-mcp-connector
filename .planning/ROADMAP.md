@@ -105,7 +105,7 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
 - [x] **Phase 25: Mess-Spike Tag-Abfrage** - Die unbelegten Annahmen der Recherche werden gemessen, bevor eine Designentscheidung fällt (BL-16-Kostennotiz)
  (completed 2026-09-27)
 
-- [ ] **Phase 26: Guard-Kern** - Eine request-gebundene Prüfschicht mit drei Zuständen, einem Roundtrip je Antwort und Subtree-Präfixregel, ohne dass ein Werkzeug angefasst wird
+- [x] **Phase 26: Guard-Kern** - Eine request-gebundene Prüfschicht mit drei Zuständen, einem Roundtrip je Antwort und Subtree-Präfixregel, ohne dass ein Werkzeug angefasst wird (completed 2026-09-27)
 - [ ] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox
 - [ ] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate
 - [ ] **Phase 29: Prüfkommando und Doku** - `occ mcp_connector:exclusion:check` meldet wirkungslose Konfigurationen, die dreisprachige Doku sagt das Gemessene samt ehrlicher Grenzen
@@ -171,7 +171,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 26-02-PLAN.md , Guard: exclusion.py (TagScope mit drei Zuständen, Name-zu-Id-Cache, D-25-05-Automat mit einer 412-Neuauflösung, ExclusionGuard mit Single-Flight), Gate-Anpassungen, deferred-items
+- [x] 26-02-PLAN.md , Guard: exclusion.py (TagScope mit drei Zuständen, Name-zu-Id-Cache, D-25-05-Automat mit einer 412-Neuauflösung, ExclusionGuard mit Single-Flight), Gate-Anpassungen, deferred-items
 
 **Offene Punkte für die discuss-phase (nicht entschieden)**:
 
@@ -258,7 +258,7 @@ Plans:
 | 23. Konto-Mapping und Credential-Wege | v1.6 | 6/6 | Complete | 2026-09-23 |
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
-| 26. Guard-Kern | v1.7 | 1/2 | In Progress|  |
+| 26. Guard-Kern | v1.7 | 2/2 | Complete   | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 0/TBD | Not started | - |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
