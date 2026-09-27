@@ -384,19 +384,19 @@ async def test_twenty_parallel_scopes_cost_one_report() -> None:
 | A3 | MySQL/MariaDB mit case-insensitiver Kollation liefern bei `searchBySystemTag("kein-ki")` zusätzlich `Kein-KI`-Knoten | Quellbefund A | Keines: der Guard fragt ohnehin je Schreibweise und vereinigt; überlappende Mengen sind harmlos |
 | A4 | 60 s TTL für den Name-zu-Id-Cache sind als Restfenster für eine per DB-Direktzugriff neu entstandene zweite Schreibweise vertretbar | Pitfall 2 | Bis 60 s wird diese neue Schreibweise nicht gefiltert; Owner könnte kürzere TTL oder Verzicht auf den Cache wollen (Open Question 1) |
 
-## Open Questions
+## Open Questions (alle RESOLVED, Aufloesung in den Plaenen)
 
-1. **"Genau ein REPORT" bei mehreren Schreibweisen**
+1. **"Genau ein REPORT" bei mehreren Schreibweisen** (RESOLVED: Lesart steht woertlich im Objective von 26-02, Tests je Kriterium 2 und 4 eingeplant)
    - What we know: UND-Semantik zwingt zu einem REPORT je unterscheidbarer Schreibweise (Quellbefund A); ab NC 32 entstehen neue Groß/Klein-Dubletten nicht mehr.
    - What's unclear: Erfolgskriterium 2 sagt "genau ein REPORT", Kriterium 4 verlangt Vereinigung über Schreibweisen hinweg. Beides zusammen geht nur als "eine Flight je Aufruf mit einem REPORT je Schreibweise".
    - Recommendation: So bauen; der Plan formuliert den Test zu Kriterium 2 mit einer Schreibweise (call_count 1) und den zu Kriterium 4 mit exakter Erwartung (2 REPORTs bei zwei Schreibweisen, keiner für die exakt gleichnamige). In der Plan-Einleitung ausdrücklich als Lesart festhalten, damit Verifier und Owner es nicht als Abweichung werten. Keine Änderung am Wortlaut von EXCL-02 nötig ("die getaggte Menge wird einmal je Antwort geholt" bleibt wahr).
 
-2. **Obergrenze für die getaggte Menge**
+2. **Obergrenze für die getaggte Menge** (RESOLVED: keine Obergrenze in Phase 26, Merker in deferred-items.md fuer Phase 29; 26-02 Task 3)
    - What we know: `{DAV:}limit` wirkt im REPORT (Quellbefund B, nicht gemessen); 5000 Treffer = 1,27 MB; eine Obergrenze mit "darüber = nicht prüfbar" wäre robust, selbst wenn NC das Limit ignorierte (man zählt nach).
    - What's unclear: D-25-05 sagt wörtlich "207 = Menge ermittelt"; eine Obergrenze machte aus einem 207 ein "nicht prüfbar". Das ist eine neue Fail-closed-Stelle, also eine Owner-Frage.
    - Recommendation: In Phase 26 keine funktionale Obergrenze; Speicher ist bei realistischen Mengen unkritisch und das Zeitbudget (A1) begrenzt den teuren Fall schon. Als Merker für Phase 29 notieren.
 
-3. **Wann bekommt `NcClients` das dritte Feld?**
+3. **Wann bekommt `NcClients` das dritte Feld?** (RESOLVED: Feld erst in Phase 27; 26-02 baut ExclusionGuard mit parameterlosem Konstruktor und scope(clients)-Signatur)
    - What we know: Die Milestone-Architektur sieht `exclusion: ExclusionGuard = field(default_factory=ExclusionGuard)` vor; das Feld würde durch `deps.resolve_clients` automatisch je Aufruf eine neue Instanz erzeugen.
    - What's unclear: Ob das Feld schon "Einhängen" ist, das CONTEXT für Phase 26 ausschließt.
    - Recommendation: Feld erst in Phase 27. Phase 26 baut die Klasse so (`scope(clients)`-Signatur, parameterloser Konstruktor), dass das Feld dort eine Zeile ist.
