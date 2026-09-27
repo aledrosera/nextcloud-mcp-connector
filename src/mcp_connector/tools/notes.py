@@ -22,16 +22,31 @@ segment is skipped rather than guessed at: a wrong id resolves to a different no
 is worse than one missing hit (threat T-01-40). And ``resourceUrl`` is only ever parsed,
 never fetched; the returned link is rebuilt from the configured base URL, so a manipulated
 entry cannot point this server or its user at a foreign host (threat T-01-39).
+
+The ``kein-ki`` guard and the sandbox (EXCL-05, SBX-02). A note id is the file id of the
+note's file (25-MESSBERICHT K4), so the tagged file id set decides directly. The path comes
+from ``dav.paths_of_fileids`` only when it is needed, that is when a folder is tagged (a
+tagged category folder covers every note below it) or when ``NC_MCP_FILES_ROOT`` is not
+``/``; the same lookup is the sandbox check, because its scope is the sandbox. The search
+drops a tagged note silently and counts a note outside the sandbox in ``skipped`` like any
+other unusable hit (D-27-04). ``notes_read`` answers every miss with one sentence,
+:func:`_note_not_found`, and never passes the Notes app's own detail text on: that text
+tells a note from any other file id, which would make the tool an oracle over file ids.
 """
 
+import asyncio
 from typing import Any
 from urllib.parse import urlsplit
 
+import httpx
+
 from .. import ids
-from ..errors import ToolError
+from ..errors import REASON_UNKNOWN_ID, ToolError
 from ..nextcloud import NcClients, capabilities
+from ..nextcloud.clients import dav, ocs
 from ..nextcloud.clients import notes as notes_client
-from ..nextcloud.clients import ocs
+from ..nextcloud.exclusion import TagScope
+from . import withhold
 
 APP = "notes"
 
@@ -60,17 +75,25 @@ async def search(clients: NcClients, query: str, limit: int = DEFAULT_LIMIT) -> 
             hint=f"Leave it out for the default of {DEFAULT_LIMIT} hits.",
         )
 
-    response = await ocs.ocs_get(
-        clients.client,
-        clients.creds,
-        SEARCH_PROVIDER_PATH,
-        params={"term": term, "limit": limit},
+    scope, response = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        ocs.ocs_get(
+            clients.client,
+            clients.creds,
+            SEARCH_PROVIDER_PATH,
+            params={"term": term, "limit": limit},
+        ),
+        return_exceptions=True,
     )
+    if isinstance(scope, BaseException):
+        raise scope
+    if isinstance(response, BaseException):
+        raise response
     data = ocs.parse_ocs(response, what="the note search")
     entries = data.get("entries") if isinstance(data, dict) else None
     entries = entries if isinstance(entries, list) else []
 
-    results: list[dict[str, str]] = []
+    hits: list[tuple[str, dict[str, Any]]] = []
     skipped = 0
     for entry in entries:
         if not isinstance(entry, dict):
@@ -79,6 +102,33 @@ async def search(clients: NcClients, query: str, limit: int = DEFAULT_LIMIT) -> 
         note_id = _note_id_from_resource_url(entry.get("resourceUrl"))
         if note_id is None:
             skipped += 1
+            continue
+        hits.append((note_id, entry))
+
+    if scope.state == "unverifiable":
+        return _withheld_search(skipped)
+
+    paths: dict[str, str] | None = None
+    if hits and withhold.needs_paths(scope):
+        try:
+            paths = await dav.paths_of_fileids(
+                clients.client, clients.creds, [note_id for note_id, _ in hits]
+            )
+        except (ToolError, httpx.HTTPError, ValueError):
+            # Fail-closed: a failed lookup is "could not check", never "allowed".
+            return _withheld_search(skipped)
+
+    results: list[dict[str, str]] = []
+    for note_id, entry in hits:
+        path: str | None = None
+        if paths is not None:
+            path = paths.get(note_id)
+            if path is None:
+                # Outside NC_MCP_FILES_ROOT (or gone): a sandbox drop, counted (D-27-04).
+                skipped += 1
+                continue
+        if scope.excludes(path=path, fileid=note_id):
+            # Tagged, or below a tagged category folder: withheld without a trace.
             continue
         results.append(
             {
@@ -98,11 +148,38 @@ async def search(clients: NcClients, query: str, limit: int = DEFAULT_LIMIT) -> 
 
 
 async def read(clients: NcClients, note_id: str) -> dict[str, Any]:
-    """Read one note including its full content."""
+    """Read one note including its full content.
+
+    The note id is the file id of the note (K4), so the guard and the sandbox (SBX-02) ask
+    about exactly that id. A tagged note, a note below a tagged category, a note outside
+    ``NC_MCP_FILES_ROOT``, a file that is no note and an unknown id all answer with the one
+    sentence of :func:`_note_not_found`; the note fetched in parallel never leaves this
+    function in any of those branches. When the check cannot be answered, every id gets
+    the same ``withhold.unavailable_error()``.
+    """
     await _ready(clients)
     raw = _plain_note_id(note_id)
 
-    note = await notes_client.get_note(clients.client, clients.creds, raw)
+    scope, fetched = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        notes_client.get_note(clients.client, clients.creds, raw),
+        return_exceptions=True,
+    )
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if scope.excludes(fileid=raw):
+        raise _note_not_found(raw)
+    if isinstance(fetched, ToolError) and fetched.reason == REASON_UNKNOWN_ID:
+        # A 404 or 998 of the Notes app, without its detail text (no file id oracle).
+        raise _note_not_found(raw) from None
+    if isinstance(fetched, BaseException):
+        raise fetched
+    if withhold.needs_paths(scope):
+        await _check_note_path(clients, scope, raw)
+
+    note = fetched
     stored_id = str(note.get("id", raw))
     return {
         "id": ids.encode_note(stored_id),
@@ -159,6 +236,43 @@ async def create(
     if stored_title != wanted:
         result["renamed"] = True
     return result
+
+
+def _note_not_found(note_id: str) -> ToolError:
+    """The one answer of every note ``notes_read`` does not hand out.
+
+    The sentence of a Notes 404 without the ``Nextcloud says: ...`` suffix: the detail text
+    of the Notes app differs between "no such file" and "a file, but not a note", so it
+    would turn the tool into an oracle over file ids.
+    """
+    return ToolError(
+        message=f"Nextcloud did not find the note {note_id}.",
+        hint="Search for it first; the id or the name is unknown to this instance.",
+        reason=REASON_UNKNOWN_ID,
+    )
+
+
+def _withheld_search(skipped: int) -> dict[str, Any]:
+    """The search answer while the check cannot be answered: nothing, said once."""
+    result: dict[str, Any] = {
+        "count": 0,
+        "results": [],
+        "degraded": [withhold.degraded_entry("source")],
+    }
+    if skipped:
+        result["skipped"] = skipped
+    return result
+
+
+async def _check_note_path(clients: NcClients, scope: TagScope, note_id: str) -> None:
+    """Resolve the note's path and refuse it outside the sandbox or below a tagged folder."""
+    try:
+        paths = await dav.paths_of_fileids(clients.client, clients.creds, [note_id])
+    except (ToolError, httpx.HTTPError, ValueError):
+        raise withhold.unavailable_error() from None
+    path = paths.get(note_id)
+    if path is None or scope.excludes(path=path, fileid=note_id):
+        raise _note_not_found(note_id)
 
 
 async def _ready(clients: NcClients) -> None:

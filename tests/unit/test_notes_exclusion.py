@@ -200,7 +200,8 @@ async def test_search_drops_a_note_below_a_tagged_category_folder(clients: NcCli
     assert result == {"count": 1, "results": [expected_hit("934")]}
     assert fileids.call_count == 1
     body = fileids.calls[0].request.content
-    assert b"933" in body and b"934" in body
+    assert b"933" in body
+    assert b"934" in body
 
 
 @pytest.mark.anyio
@@ -509,9 +510,7 @@ async def test_create_beside_a_tagged_note_goes_through(clients: NcClients) -> N
         mock_settings(mock)
         post = mock_post(mock, title="Anderes", category="Offen")
 
-        result = await notes_tools.create(
-            clients, title="Anderes", content="x\n", category="Offen"
-        )
+        result = await notes_tools.create(clients, title="Anderes", content="x\n", category="Offen")
 
     assert result["title"] == "Anderes"
     assert "renamed" not in result

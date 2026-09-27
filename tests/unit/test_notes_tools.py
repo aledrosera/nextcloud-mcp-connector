@@ -216,7 +216,10 @@ async def test_read_returns_the_stable_fields_of_one_note(clients: NcClients) ->
 
 
 @pytest.mark.anyio
-async def test_read_of_an_unknown_note_reports_not_found(clients: NcClients) -> None:
+async def test_read_of_an_unknown_note_reports_not_found_without_the_notes_detail_text(
+    clients: NcClients,
+) -> None:
+    """Changed in 27-04: the detail text of the Notes app no longer reaches the answer."""
     with respx.mock(assert_all_called=True) as mock:
         mock_capabilities(mock)
         mock.get(f"{NOTES_BASE}/999").mock(
@@ -225,7 +228,8 @@ async def test_read_of_an_unknown_note_reports_not_found(clients: NcClients) -> 
         with pytest.raises(ToolError) as excinfo:
             await notes_tools.read(clients, note_id="note:999")
 
-    assert "not find" in excinfo.value.message.lower() or "not found" in excinfo.value.message
+    assert excinfo.value.message == "Nextcloud did not find the note 999."
+    assert "Nextcloud says" not in excinfo.value.message
     assert excinfo.value.hint
 
 
