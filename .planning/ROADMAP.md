@@ -191,7 +191,7 @@ Plans:
   4. talk_browse setzt den Dateinamen einer getaggten Datei nicht mehr in den Nachrichtentext ein (gemessen an einer Nachricht mit geteilter getaggter Datei)
   5. Ist die Prüfung nicht beantwortbar, hält jede betroffene Familie ihre dateitragenden Einträge zurück und benennt die Degradation in einem degraded-Eintrag; im Erfolgsfall trägt keine Antwort einen Zähler oder Hinweis auf zurückgehaltene Einträge
 
-**Plans**: 8 plans
+**Plans**: 9 plans
 
 Plans:
 **Wave 1**
@@ -219,6 +219,10 @@ Plans:
 **Wave 6** *(blocked on Wave 5 completion)*
 
 - [ ] 27-08-PLAN.md , Wanduhr prepare_context gegen Schwelle 0,88/0,97 s, Request-Kosten, Findling-CI-Test, 27-LIVE-BEWEIS.md, Owner-Checkpoint
+
+**Wave 7** *(Lückenplan, blocked on Wave 6 completion)*
+
+- [ ] 27-09-PLAN.md , Lücke Wanduhr B full: eine fileid-SEARCH je Bündel für die Ausschnitte, Lesen ohne zweiten PROPFIND, byte-gleiche Antworten, Neumessung, Owner-Abnahme
 **Research flag**: Notes-Teil hängt vollständig an Phase 25; fällt "Notiz-Id = fileid" durch, braucht der Teil eine kurze eigene Recherche zur Notes-REST-API
 **Offene Punkte für die discuss-phase (nicht entschieden)**:
 
