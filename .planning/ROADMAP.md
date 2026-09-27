@@ -102,7 +102,8 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
 
 ### v1.7 Ausschluss-Tag kein-ki (Phasen 25-29), IN ARBEIT
 
-- [x] **Phase 25: Mess-Spike Tag-Abfrage** - Die unbelegten Annahmen der Recherche werden gemessen, bevor eine Designentscheidung fällt (BL-16-Kostennotiz) (completed 2026-09-27)
+- [x] **Phase 25: Mess-Spike Tag-Abfrage** - Die unbelegten Annahmen der Recherche werden gemessen, bevor eine Designentscheidung fällt (BL-16-Kostennotiz)
+ (completed 2026-09-27)
 - [ ] **Phase 26: Guard-Kern** - Eine request-gebundene Prüfschicht mit drei Zuständen, einem Roundtrip je Antwort und Subtree-Präfixregel, ohne dass ein Werkzeug angefasst wird
 - [ ] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox
 - [ ] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate
@@ -160,7 +161,11 @@ Plans:
   3. Die Subtree-Prüfung nutzt die bestehende Segmentregel: ein getaggter Ordner `/A/kein` deckt `/A/kein/x`, aber nicht `/A/keine`; ein getaggter Vorfahr oberhalb von NC_MCP_FILES_ROOT wirkt, weil die getaggte Menge nicht durch die Sandbox gefiltert wird
   4. Alle gleichnamigen Varianten von `kein-ki` werden ohne Rücksicht auf Groß- und Kleinschreibung vereinigt ausgewertet (Test mit drei Varianten unterschiedlicher Sichtbarkeit und Schreibweise)
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 26-01-PLAN.md , Policy-freie Tag-Abfrage: dav.within (eine Segmentregel), dav.home_entries (ohne Sandbox-Drop), clients/systemtags.py (Tag-Liste, REPORT mit genau einer Regel auf die Home-Wurzel)
+- [ ] 26-02-PLAN.md , Guard: exclusion.py (TagScope mit drei Zuständen, Name-zu-Id-Cache, D-25-05-Automat mit einer 412-Neuauflösung, ExclusionGuard mit Single-Flight), Gate-Anpassungen, deferred-items
 **Offene Punkte für die discuss-phase (nicht entschieden)**:
 
   - Ist das Tag auf einem Ordner zugleich die freie Ordner-Ausschlussliste, oder braucht es eine zweite, konfigurierbare Liste (Recherche-Empfehlung: keine zweite Liste, zweite Fail-open-Stelle)?
