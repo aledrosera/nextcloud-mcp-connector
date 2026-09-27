@@ -18,10 +18,10 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 ### Ausschlussfilter (EXCL)
 
 - [ ] **EXCL-01**: Eine Datei oder ein Ordner mit dem Tag `kein-ki` (Gross-/Kleinschreibung egal, alle gleichnamigen Tag-Varianten zusammen) erscheint in keiner Antwort der Datei-Werkzeuge (files_list, files_search, files_read, files_download); auch ein Upload auf einen ausgeschlossenen Pfad verraet nicht, ob dort etwas existiert
-- [ ] **EXCL-02**: Subtree-Semantik: ein Tag auf einem Ordner deckt alles darunter; die getaggte Menge wird einmal je Antwort geholt (REPORT oc:filter-files) und per Praefixvergleich nach der bestehenden Segmentregel geprueft, nie ueber den Aufruf hinaus gecacht (nur die Aufloesung Name zu Tag-Id darf prozessweit gecacht werden, 412 loest einmal neu auf)
+- [x] **EXCL-02**: Subtree-Semantik: ein Tag auf einem Ordner deckt alles darunter; die getaggte Menge wird einmal je Antwort geholt (REPORT oc:filter-files) und per Praefixvergleich nach der bestehenden Segmentregel geprueft, nie ueber den Aufruf hinaus gecacht (nur die Aufloesung Name zu Tag-Id darf prozessweit gecacht werden, 412 loest einmal neu auf)
 - [ ] **EXCL-03**: unified_search, fetch (alle Id-Arten, auch eine vor dem Taggen bekannte fileid) und prepare_context liefern keine getaggten Treffer, Ausschnitte oder Digests; der systemtags-Suchprovider verraet die getaggte Menge nicht
-- [ ] **EXCL-04**: Fail-closed mit drei Zustaenden: kein Tag vorhanden = kein Filter; Menge ermittelt = Filter aktiv; Pruefung nicht beantwortbar = betroffene Eintraege zurueckgehalten und die Degradation benannt (nur dann); Erfolgsantworten sind byte-gleich zu "existiert nicht". Massgeblich ist der Erfolg des REPORT, nicht die systemtags-Capability
-- [ ] **EXCL-05**: Notes respektieren den Tag (Notizen sind Dateien); Bedingung: der Mess-Spike belegt den Weg Notiz-Id zu fileid; bei negativem Befund wird der Notes-Anschluss dokumentiert vertagt und die Doku nennt die Luecke
+- [x] **EXCL-04**: Fail-closed mit drei Zustaenden: kein Tag vorhanden = kein Filter; Menge ermittelt = Filter aktiv; Pruefung nicht beantwortbar = betroffene Eintraege zurueckgehalten und die Degradation benannt (nur dann); Erfolgsantworten sind byte-gleich zu "existiert nicht". Massgeblich ist der Erfolg des REPORT, nicht die systemtags-Capability
+- [x] **EXCL-05**: Notes respektieren den Tag (Notizen sind Dateien); Bedingung: der Mess-Spike belegt den Weg Notiz-Id zu fileid; bei negativem Befund wird der Notes-Anschluss dokumentiert vertagt und die Doku nennt die Luecke
 - [ ] **EXCL-06**: talk_browse setzt keine Dateinamen getaggter Dateien mehr in den Nachrichtentext ein
 - [ ] **EXCL-07**: Die Tag-Schreibpfade (systemtags-relations) stehen als Nadel im AST-Gate gegen destruktive Aufrufe: der Connector kann den Tag konstruktionsbedingt nie setzen oder entfernen
 
@@ -65,10 +65,10 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | EXCL-01 | Phase 27 | Pending |
-| EXCL-02 | Phase 26 | Pending |
+| EXCL-02 | Phase 26 | Complete |
 | EXCL-03 | Phase 27 | Pending |
-| EXCL-04 | Phase 26 | Pending |
-| EXCL-05 | Phase 27 (Messbedingung aus Phase 25) | Pending |
+| EXCL-04 | Phase 26 | Complete |
+| EXCL-05 | Phase 27 (Messbedingung aus Phase 25) | Complete |
 | EXCL-06 | Phase 27 | Pending |
 | EXCL-07 | Phase 28 | Pending |
 | SBX-01 | Phase 27 | Pending |
