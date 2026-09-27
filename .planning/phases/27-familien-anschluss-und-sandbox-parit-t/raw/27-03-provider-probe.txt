@@ -1,0 +1,57 @@
+# 27-03 provider probe, 2026-09-27 12:15:12 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_exclusion_probe.py -m integration -s
+# nextcloud=35.0.0 spreed=25.0.0
+# probe file: /probe27-b95bd0ac0f.txt (fileid 22092), shared into the test conversation
+# text message word: probewort0ed5e81c49
+
+=== talk-message ===
+KLASSE=kein-leak
+UNTERSCHEIDUNG=keine
+--- talk-message term=<file name> (0 entries)
+[]
+--- talk-message term=<name stem> (0 entries)
+[]
+--- talk-message term=<text word> (1 entries)
+[
+  {
+    "thumbnailUrl": "http://127.0.0.1:8082/avatar/alice/512",
+    "title": "alice in MCP-Talk-offen-Grüße-aus-Hamburg",
+    "subline": "Textvergleich probewort0ed5e81c49",
+    "resourceUrl": "http://127.0.0.1:8082/call/2uqkjpn2#message_49",
+    "icon": "icon-talk",
+    "rounded": true,
+    "attributes": {
+      "conversation": "2uqkjpn2",
+      "messageId": "49",
+      "actorType": "users",
+      "actorId": "alice",
+      "timestamp": "1790504091"
+    }
+  }
+]
+--- talk-message-current term=<file name> (0 entries)
+[]
+--- talk-message-current term=<name stem> (0 entries)
+[]
+--- talk-message-current term=<text word> (0 entries)
+[]
+
+# cleanup: PROPFIND after DELETE answered 404
+
+=== comments ===
+# probe file: /probe27-824bcf7193.txt (fileid 22097), comment word: kommentarwortf12d598aec
+COMMENTS_FILEID_AUS=url
+# withhold.file_refs: [('22097', None, True)]
+--- comments term=<comment word> (1 entries)
+[
+  {
+    "thumbnailUrl": "http://127.0.0.1:8082/avatar/alice/42",
+    "title": "alice",
+    "subline": "/alice/files/probe27-824bcf7193.txt",
+    "resourceUrl": "/f/22097",
+    "icon": "",
+    "rounded": true,
+    "attributes": []
+  }
+]
+# cleanup: PROPFIND after DELETE answered 404
