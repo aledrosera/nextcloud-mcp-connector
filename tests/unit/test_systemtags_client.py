@@ -70,7 +70,9 @@ def test_the_filter_body_carries_exactly_one_tag_rule() -> None:
     body = parsed(systemtags.filter_files_body("64"))
 
     assert body.tag == f"{{{davxml.OC}}}filter-files"
-    asked = {str(element.tag) for element in body.find(f"{{{davxml.DAV}}}prop")}
+    prop = body.find(f"{{{davxml.DAV}}}prop")
+    assert prop is not None
+    asked = {str(element.tag) for element in prop}
     assert asked == {f"{{{davxml.OC}}}fileid", f"{{{davxml.DAV}}}resourcetype"}
     rules = list(body.iter(f"{{{davxml.OC}}}systemtag"))
     assert len(rules) == 1

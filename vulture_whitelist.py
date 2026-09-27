@@ -311,3 +311,21 @@ _._decode_payload
 # Empty again, as announced: plan 25-05 task 1 parked its pure helpers and constants here
 # (section C) before the blocks that call them existed. They left the list with the section
 # that calls them, block_vorfahren (section D) and gegenmessung (section E).
+
+# --- The tag query client of plan 26-01, called by plan 26-02 ---------------------------
+# nextcloud/clients/systemtags.py was built one plan before the exclusion guard that calls
+# it, so the client and its request shapes are pinned by tests before any policy sits on top.
+#
+# tagged_nodes: the REPORT oc:filter-files with exactly one tag rule, sent to the home root.
+#   Its caller is the exclusion guard of plan 26-02, which asks it once per spelling of the
+#   exclusion tag. It is driven directly by tests/unit/test_systemtags_client.py::
+#   test_the_report_goes_to_the_home_root_even_inside_a_sandbox and the status tests next to
+#   it, and it leaves this list with plan 26-02. list_tags is not here: the measuring script
+#   carries a function of the same name, so vulture already sees a reader.
+#
+# is_collection: the folder flag of a TaggedNode. The guard of plan 26-02 reads it to tell a
+#   tagged folder (which covers its subtree) from a tagged file. It is asserted on in
+#   tests/unit/test_systemtags_client.py::test_tagged_nodes_maps_every_response, and it
+#   leaves this list with plan 26-02.
+tagged_nodes
+_.is_collection
