@@ -29,6 +29,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+import guard_routes
 import httpx
 import pytest
 
@@ -45,6 +46,13 @@ from mcp_connector.tools import talk as talk_tools
 BASE = "http://nc.test"
 USER = "alice"
 SECRET = "app-password-test"
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 @pytest.fixture

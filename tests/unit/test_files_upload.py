@@ -11,6 +11,7 @@ encodable as UTF-8.
 
 import base64
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -30,6 +31,13 @@ TARGET_URL = f"{FILES_ROOT}/Docs/new-note.md"
 CONTENT = "# Neue Notiz\nZeile zwei\n"
 UPLOAD_ID = "upload-test"
 UPLOAD_FOLDER_URL = dav.uploads_url(Credentials(BASE, USER, SECRET), UPLOAD_ID, path=TARGET)
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 @pytest.fixture

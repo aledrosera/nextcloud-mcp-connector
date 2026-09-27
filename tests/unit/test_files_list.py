@@ -6,6 +6,7 @@ instead of an empty list, and a truncated listing must continue exactly where it
 
 from pathlib import Path
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -25,6 +26,13 @@ ROOT_URL = f"{FILES_ROOT}/"
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 PROPFIND_207 = (FIXTURES / "webdav_propfind_207.xml").read_text(encoding="utf-8")
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 def _folder_207(count: int) -> str:

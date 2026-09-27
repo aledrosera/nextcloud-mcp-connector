@@ -44,6 +44,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -97,6 +98,13 @@ BOARD_5_STACKS: list[dict[str, Any]] = [
         ],
     }
 ]
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 def fixture(name: str) -> Any:

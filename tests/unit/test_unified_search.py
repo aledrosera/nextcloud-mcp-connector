@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -28,6 +29,13 @@ SECRET = "app-password-test"
 PROVIDERS_URL = f"{BASE}/ocs/v2.php/search/providers"
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 def fixture(name: str) -> dict[str, Any]:
