@@ -28,7 +28,7 @@ answer that counts.
 
 import re
 from dataclasses import dataclass
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 from lxml import etree
@@ -117,7 +117,10 @@ def _listing_body() -> bytes:
 async def list_tags(client: httpx.AsyncClient, creds: Credentials) -> TagListing:
     """List every system tag the user can see, with Depth 1 on the tag collection.
 
-    The collection itself answers without ``oc:id`` and is skipped. Any status other than
+    The collection itself answers without ``oc:id`` and is recognised by its href; any
+    other response without an id raises, because a tag whose id cannot be read must end
+    in ``unverifiable``, never in ``untagged`` (the listing would otherwise be the one
+    entrance where missing mandatory data is tolerated silently). Any status other than
     207 comes back as a value with no tags; what it means is the caller's decision.
     """
     response = await client.request(
@@ -130,10 +133,12 @@ async def list_tags(client: httpx.AsyncClient, creds: Credentials) -> TagListing
     if response.status_code != 207:
         return TagListing(status=response.status_code, tags=())
     tags: list[Tag] = []
-    for _href, props in xml.parse_multistatus(response.content):
+    for href, props in xml.parse_multistatus(response.content):
         tag_id = props.get(_TAG_ID, "")
         if not tag_id:
-            continue
+            if unquote(urlsplit(href).path).rstrip("/").endswith("/systemtags"):
+                continue  # the collection itself carries no oc:id
+            raise ValueError(f"Nextcloud listed a tag without an id: {href!r}")
         if not _DIGITS.fullmatch(tag_id):
             raise ValueError(f"Nextcloud listed a tag id that is not ASCII digits: {tag_id!r}")
         tags.append(Tag(id=tag_id, name=props.get(_TAG_NAME, "")))

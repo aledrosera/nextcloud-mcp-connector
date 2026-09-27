@@ -241,6 +241,27 @@ async def test_list_tags_refuses_an_id_that_is_not_ascii_digits(
 
 
 @pytest.mark.anyio
+async def test_list_tags_refuses_a_tag_entry_without_an_id(
+    client: httpx.AsyncClient, creds: Credentials
+) -> None:
+    """A response that looks like a tag but carries no readable id must raise (fail-closed).
+
+    Only the collection itself may answer without ``oc:id``; a degraded backend or a
+    rewriting proxy that lists a tag without one would otherwise end in ``untagged``.
+    """
+    body = multistatus(
+        tag(None, ""),  # the collection itself, recognised by its href and skipped
+        response("/remote.php/dav/systemtags/64", "<oc:display-name>kein-ki</oc:display-name>"),
+    )
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="PROPFIND", url=TAGS).mock(
+            return_value=httpx.Response(207, content=body, headers=XML_HEADERS)
+        )
+        with pytest.raises(ValueError, match="without an id"):
+            await systemtags.list_tags(client, creds)
+
+
+@pytest.mark.anyio
 async def test_list_tags_returns_another_status_as_a_value(
     client: httpx.AsyncClient, creds: Credentials
 ) -> None:

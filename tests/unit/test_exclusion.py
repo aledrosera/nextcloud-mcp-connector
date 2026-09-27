@@ -549,6 +549,22 @@ async def test_an_unparsable_listing_is_unverifiable(clients: NcClients) -> None
 
 
 @pytest.mark.anyio
+async def test_a_listing_entry_without_an_id_is_unverifiable(clients: NcClients) -> None:
+    body = multistatus(
+        _response("/remote.php/dav/systemtags/", "<oc:display-name></oc:display-name>"),
+        _response("/remote.php/dav/systemtags/64", "<oc:display-name>kein-ki</oc:display-name>"),
+    )
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        mock.route(method="PROPFIND", url=TAGS).mock(return_value=listed(body))
+        report = mock.route(method="REPORT", url=HOME)
+
+        scope = await exclusion.load_scope(clients)
+
+    assert scope == exclusion.TagScope("unverifiable", reason="unparsable")
+    assert report.call_count == 0
+
+
+@pytest.mark.anyio
 async def test_a_listing_with_an_odd_tag_id_is_unverifiable(clients: NcClients) -> None:
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
         mock.route(method="PROPFIND", url=TAGS).mock(
