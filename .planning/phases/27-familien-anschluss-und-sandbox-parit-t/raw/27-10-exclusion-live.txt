@@ -1,6 +1,6 @@
 # 27-10: tests/integration/test_exclusion_live.py nach Task 1 (Code e9e022f), einmal gegen nc35, 10 passed.
 # Der Test haengt an raw/27-07-live.txt an; dieser Lauf steht hier, 27-07-live.txt bleibt unveraendert.
-# 57 Zeilen ": ja", 0 Zeilen ": nein".
+# 57 Zeilen mit dem Urteil ja, keine Zeile mit dem Urteil nein.
 
 # 27-07 live run 2026-09-27 15:56:08 +0200
 # command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_exclusion_live.py -m integration -s
