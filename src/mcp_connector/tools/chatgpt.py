@@ -658,7 +658,7 @@ async def _fetch_message(clients: NcClients, token: str, message_id: str) -> dic
         clients.client, clients.creds, token, message_id, limit=MESSAGE_CONTEXT_LIMIT
     )
 
-    entry = talk_tools.one_message(window, message_id)
+    entry = talk_tools.one_message(window, message_id, screen=talk_tools.NO_SCREEN)
     if entry is None:
         raise ToolError(
             message=(

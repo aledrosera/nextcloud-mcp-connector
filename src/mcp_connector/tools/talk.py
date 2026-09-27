@@ -36,15 +36,20 @@ which is what makes the create-only annotation of ``talk_send`` honest rather th
 """
 
 import re
+from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
+
+import httpx
 
 from .. import config, paging
 from ..errors import REASON_GUARD_TRIPPED, ToolError
 from ..exapp.ui import strings
 from ..nextcloud import NcClients, capabilities
+from ..nextcloud.clients import dav
 from ..nextcloud.clients import talk as talk_client
 from ..nextcloud.credentials import Credentials
-from . import marks
+from . import marks, withhold
 
 APP = "spreed"
 
@@ -149,6 +154,158 @@ _MENTION_COLLECTIVE = re.compile(
     r"@\"?(?:(?:all|here)\"?(?![\w-])|(?:federated_)?(?:group|team)/)",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class FileScreen:
+    """Which file references of one answer stay unresolved, decided once per tool call.
+
+    ``hidden_keys`` holds the :func:`param_key` of every withheld file parameter and
+    ``(fileid, "")`` of every withheld file conversation. ``hide_all`` withholds every file
+    reference at once, which is the answer to "the check could not be answered", and
+    ``unavailable`` says that this is why, so the caller adds its one ``degraded`` entry.
+    Public because ``tools/chatgpt.py`` screens ``fetch(message)`` with the same value.
+    """
+
+    hidden_keys: frozenset[tuple[str, str]]
+    hide_all: bool
+    unavailable: bool
+
+    def hides(self, entry: dict[str, Any]) -> bool:
+        """Whether this ``messageParameters`` entry is a file that must not be named."""
+        if str(entry.get("type") or "") != "file":
+            return False
+        return self.hide_all or param_key(entry) in self.hidden_keys
+
+    def hides_room(self, fileid: str) -> bool:
+        """Whether the file conversation of this file id must not appear at all."""
+        return self.hide_all or (fileid, "") in self.hidden_keys
+
+
+#: The screen of an answer that references no file, or of an account without the tag.
+#: Immutable, so it is a constant and not module state.
+NO_SCREEN = FileScreen(frozenset(), False, False)
+
+
+def param_key(entry: dict[str, Any]) -> tuple[str, str]:
+    """The identity of one file parameter: its raw id and its raw path, trimmed.
+
+    Raw on purpose: the key is compared against the same parameter again in :func:`_resolve`,
+    never against anything derived from it. A file conversation carries ``(fileid, "")``.
+    """
+    return (str(entry.get("id") or "").strip(), str(entry.get("path") or "").strip())
+
+
+async def file_screen(
+    clients: NcClients, messages: Iterable[Any], room_fileids: Iterable[str] = ()
+) -> FileScreen:
+    """Ask the ``kein-ki`` guard about every file these messages and conversations reference.
+
+    Public because ``tools/chatgpt.py`` needs it for ``fetch(message)``; one decision for both
+    tools means one truth about which placeholder stays raw (D-27-06).
+
+    The guard is asked only when there is something to ask about: a window without a single
+    parameter of type ``file`` and without a file conversation costs no request at all
+    (pitfall 8). Otherwise the one scope of this tool call decides, shared with every other
+    part of the call, so a whole window costs at most one REPORT.
+
+    How a reference is decided in the ``active`` state:
+
+    *   A parameter with a path (relative to the home of this account, as Talk sends it to
+        the viewer) is checked by path and file id. Guests get ``path = name``, which is no
+        home path, so a path that equals the name and holds no ``/`` counts as missing.
+    *   A reference without a usable path (and every file conversation) is decided by its
+        file id alone when no folder carries the tag. When one does, the ids are resolved
+        into paths with one ``dav.paths_of_fileids`` call; an id that does not resolve is
+        withheld (fail-closed), and a failing lookup withholds every file reference like the
+        ``unverifiable`` state does.
+    *   A reference with neither a path nor a numeric id is withheld.
+
+    Talk gets no sandbox of its own for file names (the SBX requirements do not name Talk),
+    only the tag. With ``NC_MCP_FILES_ROOT`` set and a tagged folder, a pathless reference
+    outside the root does not resolve and therefore stays raw; noted for phase 29.
+    """
+    params = [entry for raw in messages if isinstance(raw, dict) for entry in _file_params(raw)]
+    rooms = list(dict.fromkeys(str(fileid) for fileid in room_fileids))
+    if not params and not rooms:
+        return NO_SCREEN
+
+    scope = await clients.exclusion.scope(clients)
+    if scope.state == "untagged":
+        return NO_SCREEN
+    if scope.state == "unverifiable":
+        return FileScreen(frozenset(), hide_all=True, unavailable=True)
+
+    pending: list[tuple[tuple[str, str], str | None, str | None]] = [
+        (param_key(entry), _param_path(entry), _digits(entry.get("id"))) for entry in params
+    ]
+    pending += [((fileid, ""), None, _digits(fileid)) for fileid in rooms]
+
+    resolved: dict[str, str] = {}
+    if scope.has_folders:
+        ask = sorted({fileid for _, path, fileid in pending if path is None and fileid})
+        if ask:
+            try:
+                resolved = await dav.paths_of_fileids(clients.client, clients.creds, ask)
+            except (ToolError, httpx.HTTPError, ValueError):
+                return FileScreen(frozenset(), hide_all=True, unavailable=True)
+
+    hidden: set[tuple[str, str]] = set()
+    for key, path, fileid in pending:
+        if path is None and fileid and scope.has_folders:
+            path = resolved.get(fileid)
+            if path is None:
+                hidden.add(key)
+                continue
+        if path is None and fileid is None:
+            hidden.add(key)
+            continue
+        if scope.excludes(path=path, fileid=fileid):
+            hidden.add(key)
+    return FileScreen(frozenset(hidden), hide_all=False, unavailable=False)
+
+
+def _file_params(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every ``messageParameters`` entry of type ``file`` in one raw message."""
+    parameters = raw.get("messageParameters")
+    if not isinstance(parameters, dict):
+        return []
+    return [
+        entry
+        for entry in parameters.values()
+        if isinstance(entry, dict) and str(entry.get("type") or "") == "file"
+    ]
+
+
+def _param_path(entry: dict[str, Any]) -> str | None:
+    """The path of a file parameter as an absolute home path, or ``None`` if it is unusable.
+
+    Unusable is: not a string, empty, not plain (dot segment, empty segment, backslash,
+    control character), or the guest form ``path = name``.
+    """
+    raw = entry.get("path")
+    if not isinstance(raw, str):
+        return None
+    stripped = raw.strip().strip("/")
+    if not stripped:
+        return None
+    if "/" not in stripped and stripped == str(entry.get("name") or "").strip():
+        return None
+    path = "/" + stripped
+    if "//" in path or "\\" in path:
+        return None
+    if any(ord(char) < 32 or ord(char) == 127 for char in path):
+        return None
+    if any(segment in (".", "..") for segment in path.split("/")):
+        return None
+    return path
+
+
+def _digits(value: Any) -> str | None:
+    """A file id as ASCII digits, or ``None``."""
+    text = str(value if isinstance(value, (str, int)) and not isinstance(value, bool) else "")
+    text = text.strip()
+    return text if text.isascii() and text.isdigit() else None
 
 
 async def browse(
@@ -374,11 +531,15 @@ async def _conversations(clients: NcClients, limit: int) -> dict[str, Any]:
     """
     rooms = await talk_client.get_rooms(clients.client, clients.creds, include_last_message=True)
     ordered = sorted(rooms, key=lambda room: _number(room.get("lastActivity")), reverse=True)
-    entries = [
-        _conversation(clients.creds, room)
+    listed = [
+        room
         for room in ordered
         if not room.get("isArchived") and str(room.get("token") or "").strip()
     ]
+    # One screen for every preview of the list: at most one guard flight per call, and none
+    # at all when no preview references a file.
+    screen = await file_screen(clients, [room.get("lastMessage") for room in listed])
+    entries = [_conversation(clients.creds, room, screen) for room in listed]
     # No cursor on this level, and that is a decision rather than an omission. The app does
     # not paginate this list, so a handle could only fetch the whole list again and cut it
     # somewhere else, which is a round trip for a different slice of the same read. The cut
@@ -389,10 +550,12 @@ async def _conversations(clients: NcClients, limit: int) -> dict[str, Any]:
     answer = _envelope("conversations", entries, min(limit, MAX_CONVERSATIONS))
     if answer.get("truncated"):
         answer["total"] = len(entries)
+    if screen.unavailable:
+        answer["degraded"] = [withhold.degraded_entry("source")]
     return answer
 
 
-def _conversation(creds: Credentials, room: dict[str, Any]) -> dict[str, Any]:
+def _conversation(creds: Credentials, room: dict[str, Any], screen: FileScreen) -> dict[str, Any]:
     """Project one conversation onto the fields a model reads, and drop the other fifty.
 
     ``GET /api/v4/room`` answers with 59 mandatory fields per conversation: everything about
@@ -427,7 +590,7 @@ def _conversation(creds: Credentials, room: dict[str, Any]) -> dict[str, Any]:
         "can_send": _may_send(room)[0],
         "url": talk_client.web_url(creds, token),
     }
-    preview = _preview(room.get("lastMessage"))
+    preview = _preview(room.get("lastMessage"), screen)
     if preview:
         entry["last_message"] = preview
     if _number(room.get("mentionPermissions")):
@@ -435,7 +598,7 @@ def _conversation(creds: Credentials, room: dict[str, Any]) -> dict[str, Any]:
     return entry
 
 
-def _preview(raw: Any) -> str:
+def _preview(raw: Any, screen: FileScreen) -> str:
     """The last message of a conversation as one line, or an empty string.
 
     The app answers with an empty array instead of an object for a conversation without
@@ -448,7 +611,7 @@ def _preview(raw: Any) -> str:
     """
     if not isinstance(raw, dict):
         return ""
-    text, _ = _capped(_resolve(raw.get("message"), raw.get("messageParameters")))
+    text, _ = _capped(_resolve(raw.get("message"), raw.get("messageParameters"), screen))
     return text
 
 
@@ -490,7 +653,9 @@ async def _messages(
     raw, last_given = await talk_client.get_messages(
         clients.client, clients.creds, token, limit=limit, last_known_message_id=last_known
     )
-    kept = [_message(item) for item in raw if _is_kept(item)]
+    kept_raw = [item for item in raw if _is_kept(item)]
+    screen = await file_screen(clients, kept_raw)
+    kept = [_message(item, screen) for item in kept_raw]
 
     answer: dict[str, Any] = {
         "level": "messages",
@@ -502,6 +667,8 @@ async def _messages(
     if last_given is not None:
         answer["truncated"] = True
         answer["next"] = paging.encode_cursor({"o": last_given, "c": token})
+    if screen.unavailable:
+        answer["degraded"] = [withhold.degraded_entry("source")]
     return answer
 
 
@@ -510,7 +677,7 @@ def _is_kept(raw: dict[str, Any]) -> bool:
     return str(raw.get("messageType") or "") in KEPT_TYPES
 
 
-def _message(raw: dict[str, Any]) -> dict[str, Any]:
+def _message(raw: dict[str, Any], screen: FileScreen) -> dict[str, Any]:
     """Project one message: who wrote what, when, and whether this is all of it.
 
     Left out by name: ``reactions`` (a mandatory field on every single message, bytes without
@@ -523,7 +690,7 @@ def _message(raw: dict[str, Any]) -> dict[str, Any]:
     chat message is the cheapest place for it of all, because every participant of a
     conversation may write one.
     """
-    text, cut = _capped(_resolve(raw.get("message"), raw.get("messageParameters")))
+    text, cut = _capped(_resolve(raw.get("message"), raw.get("messageParameters"), screen))
     entry: dict[str, Any] = {
         "id": raw.get("id"),
         "timestamp": _number(raw.get("timestamp")),
@@ -543,7 +710,9 @@ def _message(raw: dict[str, Any]) -> dict[str, Any]:
     return entry
 
 
-def one_message(window: list[dict[str, Any]], message_id: str) -> dict[str, Any] | None:
+def one_message(
+    window: list[dict[str, Any]], message_id: str, *, screen: FileScreen
+) -> dict[str, Any] | None:
     """One named message out of a context window, or ``None`` if it cannot be read.
 
     ``None`` has two reasons, and they are named separately here rather than distinguished in
@@ -562,16 +731,19 @@ def one_message(window: list[dict[str, Any]], message_id: str) -> dict[str, Any]
     time here. :func:`_message` runs the text through :func:`_resolve` and :func:`_capped`, so
     going through it inherits both; a copy of either step would be a second truth about
     foreign text (ME-03).
+
+    ``screen`` is keyword-only and has no default, so no caller can forget the file screen
+    (D-27-06): whoever has no file to screen passes :data:`NO_SCREEN` visibly.
     """
     wanted = str(message_id).strip()
     for raw in window:
         if str(raw.get("id")) != wanted:
             continue
-        return _message(raw) if _is_kept(raw) else None
+        return _message(raw, screen) if _is_kept(raw) else None
     return None
 
 
-def _resolve(message: Any, parameters: Any) -> str:
+def _resolve(message: Any, parameters: Any, screen: FileScreen) -> str:
     """Put the values of ``messageParameters`` into the ``{placeholder}`` text of a message.
 
     Talk sends the text with placeholders and the values beside it, already resolved into
@@ -587,6 +759,12 @@ def _resolve(message: Any, parameters: Any) -> str:
     An unknown placeholder, and one whose entry carries no name, stays in the text exactly as
     it came. Nothing is guessed here.
 
+    A file the ``screen`` withholds (tagged ``kein-ki``, below a tagged folder, or every file
+    while the check cannot be answered) takes exactly that same path: the placeholder stays
+    ``{file}`` as it came, the message itself stays, and neither the name nor the path of the
+    file reaches the answer on any other way (D-27-06). The raw ``messageParameters`` never
+    leave this module, the projections carry fixed fields only.
+
     The result is foreign text and goes through :func:`marks.without_marks` before anything
     else happens to it.
     """
@@ -595,6 +773,8 @@ def _resolve(message: Any, parameters: Any) -> str:
     def replace(match: re.Match[str]) -> str:
         entry = params.get(match.group(1))
         if not isinstance(entry, dict):
+            return match.group(0)
+        if screen.hides(entry):
             return match.group(0)
         name = str(entry.get("name") or "").strip()
         if not name:
