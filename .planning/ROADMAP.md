@@ -196,7 +196,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 27-01-PLAN.md , Fundament: IN-01/02/03, Fehlerfabriken not_found/parent_missing, paths_of_fileids, NcClients.exclusion ohne Importzyklus, TagScope.has_folders, tools/withhold.py (D-27-05), guard_routes-Testhelfer und autouse-Fixture, Vulture-Parkabschnitt
+- [x] 27-01-PLAN.md , Fundament: IN-01/02/03, Fehlerfabriken not_found/parent_missing, paths_of_fileids, NcClients.exclusion ohne Importzyklus, TagScope.has_folders, tools/withhold.py (D-27-05), guard_routes-Testhelfer und autouse-Fixture, Vulture-Parkabschnitt
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -286,7 +286,7 @@ Plans:
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
-| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 0/TBD | Not started | - |
+| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 1/8 | In Progress|  |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
