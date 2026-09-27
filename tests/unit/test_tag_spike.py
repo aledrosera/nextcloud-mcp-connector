@@ -327,3 +327,139 @@ def test_describe_report_names_folders_only_when_asked() -> None:
     result = spike.DavResult(207, len(body), 0.1, body)
     assert "eintraege" not in spike.describe_report(result, creds)
     assert "/spike25/p/tagged:7:ordner=ja" in spike.describe_report(result, creds, kinds=True)
+
+
+# --- the counter measurement on PostgreSQL (plan 25-05) -----------------------------------
+
+
+def test_ancestors_of_walks_up_to_the_home_root() -> None:
+    assert spike.ancestors_of("/spike25/tree/a3/b3/c3/f1.txt") == [
+        "/spike25/tree/a3/b3/c3",
+        "/spike25/tree/a3/b3",
+        "/spike25/tree/a3",
+        "/spike25/tree",
+        "/spike25",
+        "/",
+    ]
+
+
+def test_ancestors_of_the_root_is_empty() -> None:
+    assert spike.ancestors_of("/") == []
+
+
+def test_scatter_paths_is_stable_distinct_and_starts_at_the_first_file() -> None:
+    paths = spike.scatter_paths(20)
+    assert len(paths) == 20
+    assert len(set(paths)) == 20
+    assert paths[0] == "/spike25/tree/a0/b0/c0/f0.txt"
+    assert spike.scatter_paths(20) == paths
+    assert len(set(spike.scatter_paths(100))) == 100
+
+
+@pytest.mark.parametrize(("count", "targets"), [(20, 73), (100, 313)])
+def test_bundle_targets_puts_the_answers_first_and_dedups_the_ancestors(
+    count: int, targets: int
+) -> None:
+    answers = spike.scatter_paths(count)
+    bundle = spike.bundle_targets(answers)
+    assert len(bundle) == targets
+    assert len(set(bundle)) == targets
+    assert bundle[:count] == answers
+    assert "/" in bundle[count:]
+
+
+_TAGS_MULTISTATUS = b"""<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
+ <d:response>
+  <d:href>/remote.php/dav/files/alice/spike25/tree/a3/b3/</d:href>
+  <d:propstat><d:prop><nc:system-tags>
+   <nc:system-tag nc:id="4" nc:can-assign="true">kein-ki-spike25-lat</nc:system-tag>
+   <nc:system-tag nc:id="9" nc:can-assign="true">spike25-fill-00</nc:system-tag>
+  </nc:system-tags></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/files/alice/spike25/tree/a3/b3/c3/f1.txt</d:href>
+  <d:propstat><d:prop><d:displayname>f1.txt</d:displayname></d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+ </d:response>
+</d:multistatus>"""
+
+
+def test_tags_by_path_reads_the_names_per_home_path_and_empty_without_the_property() -> None:
+    tags = spike.tags_by_path(_TAGS_MULTISTATUS, "/remote.php/dav/files/alice")
+    assert tags == {
+        "/spike25/tree/a3/b3": {"kein-ki-spike25-lat", "spike25-fill-00"},
+        "/spike25/tree/a3/b3/c3/f1.txt": set(),
+    }
+
+
+def test_expected_excluded_follows_the_segment_rule() -> None:
+    answers = ["/A/kein/x", "/A/keine/y", "/A/kein"]
+    assert spike.expected_excluded(answers, {"/A/kein"}) == {"/A/kein/x", "/A/kein"}
+
+
+def test_excluded_by_tags_counts_the_node_itself_and_every_ancestor() -> None:
+    name = "kein-ki-spike25-lat"
+    answers = ["/spike25/tree/a3/b3/c3/f1.txt", "/spike25/tree/a4/f.txt", "/spike25/x.txt"]
+    tags = {
+        "/spike25/tree/a3/b3": {name},
+        "/spike25/x.txt": {name, "other"},
+        "/spike25/tree/a4": {"spike25-fill-01"},
+    }
+    assert spike.excluded_by_tags(answers, tags, name) == {
+        "/spike25/tree/a3/b3/c3/f1.txt",
+        "/spike25/x.txt",
+    }
+
+
+def test_stage_medians_reads_the_nc35_lines_and_the_ballast_single_run() -> None:
+    text = (
+        "STUFE 1 zusammensetzung: knoten=1 dateien=0 ordner=1 (getaggter Ordner: x)\n"
+        "STUFE 1 status=207 treffer=1 bytes=459 min=57 median=59 p95_zweitgroesster=63 "
+        "max=74 (ms, n=15)\n"
+        "STUFE 100 status=207 treffer=100 bytes=25722 min=221 median=243 "
+        "p95_zweitgroesster=273 max=273 (ms, n=15)\n"
+        "STUFE 5000 status=207 treffer=5000 bytes=1276122 min=8280 median=8848 "
+        "p95_zweitgroesster=10117 max=10582 (ms, n=15)\n"
+        "STUFE 5000 (mit Ballast) ZEITLIMIT 60 s überschritten (ReadTimeout) nach 0 von 3\n"
+        "STUFE 5000 (mit Ballast) EINZELLAUF zeitlimit=300 s status=207 treffer=5000 "
+        "bytes=1276122 ms=249568\n"
+    )
+    assert spike.stage_medians(text) == {
+        "1": 59,
+        "100": 243,
+        "5000": 8848,
+        "5000_ballast_einzellauf": 249568,
+    }
+
+
+def test_used_memory_gib_sums_the_mem_field_of_docker_stats() -> None:
+    lines = ["a  mem 512MiB / 7.603GiB  cpu 1%", "b  mem 1.5GiB / 7.603GiB  cpu 0%"]
+    assert spike.used_memory_gib(lines) == pytest.approx(2.0)
+
+
+def test_used_memory_gib_reads_kib_and_bytes_and_skips_other_lines() -> None:
+    lines = ["a  mem 1048576KiB / 7.6GiB  cpu 0%", "b  mem 0B / 0B  cpu 0%", "noise"]
+    assert spike.used_memory_gib(lines) == pytest.approx(1.0)
+
+
+def test_format_bundle_names_the_request_count_and_the_bundle_wall_clock() -> None:
+    seconds = [0.010 * (i + 1) for i in range(15)]
+    line = spike.format_bundle("VORFAHREN V3", 73, [207, 207, 207], seconds)
+    assert line == (
+        "VORFAHREN V3 anfragen=73 status=207 min=10 median=80 "
+        "p95_zweitgroesster=140 max=150 (ms, n=15)"
+    )
+
+
+def test_gegen_setup_names_file_and_containers_per_database() -> None:
+    pg = spike.gegen_setup("pg")
+    assert pg.compose_file == "compose.spike-tags-pg.yml"
+    assert pg.container == "nc-spike-tags-pg"
+    assert pg.db_container == "nc-spike-tags-pgdb"
+    sqlite = spike.gegen_setup("sqlite")
+    assert sqlite.compose_file == "compose.spike-tags.yml"
+    assert sqlite.container == "nc-spike-tags"
+    assert sqlite.db_container == ""
+    with pytest.raises(ValueError, match="mysql"):
+        spike.gegen_setup("mysql")

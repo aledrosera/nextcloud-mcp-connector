@@ -1,6 +1,6 @@
 # Messbericht Phase 25: Mess-Spike Tag-Abfrage
 
-**Status:** Messung abgeschlossen, Owner-Entscheid vom 2026-09-26 eingetragen (Checkpoint 25-04, D-25-05); Batch-Entscheid E3 offen bis Zusatzplan 25-05
+**Status:** Messung abgeschlossen, Owner-Entscheid vom 2026-09-26 eingetragen (Checkpoint 25-04, D-25-05); Batch-Entscheid E3 offen bis Zusatzplan 25-05; Gegenmessung 25-05 nachgetragen, E3 am Checkpoint 25-05
 **Gemessen:** 2026-09-26, 17:28Z bis 18:43Z (UTC)
 **Ablage:** intern (D-25-06), nichts davon unter docs/
 **NC-Versionen (Version of record laut `occ status`):** 32.0.15, 33.0.9, 34.0.4 (je Wegwerf-Instanz), 35.0.0 (nc35-Strecke)
@@ -9,7 +9,7 @@
 **Topologie:** nc35 über Caddy auf 127.0.0.1:8082 (Container nc35-nc, nc35-harp, nc35-caddy, ExApp nc_app_mcp_connector 0.2.1); Wegwerf-Instanzen nc-spike-tags auf 127.0.0.1:8083, nacheinander, nie zwei gleichzeitig
 **Messskript:** `scripts/tag_spike.py`, Stand Commit e3153a4 (letzte Änderung, 25-03); Blöcke controls, findings, latency, ballast-remeasure, teardown, matrix, secret-scan
 **Umfang:** fünf Erfolgskriterien der Phase: (K1) App aus auf 32 bis 35, (K2) REPORT unter AppAPI-Impersonation, (K3) Kosten bei 1/100/5000 getaggten Knoten, (K4) Notiz-Id gegen fileid, (K5) Einzelbefunde 412, unsichtbares Tag, gleichnamige Varianten, Zielpfad, Freigabe-Grenze
-**Rohdateien:** `raw/nc35-befunde.txt`, `raw/nc35-latenz.txt`, `raw/nc35-prepare-context-baseline.txt`, `raw/nc35-prepare-context-mit-daten.txt`, `raw/matrix-32.txt`, `raw/matrix-33.txt`, `raw/matrix-34.txt`
+**Rohdateien:** `raw/nc35-befunde.txt`, `raw/nc35-latenz.txt`, `raw/nc35-prepare-context-baseline.txt`, `raw/nc35-prepare-context-mit-daten.txt`, `raw/matrix-32.txt`, `raw/matrix-33.txt`, `raw/matrix-34.txt`, `raw/pg-latenz.txt`, `raw/sqlite35-kontrolle-latenz.txt`
 
 Jede Zahl unten stammt aus einer dieser Dateien. Was dort nicht gemessen steht, wird nicht behauptet.
 
@@ -219,6 +219,7 @@ Gilt erst nach dem Owner-Entscheid (D-25-05); der Entscheid oben liegt vor. Jede
 - **Varianten (K5):** Exakt gleichnamige Tags (X public, Y restricted) liefern je Id schon die Vereinigung; eine Variante in anderer Groß/Klein-Schreibung (W) ist getrennt. Der Guard löst daher alle Tags auf, deren Name casefold gleich `kein-ki` ist, und vereinigt die Mengen je Id. Ein für den Nutzer unsichtbares Tag (Z) liefert 412 und fehlt in seiner Liste: Es wird nicht zur Abfrage herangezogen und zählt nicht als "nicht prüfbar". Grenze: nur SQLite gemessen (A3), PostgreSQL folgt in 25-05.
 - **Zielpfad-Regel (K5):** Der REPORT filtert auf keiner Version nach Zielpfad; er liefert immer die ganze für den Nutzer sichtbare getaggte Menge. Der Guard schickt ihn auf die Home-Wurzel und prüft die Menge selbst per Präfixvergleich nach der bestehenden Segmentregel (EXCL-02). Einen engeren Zielpfad als Kostenhebel gibt es nicht.
 - **Batch-Form (E3): offen.** Der Median warm bei 5000 liegt mit 8,848 s über der Schwelle D-25-04 (mit Ballast 249,6 s). Ob Phase 26 "ein REPORT je Antwort" baut oder eine Tag-Prüfung an den Antwortknoten und ihren Vorfahren (mit Änderung am Wortlaut von EXCL-02), entscheidet der Owner nach Plan 25-05. Bis dahin plant Phase 26 die Batch-Form nicht fest; unabhängig davon gelten die Punkte oben.
+- Entschieden am 2026-09-27 (Plan 25-05): report-je-antwort (Option `empfehlung`), siehe Owner-Entscheid E3. Batch-Form: ein REPORT je Antwort, bestätigt durch die PostgreSQL-Messung (Stufe 5000 `median=182` ms, mit Ballast `median=172` ms). Merker für Phase 29: SQLite-Grenze (REPORT mit einem Treffer bei 140.000 Zuordnungen `ms=240298`, der Guard steht dort praktisch immer auf "nicht prüfbar").
 
 ### Phase 27 (Werkzeug-Anschluss, EXCL-01, EXCL-03, EXCL-05)
 
@@ -229,3 +230,126 @@ Gilt erst nach dem Owner-Entscheid (D-25-05); der Entscheid oben liegt vor. Jede
 
 - Batch-Entscheid E3 und damit der endgültige Wortlaut von EXCL-02.
 - Latenz und Varianten auf PostgreSQL, Stufe 1 und 100 mit Ballast, Kosten des PROPFIND-Wegs an Antwortknoten plus Vorfahren.
+- Gemessen in Abschnitt PostgreSQL-Gegenmessung (Plan 25-05); E3 siehe Owner-Entscheid E3 (Plan 25-05)
+
+## PostgreSQL-Gegenmessung (Plan 25-05)
+
+**Messzeitraum:** 2026-09-26, PostgreSQL-Lauf 19:44:46Z bis 20:27:38Z, SQLite-Kontrolllauf 20:28:05Z bis 21:24:58Z (UTC), streng nacheinander
+**NC-Version of record (`occ status`):** 35.0.0 (35.0.0.10) in beiden Läufen, Image `nextcloud:35.0.0-apache-local` (dasselbe wie nc35-nc)
+**PostgreSQL:** `select version(): PostgreSQL 17.11 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit`; `show shared_buffers: 128MB` (Vorgabe des Images)
+**Image-Digest:** `postgres-Image: postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24`
+**memcache.local:** in beiden Läufen `memcache.local: (leer, nicht gesetzt)`, angeglichen an nc35 (APCu-Konfigurationsdatei des Images entfernt, danach Neustart)
+**Topologie:** Wegwerf-Instanz auf 127.0.0.1:8083, PostgreSQL-Lauf mit `compose.spike-tags-pg.yml` (NC `nc-spike-tags-pg` mit mem_limit 2g, DB `nc-spike-tags-pgdb` mit mem_limit 1g, DB ohne Port), SQLite-Kontrolle mit `compose.spike-tags.yml` (`nc-spike-tags`, ohne mem_limit); nie zwei Instanzen gleichzeitig, nc35 nicht angefasst
+**Messskript:** `scripts/tag_spike.py`, Stand Commit 71ec6e6 (Block gegenmessung), `--block gegenmessung --db pg|sqlite`
+**Datenstand:** wie 25-02: 20.000 Dateien unter /spike25 (flat 10.000, tree 1.000 Ordner mit je 10 Dateien), Stufen 1/100/5000, n=15 nach 3 Aufwärmläufen; Ballast 14 Füll-Tags auf je 10.000 flache Dateien, Grenze 900 s
+**Rohdateien:** `raw/pg-latenz.txt`, `raw/sqlite35-kontrolle-latenz.txt`; Vergleichswerte nc35 aus `raw/nc35-latenz.txt`
+
+### G1: REPORT Stufen 1/100/5000 ohne Ballast
+
+| Befund | Kommando | Rohwert | Deutung | Rohdatei |
+|---|---|---|---|---|
+| Stufe 1, PostgreSQL | REPORT oc:filter-files auf /, 1 Knoten (Ordner a3/b3) | `STUFE 1 status=207 treffer=1 bytes=459 min=53 median=55 p95_zweitgroesster=61 max=66 (ms, n=15)` | billig | raw/pg-latenz.txt |
+| Stufe 1, SQLite-Kontrolle | dasselbe | `STUFE 1 status=207 treffer=1 bytes=459 min=43 median=47 p95_zweitgroesster=55 max=63 (ms, n=15)` | billig | raw/sqlite35-kontrolle-latenz.txt |
+| Stufe 1, nc35 | dasselbe (25-02) | `STUFE 1 status=207 treffer=1 bytes=459 min=57 median=59 p95_zweitgroesster=63 max=74 (ms, n=15)` | billig | raw/nc35-latenz.txt |
+| Stufe 100, PostgreSQL | 99 Dateien plus 1 Ordner | `STUFE 100 status=207 treffer=100 bytes=25706 min=56 median=58 p95_zweitgroesster=71 max=87 (ms, n=15)` | kaum teurer als Stufe 1 | raw/pg-latenz.txt |
+| Stufe 100, SQLite-Kontrolle | dasselbe | `STUFE 100 status=207 treffer=100 bytes=25706 min=190 median=200 p95_zweitgroesster=229 max=249 (ms, n=15)` | wie nc35 | raw/sqlite35-kontrolle-latenz.txt |
+| Stufe 100, nc35 | dasselbe (25-02) | `STUFE 100 status=207 treffer=100 bytes=25722 min=221 median=243 p95_zweitgroesster=273 max=273 (ms, n=15)` | | raw/nc35-latenz.txt |
+| Stufe 5000, PostgreSQL | 5000 Dateien | `STUFE 5000 status=207 treffer=5000 bytes=1275313 min=174 median=182 p95_zweitgroesster=197 max=209 (ms, n=15)` | 0,182 s: unter 1 s | raw/pg-latenz.txt |
+| Stufe 5000, SQLite-Kontrolle | dasselbe | `STUFE 5000 status=207 treffer=5000 bytes=1275313 min=7999 median=8114 p95_zweitgroesster=8215 max=8319 (ms, n=15)` | 8,114 s: der nc35-Wert ist kein Effekt der gewachsenen Instanz, sondern von SQLite | raw/sqlite35-kontrolle-latenz.txt |
+| Stufe 5000, nc35 | dasselbe (25-02) | `STUFE 5000 status=207 treffer=5000 bytes=1276122 min=8280 median=8848 p95_zweitgroesster=10117 max=10582 (ms, n=15)` | | raw/nc35-latenz.txt |
+| Stufe 5000 kalt, PostgreSQL | 3 Läufe nach `apachectl -k graceful` | `KALT STUFE 5000 min=447 median=450 max=652 (ms, n=3)` | kalt unter 1 s | raw/pg-latenz.txt |
+| Stufe 5000 kalt, SQLite-Kontrolle | dasselbe | `KALT STUFE 5000 min=8167 median=8231 max=9088 (ms, n=3)` | kalt gleich warm | raw/sqlite35-kontrolle-latenz.txt |
+
+### G2: REPORT Stufen 1/100/5000 mit Ballast
+
+| Befund | Kommando | Rohwert | Deutung | Rohdatei |
+|---|---|---|---|---|
+| Ballast, PostgreSQL | setObjectIdsForTag je Füll-Tag, Grenze 900 s | `BALLAST abgebrochen nach 926 s bei 110104 Zuordnungen` | nur 11 von 14 Füll-Tags (rund 85 s je Tag); Soll 140.000 Fremd-Zuordnungen nicht erreicht, gemessen wurde mit 110.000 | raw/pg-latenz.txt |
+| Ballast, SQLite-Kontrolle | dasselbe | `BALLAST aufgebaut: 14 Füll-Tags in 476 s, 140104 Zuordnungen` | Soll erreicht | raw/sqlite35-kontrolle-latenz.txt |
+| Ballast, nc35 | 25-02, Grenze 600 s | `BALLAST abgebrochen nach 613 s bei 145000 Zuordnungen` | | raw/nc35-latenz.txt |
+| Stufe 1 mit Ballast, PostgreSQL | REPORT, Zuordnungen gezählt | `zuordnungen_gesamt=110005`; `STUFE 1 (mit Ballast) status=207 treffer=1 bytes=459 min=56 median=62 p95_zweitgroesster=66 max=79 (ms, n=15)` | Ballast ändert nichts | raw/pg-latenz.txt |
+| Stufe 1 mit Ballast, SQLite-Kontrolle | dasselbe | `zuordnungen_gesamt=140005`; `STUFE 1 (mit Ballast) ZEITLIMIT 60 s überschritten`; `STUFE 1 (mit Ballast) EINZELLAUF zeitlimit=300 s status=207 treffer=1 bytes=459 ms=240298` | 240 s für einen Treffer: auf SQLite kostet schon der kleinste REPORT mit großer Mapping-Tabelle Minuten (bisher offene Frage aus K3 damit beantwortet) | raw/sqlite35-kontrolle-latenz.txt |
+| Stufe 100 mit Ballast, PostgreSQL | dasselbe | `zuordnungen_gesamt=110104`; `STUFE 100 (mit Ballast) status=207 treffer=100 bytes=25706 min=56 median=59 p95_zweitgroesster=69 max=167 (ms, n=15)` | Ballast ändert nichts | raw/pg-latenz.txt |
+| Stufe 100 mit Ballast, SQLite-Kontrolle | dasselbe | `zuordnungen_gesamt=140104`; `STUFE 100 (mit Ballast) EINZELLAUF zeitlimit=300 s status=207 treffer=100 bytes=25706 ms=240749` | wie Stufe 1: die Kosten hängen an der Tabellengröße, nicht an der getaggten Menge | raw/sqlite35-kontrolle-latenz.txt |
+| Stufe 5000 mit Ballast, PostgreSQL | dasselbe, zuletzt gemessen | `zuordnungen_gesamt=115004`; `STUFE 5000 (mit Ballast) status=207 treffer=5000 bytes=1275313 min=158 median=172 p95_zweitgroesster=200 max=222 (ms, n=15)` | 0,172 s: unter 1 s | raw/pg-latenz.txt |
+| Stufe 5000 mit Ballast, SQLite-Kontrolle | dasselbe | `zuordnungen_gesamt=145004`; `STUFE 5000 (mit Ballast) EINZELLAUF zeitlimit=300 s status=207 treffer=5000 bytes=1275313 ms=249651` | gleich nc35 (249.568 ms) | raw/sqlite35-kontrolle-latenz.txt |
+| Stufe 5000 mit Ballast, nc35 | 25-02 | `STUFE 5000 (mit Ballast) EINZELLAUF zeitlimit=300 s status=207 treffer=5000 bytes=1276122 ms=249568` | | raw/nc35-latenz.txt |
+| Referenz d mit Ballast, PostgreSQL | PROPFIND Depth 1 /spike25/flat/ mit nc:system-tags | `bytes=18410515 min=788 median=821 p95_zweitgroesster=859 max=895` | unter 1 s | raw/pg-latenz.txt |
+| Referenz d mit Ballast, SQLite-Kontrolle | dasselbe | `bytes=22580515 min=844 median=866 p95_zweitgroesster=2134 max=2553` | unter 1 s | raw/sqlite35-kontrolle-latenz.txt |
+
+### G3: PROPFIND-Weg nc:system-tags an Antwortknoten plus Vorfahren (Stufe 100, Ordner a3/b3 getaggt)
+
+Wanduhr je ganzes Bündel, n=15 nach 3 Aufwärmläufen. Querprüfung: ausgeschlossene Antwortknoten aus nc:system-tags (Knoten selbst oder ein Vorfahr trägt kein-ki-spike25-lat) gegen die aus der REPORT-Menge nach Segmentregel erwarteten.
+
+| Befund | Kommando | Rohwert | Deutung | Rohdatei |
+|---|---|---|---|---|
+| V1 Ordnerliste klein, PostgreSQL | Depth 1 auf /spike25/tree/a3/b3/c3/ plus Depth 0 je Vorfahr, sequenziell | `VORFAHREN V1 anfragen=6 status=207 min=330 median=352`; `ausgeschlossen=10 erwartet_aus_report=10 gleich=ja`; mit Ballast `VORFAHREN V1 (mit Ballast) anfragen=6 status=207 min=334 median=391` | unter 1 s, Subtree-Fall richtig | raw/pg-latenz.txt |
+| V1, SQLite-Kontrolle | dasselbe | `VORFAHREN V1 anfragen=6 status=207 min=212 median=221`; mit Ballast `VORFAHREN V1 (mit Ballast) anfragen=6 status=207 min=211 median=223`; beide `gleich=ja` | unter 1 s, Ballast wirkungslos | raw/sqlite35-kontrolle-latenz.txt |
+| V2 Ordnerliste groß, PostgreSQL | Depth 1 auf /spike25/flat/ plus 2 Vorfahren | `VORFAHREN V2 anfragen=3 status=207 min=413 median=427`; mit Ballast `VORFAHREN V2 (mit Ballast) anfragen=3 status=207 min=900 median=1003`; beide `gleich=ja` | mit Ballast knapp über 1 s | raw/pg-latenz.txt |
+| V2, SQLite-Kontrolle | dasselbe | `VORFAHREN V2 anfragen=3 status=207 min=346 median=357`; mit Ballast `VORFAHREN V2 (mit Ballast) anfragen=3 status=207 min=911 median=992`; beide `gleich=ja` | knapp unter 1 s | raw/sqlite35-kontrolle-latenz.txt |
+| V2-Mehrkosten | Median V2 minus Median REFERENZ c derselben Instanz (REFERENZ c mit Ballast nicht gemessen, daher gegen den Wert ohne Ballast) | PostgreSQL `REFERENZ c ... median=282`: 427 - 282 = 145 ms, mit Ballast 1003 - 282 = 721 ms; SQLite `REFERENZ c ... median=238`: 357 - 238 = 119 ms, mit Ballast 992 - 238 = 754 ms | das Mitlesen der Tags im großen Listing kostet mit Ballast rund 0,7 s zusätzlich | raw/pg-latenz.txt, raw/sqlite35-kontrolle-latenz.txt |
+| V3 20 verstreute Dateien, PostgreSQL | 73 Depth-0-Anfragen (20 Knoten, 53 Vorfahren), sequenziell | `VORFAHREN V3 anfragen=73 status=207 min=4241 median=4436`; mit Ballast `VORFAHREN V3 (mit Ballast) anfragen=73 status=207 min=4351 median=4545` | 4,4 s: je Anfrage rund 60 ms | raw/pg-latenz.txt |
+| V3p, PostgreSQL | dasselbe, 8 parallel | `VORFAHREN V3p anfragen=73 status=207 min=1473 median=1567`; mit Ballast `VORFAHREN V3p (mit Ballast) anfragen=73 status=207 min=1523 median=1578` | über 1 s | raw/pg-latenz.txt |
+| V3 und V3p, SQLite-Kontrolle | dasselbe | `VORFAHREN V3 anfragen=73 status=207 min=2769 median=2867`; `VORFAHREN V3p anfragen=73 status=207 min=1007 median=1061`; mit Ballast `VORFAHREN V3p (mit Ballast) anfragen=73 status=207 min=995 median=1063` | V3p knapp über 1 s | raw/sqlite35-kontrolle-latenz.txt |
+| V4 100 verstreute Dateien, PostgreSQL | 313 Depth-0-Anfragen, sequenziell | `VORFAHREN V4 anfragen=313 status=207 min=18709 median=19163`; mit Ballast `VORFAHREN V4 (mit Ballast) anfragen=313 status=207 min=18856 median=19144` | 19 s | raw/pg-latenz.txt |
+| V4p, PostgreSQL | dasselbe, 8 parallel | `VORFAHREN V4p anfragen=313 status=207 min=6609 median=7316`; mit Ballast `VORFAHREN V4p (mit Ballast) anfragen=313 status=207 min=6605 median=6821` | 6,8 bis 7,3 s | raw/pg-latenz.txt |
+| V4 und V4p, SQLite-Kontrolle | dasselbe | `VORFAHREN V4 anfragen=313 status=207 min=11870 median=12093`; `VORFAHREN V4p anfragen=313 status=207 min=4395 median=4461`; mit Ballast `VORFAHREN V4p (mit Ballast) anfragen=313 status=207 min=4319 median=4512` | 4,5 s | raw/sqlite35-kontrolle-latenz.txt |
+| Querprüfung | alle sechs Varianten, ohne und mit Ballast, beide Datenbanken | 24 Zeilen `gleich=ja`, keine `gleich=nein` (z.B. `VORFAHREN V4p (mit Ballast) ausgeschlossen=2 erwartet_aus_report=2 gleich=ja (antwortknoten=100)`) | der Vorfahren-Weg schließt genau aus, was die REPORT-Menge nach Segmentregel deckt | raw/pg-latenz.txt, raw/sqlite35-kontrolle-latenz.txt |
+
+Der Vorfahren-Weg ist unabhängig von der Datenbank und vom Ballast. Seine Kosten wachsen mit der Zahl verstreuter Antwortknoten (eine Anfrage je Knoten und je Vorfahr); bei Listings eines Ordners bleibt er billig (V1).
+
+### G4: Varianten auf PostgreSQL
+
+| Befund | Kommando | Rohwert | Deutung | Rohdatei |
+|---|---|---|---|---|
+| REPORT X, Y, W, Z | X public, Y restricted gleichnamig, Z invisible gleichnamig, W andere Schreibung; REPORT als alice | X `HTTP 207 \| 57 ms \| treffer=2 fileids=['21198', '21200']`; Y `HTTP 207 \| 65 ms \| treffer=2 fileids=['21198', '21200']`; W `HTTP 207 \| 90 ms \| treffer=1 fileids=['21204']`; Z `HTTP 412 \| 62 ms \| fehler=Cannot filter by non-existing tag` | gleich dem nc35-Befund (X und Y Vereinigung, W getrennt, Z unsichtbar): PostgreSQL vergleicht den Namen hier wie SQLite case-sensitiv | raw/pg-latenz.txt |
+| PROPFIND nc:system-tags je Variante | PROPFIND Depth 0 auf die Variantendatei als alice | `VARIANTEN PROPFIND X status=207 nc:system-tags=['kein-ki-spike25-var']`; Y `['kein-ki-spike25-var']`; `VARIANTEN PROPFIND W status=207 nc:system-tags=['Kein-Ki-Spike25-Var']`; `VARIANTEN PROPFIND Z status=207 nc:system-tags=[]` | nc:system-tags liefert den Namen in Originalschreibung; ein casefold-Vergleich gegen kein-ki fängt W; Z erscheint für alice gar nicht (wie beim REPORT) | raw/pg-latenz.txt |
+| SQLite-Kontrolle | dasselbe | REPORT X/Y `treffer=2 fileids=['21198', '21200']`, W `treffer=1`, Z `HTTP 412`; PROPFIND wie PostgreSQL | gleich | raw/sqlite35-kontrolle-latenz.txt |
+
+MySQL/MariaDB (Kollation) ist weiter nicht gemessen (Annahme A3).
+
+### G5: Schwelle D-25-04 auf PostgreSQL
+
+| Befund | Kommando | Rohwert | Deutung | Rohdatei |
+|---|---|---|---|---|
+| **Schwelle ohne Ballast, PostgreSQL** | Median warm Stufe 5000 gegen 1,0 s | `SCHWELLE D-25-04 (PostgreSQL 35.0.0) median_warm_5000=0.182 s schwelle=1.0 s ergebnis=unter` | **unter** | raw/pg-latenz.txt |
+| **Schwelle mit Ballast, PostgreSQL** | dasselbe bei 115.004 Zuordnungen | `SCHWELLE D-25-04 (mit Ballast) median_warm_5000=0.172 s schwelle=1.0 s ergebnis=unter` | **unter** | raw/pg-latenz.txt |
+| Schwelle ohne Ballast, SQLite-Kontrolle | dasselbe | `SCHWELLE D-25-04 (SQLite-Kontrolle 35.0.0) median_warm_5000=8.114 s schwelle=1.0 s ergebnis=ueber` | über | raw/sqlite35-kontrolle-latenz.txt |
+| Schwelle mit Ballast, SQLite-Kontrolle | dasselbe bei 145.004 Zuordnungen | `SCHWELLE D-25-04 (mit Ballast) median_warm_5000=nicht messbar (Reihe über 60 s abgebrochen), einzellauf=249.651 s schwelle=1.0 s ergebnis=ueber` | über | raw/sqlite35-kontrolle-latenz.txt |
+
+### Grenzen der Gegenmessung
+
+- **Einzelhost mit Mitläufern:** Laut `docker stats` im Abschnitt vorbedingungen liefen nc35 (nc35-nc, nc35-harp, nc35-caddy, nc35-greenmail, nc35-test-issuer, nc_app_mcp_connector), die 34er-Topologie (nc-mcp-exapp-*), findling-nextcloud, n8n-mcp-test und nc_app_mcp_connector_park34 mit; frei waren vor dem Start `frei=5.93 GiB` (PostgreSQL) und `frei=5.92 GiB` (SQLite). Einzelhost-Werte, keine Serverklasse.
+- **Frische Instanz gegen gewachsene nc35:** Beide Wegwerf-Instanzen waren leer bis auf die Messdaten. Die SQLite-Kontrolle liegt nahe an nc35 (8.114 gegen 8.848 ms bei 5000, 249.651 gegen 249.568 ms mit Ballast); der Unterschied zu PostgreSQL ist damit ein Datenbankeffekt, kein Instanzeffekt.
+- **PostgreSQL ungetunt:** Image-Vorgaben (`show shared_buffers: 128MB`), mem_limit 1g; ein getunter Produktionsserver wäre eher schneller.
+- **Ballast auf PostgreSQL unvollständig:** `BALLAST abgebrochen nach 926 s bei 110104 Zuordnungen`, also 110.000 statt 140.000 Fremd-Zuordnungen; die Stufen mit Ballast liefen bei 110.005 bis 115.004 Zuordnungen. Da PostgreSQL mit und ohne Ballast gleich schnell antwortet (Stufe 5000: 182 gegen 172 ms), ist ein Kippen zwischen 110.000 und 140.000 nicht zu erwarten, aber nicht gemessen.
+- **SQLite-Kontrolle ohne mem_limit:** `compose.spike-tags.yml` blieb unverändert (Reproduzierbarkeit der Matrix), der Container hatte kein Speicherlimit.
+- **MySQL/MariaDB nicht gemessen.**
+- **Freigabe-Grenze beim Vorfahren-Weg nicht gemessen:** Ob nc:system-tags an einem Vorfahren oberhalb einer empfangenen Freigabe für den Empfänger sichtbar ist, wurde nicht gemessen (beim REPORT: unsichtbar, K5).
+- **memcache-Angleichung:** in beiden Läufen `memcache.local: (leer, nicht gesetzt)` wie nc35.
+- **Kaltdefinition:** Die Zeile `KALT Definition` im PostgreSQL-Protokoll nennt den Seitencache der SQLite-Datei; für PostgreSQL bleibt entsprechend dessen Puffer warm.
+
+### E3-Empfehlung (Regel)
+
+Regel A zuerst: Option `report-je-antwort`, wenn der PostgreSQL-Median warm bei Stufe 5000 ohne Ballast und der Wert mit Ballast je höchstens 1,0 s betragen.
+
+- PostgreSQL Stufe 5000 ohne Ballast: `median=182` ms = 0,182 s, höchstens 1,0 s: erfüllt.
+- PostgreSQL Stufe 5000 mit Ballast (Median warm): `median=172` ms = 0,172 s, höchstens 1,0 s: erfüllt.
+
+**Regel A greift. Empfehlung E3: Option `report-je-antwort`, EXCL-02 bleibt unverändert ("ein REPORT je Antwort").** Regel B wird damit nicht mehr angewandt; zur Einordnung hätte sie ohnehin nicht gegriffen (PostgreSQL mit Ballast V3p `median=1578` und V4p `median=6821`, SQLite mit Ballast V3p `median=1063` und V4p `median=4512`, je über 1,0 s).
+
+Die SQLite-Werte werden als dokumentierte Grenze für Phase 29 benannt: Auf SQLite kostet der REPORT bei 5000 getaggten Knoten `median=8114` ms (Kontrolle) bzw. `median=8848` ms (nc35), und bei 140.000 Fremd-Zuordnungen schon bei einem einzigen getaggten Knoten `ms=240298`, weit über jedem Client-Zeitlimit. Auf SQLite-Instanzen mit vielen Tag-Zuordnungen landet der Guard damit praktisch immer im Zustand "nicht prüfbar" und hält dateitragende Einträge zurück (fail-closed, E2). Das gehört als Grenze in die Doku von Phase 29.
+
+Entwurf für den Fall, dass der Owner statt der Empfehlung Option `vorfahren-propfind` wählt (zitierbarer Text, nicht empfohlen):
+
+> **EXCL-02 (Entwurf vorfahren-propfind):** Subtree-Semantik: ein Tag auf einem Ordner deckt alles darunter. Je Antwort werden die nc:system-tags der Antwortknoten (wo möglich im selben Listing- oder Suchaufruf) und ihrer deduplizierten Vorfahren bis zur Home-Wurzel gelesen; ein Knoten ist ausgeschlossen, wenn er selbst oder ein Vorfahr ein Tag trägt, dessen Name casefold gleich `kein-ki` ist (alle Schreib- und Sichtbarkeitsvarianten laut Messbericht G4). Nichts davon wird über den Aufruf hinaus gecacht. Fail-closed: jede Antwort außer 207 mit vorhandener Eigenschaft nc:system-tags gilt als "nicht prüfbar" (E2 gilt damit für den PROPFIND-Ausgang statt für den REPORT-Ausgang; K1 belegt nc:system-tags unverändert 207 bei ausgeschalteter App).
+
+> **Phase 26, Kriterium 2 (Entwurf vorfahren-propfind):** Je Tool-Aufruf werden die nc:system-tags der Antwortknoten und ihrer deduplizierten Vorfahren bis zur Home-Wurzel gelesen, Antwortknoten wo möglich im selben Listing- oder Suchaufruf, Vorfahren je einmal auch bei parallelen Teilaufrufen (per respx gezählt); ein zweiter Tool-Aufruf liest neu, nichts wird über den Aufruf hinaus gecacht; jede Antwort außer 207 mit vorhandener Eigenschaft nc:system-tags ergibt "nicht prüfbar".
+
+## Owner-Entscheid E3 (Plan 25-05)
+
+**Datum:** 2026-09-27, Checkpoint 25-05 Task 4. Owner-Antwort, vom Orchestrator wörtlich übermittelt: "ok machen wir wie die empfehlung".
+
+- **Gewählte Option:** `empfehlung`, also nach Regel A `report-je-antwort`.
+- **EXCL-02** bleibt unverändert bei "ein REPORT je Antwort". Einen neuen Wortlaut hat der Owner nicht freigegeben, deshalb sind REQUIREMENTS.md und ROADMAP.md unverändert. Der Entwurf vorfahren-propfind oben ist verworfen.
+- **SQLite-Grenze** als dokumentierte Grenze für Phase 29: Bei 140.000 Zuordnungen braucht auf SQLite schon ein REPORT mit einem Treffer rund 240 s (`ms=240298`). Der Guard steht dort praktisch immer auf "nicht prüfbar" und hält dateitragende Einträge zurück (E2).

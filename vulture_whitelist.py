@@ -306,3 +306,8 @@ _._decode_payload
 # block that calls them, the findings block of plan 25-01 task 2, the latency blocks of plan
 # 25-02 (THRESHOLD_SECONDS, WARMUP, RUNS_*, summarize) and the version matrix of plan 25-03
 # (SPIKE_BASE_URL, SPIKE_COMPOSE, wait_for_install).
+
+# --- The counter measurement of plan 25-05 (scripts/tag_spike.py) -----------------------
+# Empty again, as announced: plan 25-05 task 1 parked its pure helpers and constants here
+# (section C) before the blocks that call them existed. They left the list with the section
+# that calls them, block_vorfahren (section D) and gegenmessung (section E).
