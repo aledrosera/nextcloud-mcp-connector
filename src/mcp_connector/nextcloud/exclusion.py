@@ -167,7 +167,12 @@ class TagScope:
 
         ``path`` is an absolute home path as dav entries carry it, not the virtual view
         inside ``NC_MCP_FILES_ROOT``. In the ``unverifiable`` state this raises instead of
-        answering, so "could not check" can never be read as "allowed".
+        answering, so "could not check" can never be read as "allowed". In the ``active``
+        state a misuse raises as well instead of silently allowing: asking about nothing
+        (both arguments ``None``) and a relative path would otherwise never match anything,
+        and a caller that pulls its values from the wrong keys would filter nothing, ever.
+        Only ``untagged`` keeps answering ``False`` unconditionally: that state excludes
+        nothing whatever the question, so no misuse can open a way past a tag.
         """
         if self.state == "unverifiable":
             raise ValueError(
@@ -175,6 +180,10 @@ class TagScope:
             )
         if self.state == "untagged":
             return False
+        if path is None and fileid is None:
+            raise ValueError("excludes needs a path or a fileid; asking nothing is not allowed")
+        if path is not None and not path.startswith("/"):
+            raise ValueError(f"excludes takes an absolute home path, got {path!r}")
         if fileid is not None and fileid in self.fileids:
             return True
         return path is not None and any(a in self.paths for a in ancestors(path))

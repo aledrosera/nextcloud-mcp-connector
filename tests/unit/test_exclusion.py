@@ -73,7 +73,27 @@ def test_an_active_scope_matches_file_ids() -> None:
 
     assert scope.excludes(fileid="957") is True
     assert scope.excludes(fileid="958") is False
-    assert scope.excludes() is False
+
+
+def test_an_active_scope_refuses_to_be_asked_about_nothing() -> None:
+    """Both arguments None is a caller bug (wrong dict keys), never a silent "allowed"."""
+    scope = exclusion.TagScope("active", paths=frozenset({"/A/kein"}))
+
+    with pytest.raises(ValueError, match="path or a fileid"):
+        scope.excludes()
+    with pytest.raises(ValueError, match="path or a fileid"):
+        scope.excludes(path=None, fileid=None)
+
+
+@pytest.mark.parametrize("path", ["Docs/a.md", "A/kein/x", ""])
+def test_an_active_scope_refuses_a_relative_path(path: str) -> None:
+    """A relative path never matches an ancestor of the tagged set, so it must raise."""
+    scope = exclusion.TagScope("active", paths=frozenset({"/A/kein"}), fileids=frozenset({"955"}))
+
+    with pytest.raises(ValueError, match="absolute home path"):
+        scope.excludes(path=path)
+    with pytest.raises(ValueError, match="absolute home path"):
+        scope.excludes(path=path, fileid="955")
 
 
 def test_an_untagged_scope_excludes_nothing_and_leaves_no_trace() -> None:
