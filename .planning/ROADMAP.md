@@ -206,7 +206,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 27-05-PLAN.md , Talk: {file} bleibt roh (D-27-06), Datei-Konversationen gefiltert, fetch(message), Vulture-Räumung
+- [x] 27-05-PLAN.md , Talk: {file} bleibt roh (D-27-06), Datei-Konversationen gefiltert, fetch(message), Vulture-Räumung
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -286,7 +286,7 @@ Plans:
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
-| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 4/8 | In Progress|  |
+| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 5/8 | In Progress|  |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
