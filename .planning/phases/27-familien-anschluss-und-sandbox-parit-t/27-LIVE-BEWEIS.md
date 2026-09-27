@@ -10,7 +10,7 @@
 
 In der Worktree-Isolation lud ein kleiner Python-Lader dieselbe Env-Datei (`. ./.env.nc35` ist dort gesperrt); das Kommando in den Rohdateien ist das geplante.
 
-**Rohdateien:** `raw/27-03-provider-probe.txt`, `raw/27-04-notes-settings.txt`, `raw/27-05-file-conversation-probe.txt`, `raw/27-07-live.txt`, `raw/27-08-prepare-context.txt`
+**Rohdateien:** `raw/27-03-provider-probe.txt`, `raw/27-04-notes-settings.txt`, `raw/27-05-file-conversation-probe.txt`, `raw/27-07-live.txt`, `raw/27-08-prepare-context.txt`, `raw/27-09-prepare-context.txt` (Lückenplan 27-09), `raw/27-09-exclusion-live.txt` (Live-Beweise 27-07 nach 27-09 erneut)
 
 Jede Zahl unten steht in einer dieser Dateien. Maßgeblich für die Kriterien 1 bis 5 ist der letzte vollständige Lauf in `raw/27-07-live.txt` (13:33:38 +0200, Baum `/live27-1dde17e2`); über alle vier Läufe der Datei steht keine einzige Zeile mit `: nein`.
 
@@ -34,7 +34,7 @@ SC1-Zeilen im maßgeblichen Lauf: 24, alle `ja`.
 | fetch mit vorher bekannter fileid | SC2 | `fetch vorher gelesen vor dem Taggen: ja (scope=untagged ...)`; danach `wie unbekannte Id: ja ('This account has no file with the id 22215.')` | ja, auch eine vor dem Taggen gelesene fileid | raw/27-07-live.txt |
 | systemtags-Provider | SC2 | `roh=6 roh_mit_attributes=5 antwort=1 ohne_fileId=1 leaks=[]` | ja, die getaggte Menge wird nicht verraten | raw/27-07-live.txt |
 | prepare_context | SC2 | `weder Treffer noch Ausschnitt noch Digest-Name getaggt: ja (treffer=8 ausschnitte=2 degraded=['mail', 'file:22220'])` | ja; `file:22220` ist der Ordner der Laufkennung, den fetch als Ordner ablehnt (kein Ausschlussbezug) | raw/27-07-live.txt |
-| prepare_context Wanduhr | test_ctx_bundle, Messung 1b | siehe Abschnitt "Wanduhr prepare_context" | **drei von vier Zeilen innerhalb, B full überschritten** | raw/27-08-prepare-context.txt |
+| prepare_context Wanduhr | test_ctx_bundle, Messung 1b | siehe Abschnitt "Wanduhr prepare_context", Unterabschnitt "Nach dem Lückenplan 27-09" | 27-08: drei von vier Zeilen innerhalb, B full 1,047 s überschritten; **nach 27-09: drei von vier Zeilen innerhalb, B full 0,992 s weiterhin überschritten (um 0,022 s)** | raw/27-08-prepare-context.txt, raw/27-09-prepare-context.txt |
 
 SC2-Zeilen im maßgeblichen Lauf: 10, alle `ja`. Die Wanduhr ist der einzige Teil mit Überschreitung.
 
@@ -116,6 +116,54 @@ Deutung aus diesen Zahlen:
 
 **Offener Entscheid für den Owner:** Schwelle akzeptieren mit Begründung (Host-Drift, belegt durch die Kontrolle), oder Nacharbeit als Lückenplan.
 
+### Nach dem Lückenplan 27-09
+
+**Datum:** 27.09.2026, Messlauf 15:04:31 +0200 (ganze Datei `test_ctx_bundle.py`, 10 passed)
+
+**Kommando:** `set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_ctx_bundle.py -m integration -s` (in der Worktree-Isolation über einen kurzen Python-Lader derselben Env-Datei, `PYTHONIOENCODING=utf-8`)
+
+**Was 27-09 geändert hat:** Die Datei-Ausschnitte eines Bündels lösen ihre fileids mit einer gemeinsamen SEARCH auf statt mit einer je Ausschnitt, und `files.read` nimmt den Eintrag dieser SEARCH als `known` statt eines zweiten stat-PROPFIND. Der Guard wird in jedem Zweig gefragt; die Antwort-Bytes sind laut `tests/unit/test_excerpt_batch.py` gleich (Paarvergleich mit dem Weg vor 27-09). Szenarien, 5 Läufe nach 1 Aufwärmlauf, frischer Guard je Aufruf und die Schwellen 0,88 s / 0,97 s sind unverändert.
+
+```
+WANDUHR szenario=A detail=short median=0.776 min=0.732 max=0.851 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.919 min=0.877 max=1.011 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.827 min=0.780 max=0.862 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=0.992 min=0.942 max=1.402 schwelle=0.97 urteil=ueberschritten
+```
+
+| Szenario | detail | Median | Schwelle | Urteil |
+|---|---|---|---|---|
+| A | short | 0,776 s | 0,88 s | innerhalb |
+| A | full | 0,919 s | 0,97 s | innerhalb |
+| B | short | 0,827 s | 0,88 s | innerhalb |
+| B | full | 0,992 s | 0,97 s | **überschritten** (um 0,022 s) |
+
+**Befund, nicht stiller Pass:** B full liegt auch nach 27-09 über der Schwelle, jetzt um 0,022 s statt 0,077 s.
+
+**Wiederholung** desselben Codes (Anhang 1 der Rohdatei, 15:06:19 +0200, nur der Wanduhr-Test): A short 0,795, A full 0,919, B short 0,811 innerhalb; B full 1,028 überschritten.
+
+**Kontrolle Code vor 27-09** (Anhang 2 der Rohdatei; Code von ac479c6, gleicher Host, gleiche Instanz, dieselbe Sitzung, je 5 Läufe; Kontrolle 1 im Worktree vor dem ersten 27-09-Commit, Kontrollen 2 und 3 aus `git archive ac479c6` in ein nicht committetes, danach gelöschtes Verzeichnis):
+
+| Lauf | Zeit | A short | A full | B short | B full |
+|---|---|---|---|---|---|
+| Kontrolle 1 (vor 27-09) | 14:43 | 0,910 | 0,991 | 0,855 | 1,059 |
+| **Messlauf (nach 27-09)** | 15:04 | 0,776 | 0,919 | 0,827 | **0,992** |
+| Kontrolle 2 (vor 27-09) | 15:05 | 0,786 | 0,994 | 0,813 | 1,020 |
+| Wiederholung (nach 27-09) | 15:06 | 0,795 | 0,919 | 0,811 | 1,028 |
+| Kontrolle 3 (vor 27-09) | 15:06 | 0,761 | 1,095 | 0,848 | 1,035 |
+
+**Vergleich B full vorher/nachher:**
+
+- gegen 27-08 (1,047 s): Messlauf 0,992 s, Differenz 0,055 s
+- gegen die Kontrollen derselben Sitzung (Median der drei Kontroll-Mediane 1,035 s): Messlauf 0,043 s schneller, Wiederholung 0,007 s schneller
+- A full zum Vergleich: Kontrollen 0,991 / 0,994 / 1,095 s, nach 27-09 zweimal 0,919 s, also etwa 0,07 s schneller und beide Male innerhalb
+
+Deutung aus diesen Zahlen:
+
+- In A sind alle drei Ausschnitte Dateien (`ausschnitte=file,file,file`), dort wirkt der Fix voll: eine SEARCH statt drei, kein PROPFIND, etwa 0,07 s.
+- In B sind die Ausschnitte `file,file,note`. Die Notiz liest `notes.read`, das bei getaggtem Ordner den Pfad der Notiz mit einer eigenen fileid-SEARCH prüft (Plan 27-04). Diese Kette bleibt nach dem Plan unverändert (Notizen warten nie auf die Sammel-SEARCH und werden nicht in sie aufgenommen). Die Einsparung in B ist deshalb kleiner und liegt in der Größenordnung der Streuung zwischen zwei Läufen desselben Codes (0,992 und 1,028 s). Dass die Notizkette jetzt der längste Ausschnitt in B ist, ist eine Vermutung aus der Request-Zählung, nicht je Bein gemessen.
+- Die Schwellen sind nicht angefasst; über 0,97 s ist B full weiterhin ein offener Befund für den Owner.
+
 ## Request-Kosten eines Bündels (neu verankert, gemessen)
 
 Kategorien des Guards eigenständig gezählt (Pitfall 7): `exclusion-tags` (PROPFIND /remote.php/dav/systemtags), `exclusion-report` (REPORT auf /remote.php/dav/files/), `files-search` (SEARCH auf die DAV-Wurzel).
@@ -130,6 +178,17 @@ Kategorien des Guards eigenständig gezählt (Pitfall 7): `exclusion-tags` (PROP
 | B full | Messung 1b | `requests=29 guard[exclusion-tags=0,exclusion-report=1,files-search=4]` | 1 REPORT, 1 Guard-SEARCH plus 3 Ausschnitt-SEARCH | raw/27-08-prepare-context.txt |
 
 Der Guard kostet damit je Bündel eine Tag-Liste (ohne Tag) oder einen REPORT plus höchstens eine fileid-SEARCH (mit Tag, warmer Cache), nie einen Request je Bein.
+
+**Nach dem Lückenplan 27-09** (Messlauf 15:04:31 +0200, neues Feld `propfind=` zählt PROPFIND unter /remote.php/dav/files/, `ausschnitte=` die gelesenen Arten):
+
+| Fall | Kommando | Rohwert | Deutung | Rohdatei |
+|---|---|---|---|---|
+| A full | Messung 1b | `requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file` (vorher 28 Requests, files-search 3) | eine Sammel-SEARCH für drei Datei-Ausschnitte, kein stat-PROPFIND | raw/27-09-prepare-context.txt |
+| B full | Messung 1b | `requests=26 guard[exclusion-tags=0,exclusion-report=1,files-search=3] propfind=0 ausschnitte=file,file,note` (einmal 25; vorher 28 bis 29, files-search 4) | 1 REPORT; SEARCH: 1 Guard (pfadlose Treffer), 1 Sammel-SEARCH der zwei Datei-Ausschnitte, 1 Pfadprüfung der Notiz | raw/27-09-prepare-context.txt |
+
+Korrektur der Deutung der 27-08-Zeile B full: Die vier SEARCH dort waren 1 Guard plus 2 Datei-Ausschnitte plus 1 Pfadprüfung des Notiz-Ausschnitts (die Ausschnitte in B sind zwei Dateien und eine Notiz), nicht 3 Ausschnitt-SEARCH. Die Zahl selbst bleibt richtig. Jede Antwort kostet weiterhin höchstens einen REPORT, in jeder LAUF-Zeile B `exclusion-report=1`.
+
+Die Live-Beweise von 27-07 liefen nach Task 1 von 27-09 einmal erneut (`raw/27-09-exclusion-live.txt`, 15:08:32 +0200): 10 passed, 57 Zeilen `: ja`, keine Zeile `: nein`.
 
 ## Probe-Befunde
 
@@ -167,3 +226,5 @@ Der Guard kostet damit je Bündel eine Tag-Liste (ohne Tag) oder einen REPORT pl
 Owner-Entscheid 27.09.2026 am Checkpoint 27-08 (wörtlich): "Lückenplan".
 
 Die Überschreitung der Wanduhr-Schwelle (Szenario B, detail=full: Median 1,047 s gegen 0,97 s) wird NICHT akzeptiert. Es wird ein Lückenplan angelegt (/gsd:plan-phase 27 --gaps, Ansatzpunkt laut Checkpoint-Vorlage: fileid-Auflösung seltener aufrufen). Die Phase bleibt offen, bis die Messung unter der Schwelle liegt und die Abnahme erneut vorgelegt wurde. Alle übrigen Befunde (Erfolgskriterien 1-5, Request-Kosten, talk-message kein-leak, Merker für Phase 28/29) standen am Checkpoint nicht in Frage.
+
+Owner-Entscheid zu 27-09: Ausstehend
