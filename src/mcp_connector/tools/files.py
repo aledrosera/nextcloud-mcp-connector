@@ -17,6 +17,7 @@ one page, not one context window (threat T-01-34).
 could turn it into a replace is refused before the request or by Nextcloud itself.
 """
 
+import asyncio
 import base64
 import re
 import uuid
@@ -26,6 +27,8 @@ from .. import config, ids, paging
 from ..errors import ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
+from ..nextcloud.exclusion import TagScope
+from . import withhold
 
 DEFAULT_MAX_BYTES = 512 * 1024
 HARD_MAX_BYTES = 2 * 1024 * 1024
@@ -115,6 +118,11 @@ async def search(
 
     A limit outside the range is capped instead of refused. The model asked a legitimate
     question with an unhelpful number, and an error would only cost a round trip.
+
+    Hits tagged ``kein-ki`` or below a tagged folder are left out without a trace, and
+    the offsets of the cursor count visible hits only, so ``truncated`` never turns into
+    a counter of withheld ones (EXCL-01). When the tag check cannot be answered, the hit
+    list is empty with one ``degraded`` entry (D-27-03).
     """
     term = (query or "").strip()
     if not term:
@@ -130,10 +138,30 @@ async def search(
         paging.check_scope(state, "f", target_folder, "search")
         offset = paging.read_offset(state)
 
-    scope = dav.search_scope(clients.creds, target_folder)
+    search_scope = dav.search_scope(clients.creds, target_folder)
     # One more than the window, so "there is more" is an observation and not a guess.
-    fetch = min(offset + capped + 1, MAX_SEARCH_FETCH)
-    hits = await dav.search(clients.client, clients.creds, scope, term, fetch)
+    needed = offset + capped + 1
+    tags, first = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        dav.search(
+            clients.client, clients.creds, search_scope, term, min(needed, MAX_SEARCH_FETCH)
+        ),
+        return_exceptions=True,
+    )
+    if isinstance(tags, BaseException):
+        raise tags
+    if tags.state == "unverifiable":
+        return {
+            "query": term,
+            "folder": target_folder,
+            "count": 0,
+            "items": [],
+            "note": SEARCH_NOTE,
+            "degraded": [withhold.degraded_entry("source")],
+        }
+    if isinstance(first, BaseException):
+        raise first
+    hits, at_ceiling = await _visible_hits(clients, tags, search_scope, term, needed, first)
 
     window = hits[offset : offset + capped]
     result: dict[str, Any] = {
@@ -146,7 +174,7 @@ async def search(
     if len(hits) > offset + capped:
         result["truncated"] = True
         result["next"] = paging.encode_cursor({"o": offset + capped, "q": term, "f": target_folder})
-    elif offset + capped + 1 > MAX_SEARCH_FETCH and len(hits) == MAX_SEARCH_FETCH:
+    elif at_ceiling:
         # The sentinel row could not be requested: the fetch was clamped at the ceiling
         # and the server filled it completely, so more hits may exist. No cursor here,
         # because a later page cannot be served past the ceiling (WR-02).
@@ -166,6 +194,10 @@ async def list_dir(
     The order is fixed here rather than left to the server, because the pages of a listing
     are cut out of it: an unstable order would silently drop or repeat entries between two
     pages.
+
+    Entries tagged ``kein-ki`` or below a tagged folder are left out without a trace, and
+    a tagged target answers like a missing one (EXCL-01). When the tag check cannot be
+    answered, the listing is empty with one ``degraded`` entry (D-27-03).
     """
     target = dav.safe_path(path)
     capped = min(max(limit, 1), MAX_LIST_LIMIT)
@@ -176,13 +208,37 @@ async def list_dir(
         paging.check_scope(state, "p", target, "listing")
         offset = paging.read_offset(state)
 
-    itself, children = await dav.propfind_children(clients.client, clients.creds, target)
+    scope, listing = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        dav.propfind_children(clients.client, clients.creds, target),
+        return_exceptions=True,
+    )
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        # The PROPFIND outcome is not read at all, not even its 404: an existing and a
+        # missing folder have to answer the same while the check cannot be answered.
+        return {
+            "path": target,
+            "count": 0,
+            "items": [],
+            "degraded": [withhold.degraded_entry("source")],
+        }
+    if isinstance(listing, BaseException):
+        raise listing
+    itself, entries = listing
+    # The target first and before its form: "is a file" would confirm a withheld file.
+    if _withheld(scope, itself):
+        raise dav.not_found(target)
     if not itself["is_collection"]:
         raise ToolError(
             message=f"{target} is a file, not a folder.",
             hint="Use files_read to read a file, or list the folder that contains it.",
         )
 
+    # Filtered before the sort and the window, so count, truncated and next only ever
+    # see what the caller may see (D-v1.7-02).
+    children = [entry for entry in entries if not _withheld(scope, entry)]
     children.sort(key=lambda entry: (not entry["is_collection"], entry["name"].casefold()))
     window = children[offset : offset + capped]
 
@@ -195,6 +251,44 @@ async def list_dir(
         result["truncated"] = True
         result["next"] = paging.encode_cursor({"o": offset + capped, "p": target})
     return result
+
+
+def _withheld(scope: TagScope, entry: dict[str, Any]) -> bool:
+    """Whether a dav entry (absolute home path, fileid) is tagged or below a tagged folder."""
+    return scope.excludes(path=entry["path"], fileid=entry["fileid"] or None)
+
+
+async def _visible_hits(
+    clients: NcClients,
+    scope: TagScope,
+    search_scope: str,
+    term: str,
+    needed: int,
+    first: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """The visible hits of a search, fetched until ``needed`` of them are known.
+
+    ``first`` is the answer to the first SEARCH, which ran alongside the guard with the
+    limit ``min(needed, MAX_SEARCH_FETCH)``. Filtering can leave fewer visible hits than
+    the window plus its sentinel row needs; then the search is repeated with a doubled
+    limit, until enough are visible, the server returned fewer than asked for (nothing
+    more exists) or the limit reached :data:`MAX_SEARCH_FETCH`. Only then does
+    ``truncated`` rest on an observation of a visible hit, never on a withheld one. The
+    repeated searches share the scope, so they cost no REPORT; without a tag the first
+    answer always suffices and exactly one SEARCH goes out, as before.
+
+    The second value says whether the answer stopped at the ceiling with a full raw
+    list, so more hits may exist than could be asked for (the ``SEARCH_CAP_NOTE`` case).
+    """
+    fetch = min(needed, MAX_SEARCH_FETCH)
+    raw = first
+    while True:
+        visible = [hit for hit in raw if not _withheld(scope, hit)]
+        if len(visible) >= needed or len(raw) < fetch or fetch >= MAX_SEARCH_FETCH:
+            break
+        fetch = min(fetch * 2, MAX_SEARCH_FETCH)
+        raw = await dav.search(clients.client, clients.creds, search_scope, term, fetch)
+    return visible, fetch >= MAX_SEARCH_FETCH and len(raw) >= MAX_SEARCH_FETCH
 
 
 def _as_item(entry: dict[str, Any]) -> dict[str, Any]:
@@ -228,6 +322,10 @@ async def read(
 
     ``truncated`` is true when the answer stops before the end of the file; only then is
     ``next_offset`` present, so the caller never has to guess whether it saw everything.
+
+    A file tagged ``kein-ki``, or below a tagged folder, answers exactly like a path that
+    does not exist (EXCL-01); when the tag check cannot be answered, every path gets the
+    same uniform refusal (D-27-03).
     """
     if offset < 0:
         raise ToolError(
@@ -241,7 +339,7 @@ async def read(
         )
 
     target = dav.safe_path(path)
-    info = await dav.stat(clients.client, clients.creds, target)
+    info = await _visible_stat(clients, target)
 
     if info["is_collection"]:
         raise ToolError(
@@ -308,6 +406,10 @@ async def download(
     Unlike :func:`read`, this path accepts every MIME type and never decodes the body. A
     caller can therefore assemble a file of any total size while each response stays
     bounded by :data:`HARD_DOWNLOAD_BYTES`.
+
+    A file tagged ``kein-ki``, or below a tagged folder, answers exactly like a path that
+    does not exist (EXCL-01); when the tag check cannot be answered, every path gets the
+    same uniform refusal (D-27-03).
     """
     if offset < 0:
         raise ToolError(
@@ -321,7 +423,7 @@ async def download(
         )
 
     target = dav.safe_path(path)
-    info = await dav.stat(clients.client, clients.creds, target)
+    info = await _visible_stat(clients, target)
 
     if info["is_collection"]:
         raise ToolError(
@@ -380,6 +482,11 @@ async def upload(
     There is no overwrite mode and no force flag, by design (D-03, TOOL-09). If something
     already exists at the target, Nextcloud refuses the request and the caller gets a
     conflict it can act on: pick another name.
+
+    A destination tagged ``kein-ki``, or below a tagged folder, is refused before any
+    write with the sentence of a missing parent folder (D-27-01), also for a tagged file
+    under a visible parent; when the tag check cannot be answered, nothing is written
+    (D-27-02). The reasoning, including the residual oracle, sits in :func:`_writable`.
     """
     if (path or "").strip().endswith("/"):
         raise ToolError(
@@ -408,6 +515,7 @@ async def upload(
             hint="Send plain text; this tool does not upload binary content.",
         ) from None
 
+    await _writable(clients, target)
     return await dav.put_new_file(clients.client, clients.creds, target, data, content_type)
 
 
@@ -428,6 +536,11 @@ async def upload_binary(
     created by somebody else is refused rather than replaced. The returned upload id and
     ``next_chunk`` let a caller continue after a transient connection failure without any
     state in this process.
+
+    Every write of every chunk call first checks the destination against ``kein-ki``: a
+    tagged destination, or one below a tagged folder, gets the refusal of a missing parent
+    folder (D-27-01, also for a tagged file under a visible parent), and a check that
+    cannot be answered stops the call without any write (D-27-02). See :func:`_writable`.
     """
     if (path or "").strip().endswith("/"):
         raise ToolError(message=f"{path!r} names a folder, not a file.", hint=_FILE_TARGET_HINT)
@@ -524,6 +637,7 @@ async def upload_binary(
             hint="Use chunk_index=1, final=true and an empty base64 value.",
         )
     if total_bytes == 0:
+        await _writable(clients, target)
         result = await dav.put_new_file(clients.client, clients.creds, target, data, content_type)
         return {
             **result,
@@ -534,8 +648,14 @@ async def upload_binary(
             "completed": True,
         }
 
+    # The check guards every write of every chunk call, not only the first: a tag set
+    # between two calls stops the upload at the next one. It is the destination that is
+    # checked, never the temporary upload folder. One guard per tool call, so the checks
+    # of one call share a single REPORT.
     if chunk_index == 1:
+        await _writable(clients, target)
         await dav.start_chunked_upload(clients.client, clients.creds, target, raw_id)
+    await _writable(clients, target)
     await dav.put_upload_chunk(
         clients.client,
         clients.creds,
@@ -558,6 +678,7 @@ async def upload_binary(
             "next_chunk": chunk_index + 1,
         }
 
+    await _writable(clients, target)
     result = await dav.finish_chunked_upload(
         clients.client, clients.creds, target, raw_id, total_bytes
     )
@@ -569,6 +690,55 @@ async def upload_binary(
         "total_bytes": total_bytes,
         "completed": True,
     }
+
+
+async def _writable(clients: NcClients, target: str) -> None:
+    """Refuse a write into what is tagged ``kein-ki`` like a write into a missing folder.
+
+    D-27-01: a destination tagged itself or below a tagged folder gets exactly the refusal
+    Nextcloud gives when the parent folder does not exist, from the same factory. That
+    includes the edge case of a tagged file under a visible parent folder: "a file already
+    exists" would confirm the file outright, while "the parent does not exist" next to a
+    visible parent only tells that something is special there. Every refusal differs from
+    the 201 a free name would get, so this residual oracle cannot be avoided without
+    writing; one wording for all of them is the most consistent (documented in phase 29).
+
+    D-27-02: when the check cannot be answered, nothing is written, fail-closed; an
+    unchecked upload into a withheld subtree is never an option.
+
+    No stat before the check: a PROPFIND would itself tell existing from missing.
+    """
+    scope = await clients.exclusion.scope(clients)
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if scope.excludes(path=target):
+        raise dav.parent_missing(target)
+
+
+async def _visible_stat(clients: NcClients, target: str) -> dict[str, Any]:
+    """``dav.stat`` of ``target``, or the error a path that does not exist would get.
+
+    The guard is asked alongside the PROPFIND, so a tagged path costs the same requests as
+    a free one. The order of the decisions is fixed: a guard that could not answer wins
+    over everything, even over a 404 of the PROPFIND, so an existing and a missing path
+    read the same; then the error of the PROPFIND as it would be without any tag; then the
+    tag, before any check of the entry's form (folder, type, offset), because each of
+    those would tell a withheld entry from a missing one.
+    """
+    scope, info = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        dav.stat(clients.client, clients.creds, target),
+        return_exceptions=True,
+    )
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if isinstance(info, BaseException):
+        raise info
+    if scope.excludes(path=target, fileid=str(info.get("fileid") or "") or None):
+        raise dav.not_found(target)
+    return info
 
 
 def _is_text(content_type: str) -> bool:
