@@ -17,6 +17,7 @@ import httpx
 import pytest
 import respx
 
+from mcp_connector.errors import ToolError
 from mcp_connector.nextcloud import NcClients
 from mcp_connector.nextcloud.clients import xml as davxml
 from mcp_connector.nextcloud.credentials import Credentials
@@ -435,3 +436,166 @@ def test_one_message_takes_the_screen_as_a_keyword_without_default() -> None:
     assert entry["message"] == "Siehe geheim.txt"
     with pytest.raises(TypeError):
         talk_tools.one_message(window, "42")  # type: ignore[call-arg]
+
+
+# --- file conversations (objectType "file", raw/27-05-file-conversation-probe.txt) --------
+
+FILE_TOKEN = "fileroom1"
+
+
+def file_room(fileid: str = "901", name: str = SECRET_NAME) -> dict[str, Any]:
+    """A file conversation as nc35 lists it: objectId is the file id, the name is the file."""
+    return room(
+        FILE_TOKEN,
+        type=3,
+        displayName=name,
+        objectType="file",
+        objectId=fileid,
+        lastActivity=1755190000,
+    )
+
+
+def refusal(error: BaseException) -> tuple[Any, ...]:
+    return (
+        type(error),
+        getattr(error, "message", None),
+        getattr(error, "hint", None),
+        getattr(error, "reason", None),
+    )
+
+
+@pytest.mark.anyio
+async def test_a_tagged_file_conversation_is_missing_from_the_list_and_the_count() -> None:
+    rooms = [
+        file_room(),
+        room(TOKEN, lastMessage=chat(7, "Nur Text")),
+        room("efgh5678", lastMessage=chat(8, "Auch Text"), lastActivity=1755170000),
+    ]
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, rooms, None)
+        _, report = guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        answer = await talk_tools.browse(fresh(), limit=1)
+
+    assert report.call_count == 1
+    assert [entry["token"] for entry in answer["results"]] == [TOKEN]
+    assert answer["truncated"] is True
+    assert answer["total"] == 2
+    assert SECRET_NAME not in json.dumps(answer, ensure_ascii=False)
+    assert "degraded" not in answer
+
+
+@pytest.mark.anyio
+async def test_an_untagged_file_conversation_is_listed_as_before() -> None:
+    rooms = [file_room(), room(TOKEN, lastMessage=chat(7, "Nur Text"))]
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, rooms, None)
+        guard_routes.untagged(mock)
+        answer = await talk_tools.browse(fresh())
+
+    assert [entry["token"] for entry in answer["results"]] == [FILE_TOKEN, TOKEN]
+
+
+@pytest.mark.anyio
+async def test_a_file_conversation_below_a_tagged_folder_is_missing() -> None:
+    rooms = [file_room("905", "c.pdf"), room(TOKEN, lastMessage=chat(7, "Nur Text"))]
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, rooms, None)
+        guard_routes.active(mock, ("Projekt", "900", True))
+        lookup = mock.route(method="SEARCH", url=DAV_SEARCH).mock(
+            return_value=dav_answer(("Projekt/c.pdf", "905"))
+        )
+        answer = await talk_tools.browse(fresh())
+
+    assert lookup.call_count == 1
+    assert [entry["token"] for entry in answer["results"]] == [TOKEN]
+
+
+@pytest.mark.anyio
+async def test_unverifiable_drops_every_file_conversation_with_one_degraded_entry() -> None:
+    rooms = [
+        file_room(),
+        room(TOKEN, lastMessage=last(secret_message())),
+    ]
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, rooms, None)
+        guard_routes.unverifiable(mock)
+        answer = await talk_tools.browse(fresh())
+
+    assert [entry["token"] for entry in answer["results"]] == [TOKEN]
+    assert answer["degraded"] == DEGRADED
+    assert SECRET_NAME not in json.dumps(answer, ensure_ascii=False)
+
+
+@pytest.mark.anyio
+async def test_the_history_of_a_tagged_file_conversation_answers_like_an_unknown_token() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        history = mock.get(f"{CHAT_BASE}/{FILE_TOKEN}")
+        with pytest.raises(ToolError) as tagged:
+            await talk_tools.browse(fresh(), level="messages", token=FILE_TOKEN)
+    assert history.call_count == 0
+
+    guard_routes.reset()
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [room()], None)
+        with pytest.raises(ToolError) as unknown:
+            await talk_tools.browse(fresh(), level="messages", token=FILE_TOKEN)
+
+    assert refusal(tagged.value) == refusal(unknown.value)
+
+
+@pytest.mark.anyio
+async def test_sending_into_a_tagged_file_conversation_answers_like_an_unknown_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("NC_MCP_TALK_SEND", raising=False)
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        post = mock.post(f"{CHAT_BASE}/{FILE_TOKEN}")
+        with pytest.raises(ToolError) as tagged:
+            await talk_tools.send(fresh(), FILE_TOKEN, "Hallo")
+    assert post.call_count == 0
+
+    guard_routes.reset()
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [room()], None)
+        with pytest.raises(ToolError) as unknown:
+            await talk_tools.send(fresh(), FILE_TOKEN, "Hallo")
+
+    assert refusal(tagged.value) == refusal(unknown.value)
+
+
+@pytest.mark.anyio
+async def test_unverifiable_refuses_a_file_conversation_but_not_a_normal_one() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        guard_routes.unverifiable(mock)
+        with pytest.raises(ToolError) as refused:
+            await talk_tools.browse(fresh(), level="messages", token=FILE_TOKEN)
+    assert refusal(refused.value) == refusal(withhold.unavailable_error())
+
+    guard_routes.reset()
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], [chat(41, "Nur Text")])
+        listing, report = guard_routes.unverifiable(mock)
+        answer = await talk_tools.browse(fresh(), level="messages", token=TOKEN)
+
+    assert listing.call_count == 0
+    assert report.call_count == 0
+    assert answer["results"][0]["message"] == "Nur Text"
+
+
+@pytest.mark.anyio
+async def test_an_untagged_file_conversation_stays_readable() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        mock.get(f"{CHAT_BASE}/{FILE_TOKEN}").mock(
+            return_value=httpx.Response(200, json=envelope([chat(41, "Zur Datei")]))
+        )
+        guard_routes.active(mock, ("Docs/anderes.txt", "999", False))
+        answer = await talk_tools.browse(fresh(), level="messages", token=FILE_TOKEN)
+
+    assert answer["conversation"] == SECRET_NAME
+    assert answer["results"][0]["message"] == "Zur Datei"
