@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: executing
-stopped_at: Phase 26 context gathered
-last_updated: "2026-09-27T01:30:44.392Z"
-last_activity: 2026-09-27 -- Phase 26 execution started
+status: ready_to_plan
+stopped_at: Phase 26 complete (2/2) — ready to discuss Phase 27
+last_updated: 2026-09-27T02:38:52.678Z
+last_activity: 2026-09-27 -- Phase 26 complete (verified 8/8, review resolved)
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 5
-  percent: 20
+  completed_plans: 7
+  percent: 40
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-26)
 
 **Core value:** Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
-**Current focus:** Phase 26 — guard-kern
+**Current focus:** Phase 27 — familien anschluss und sandbox parität
 
 ## Current Position
 
-Phase: 26 (guard-kern) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 26
-Last activity: 2026-09-27 -- Phase 26 execution started
+Phase: 27
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-27
 
 Progress: [██░░░░░░░░] 20%
 
@@ -36,7 +36,7 @@ Progress: [██░░░░░░░░] 20%
 
 **Velocity:**
 
-- Total plans completed: 139
+- Total plans completed: 141
 - Average duration: 35 min
 - Total execution time: 15.2 hours
 
@@ -63,6 +63,7 @@ Progress: [██░░░░░░░░] 20%
 | 22 | 1 | 25 min | 25 min |
 | 24 | 9 | - | - |
 | 25 | 5 | - | - |
+| 26 | 2 | - | - |
 
 **Recent Trend:**
 
