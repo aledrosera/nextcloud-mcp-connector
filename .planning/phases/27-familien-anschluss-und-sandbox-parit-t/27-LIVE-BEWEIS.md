@@ -227,4 +227,6 @@ Owner-Entscheid 27.09.2026 am Checkpoint 27-08 (wörtlich): "Lückenplan".
 
 Die Überschreitung der Wanduhr-Schwelle (Szenario B, detail=full: Median 1,047 s gegen 0,97 s) wird NICHT akzeptiert. Es wird ein Lückenplan angelegt (/gsd:plan-phase 27 --gaps, Ansatzpunkt laut Checkpoint-Vorlage: fileid-Auflösung seltener aufrufen). Die Phase bleibt offen, bis die Messung unter der Schwelle liegt und die Abnahme erneut vorgelegt wurde. Alle übrigen Befunde (Erfolgskriterien 1-5, Request-Kosten, talk-message kein-leak, Merker für Phase 28/29) standen am Checkpoint nicht in Frage.
 
-Owner-Entscheid zu 27-09: Ausstehend
+Owner-Entscheid 27.09.2026 zu 27-09 (wörtlich): "Zweiter Lückenplan".
+
+Die Restüberschreitung (B full 0,992 s gegen 0,97 s) wird nicht akzeptiert. Nächster Schritt laut Checkpoint-Vorlage: die Pfadprüfung der Notiz in dieselbe Sammel-SEARCH holen (Notiz-Id = fileid, Beleg 25-MESSBERICHT). Die Phase bleibt offen bis zur Neumessung unter der Schwelle und erneuter Abnahme.
