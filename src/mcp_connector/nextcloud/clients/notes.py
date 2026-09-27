@@ -1,4 +1,4 @@
-"""Notes REST v1 client: list, read and create, and nothing else.
+"""Notes REST v1 client: read, create and the settings, and nothing else.
 
 The API lives at ``/index.php/apps/notes/api/v1`` and is an ordinary app route, not an OCS
 route: the answer is the bare object and a failure is ``{"status": 4xx, "message": "..."}``,
@@ -76,6 +76,26 @@ async def get_note(client: httpx.AsyncClient, creds: Credentials, note_id: str) 
         auth=creds.auth(),
     )
     return _as_note(ocs.parse_app_json(response, what=f"the note {note_id}"))
+
+
+async def get_settings(client: httpx.AsyncClient, creds: Credentials) -> dict[str, Any]:
+    """Read the Notes settings of this user; ``notesPath`` and ``fileSuffix`` matter here.
+
+    Measured against Notes 6.1.0 on Nextcloud 35 (raw/27-04-notes-settings.txt):
+    ``{"notesPath": "Notes", "fileSuffix": ".md", ...}``, the path relative to the home.
+    """
+    response = await client.get(
+        api_url(creds, "/settings"),
+        headers=dict(_HEADERS),
+        auth=creds.auth(),
+    )
+    payload = ocs.parse_app_json(response, what="the Notes settings")
+    if not isinstance(payload, dict):
+        raise ToolError(
+            message="Nextcloud answered with something that is not the Notes settings.",
+            hint="Check that the Notes app is enabled and up to date on that instance.",
+        )
+    return payload
 
 
 async def create_note(

@@ -29,6 +29,8 @@ SECRET = "app-password-test"
 CAPABILITIES_URL = f"{BASE}/ocs/v2.php/cloud/capabilities"
 SEARCH_URL = f"{BASE}/ocs/v2.php/search/providers/notes/search"
 NOTES_BASE = f"{BASE}/index.php/apps/notes/api/v1/notes"
+SETTINGS_URL = f"{BASE}/index.php/apps/notes/api/v1/settings"
+SETTINGS = {"notesPath": "Notes", "fileSuffix": ".md"}
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -86,6 +88,11 @@ def mock_capabilities(mock: respx.MockRouter, *, notes: dict | None = NOTES_INST
     mock.get(CAPABILITIES_URL).mock(
         return_value=httpx.Response(200, json=capabilities_payload(notes=notes))
     )
+
+
+def mock_settings(mock: respx.MockRouter) -> respx.Route:
+    """notes_create reads notesPath and fileSuffix before it writes (27-04)."""
+    return mock.get(SETTINGS_URL).mock(return_value=httpx.Response(200, json=SETTINGS))
 
 
 @pytest.mark.anyio
@@ -216,7 +223,10 @@ async def test_read_returns_the_stable_fields_of_one_note(clients: NcClients) ->
 
 
 @pytest.mark.anyio
-async def test_read_of_an_unknown_note_reports_not_found(clients: NcClients) -> None:
+async def test_read_of_an_unknown_note_reports_not_found_without_the_notes_detail_text(
+    clients: NcClients,
+) -> None:
+    """Changed in 27-04: the detail text of the Notes app no longer reaches the answer."""
     with respx.mock(assert_all_called=True) as mock:
         mock_capabilities(mock)
         mock.get(f"{NOTES_BASE}/999").mock(
@@ -225,7 +235,8 @@ async def test_read_of_an_unknown_note_reports_not_found(clients: NcClients) -> 
         with pytest.raises(ToolError) as excinfo:
             await notes_tools.read(clients, note_id="note:999")
 
-    assert "not find" in excinfo.value.message.lower() or "not found" in excinfo.value.message
+    assert excinfo.value.message == "Nextcloud did not find the note 999."
+    assert "Nextcloud says" not in excinfo.value.message
     assert excinfo.value.hint
 
 
@@ -277,6 +288,7 @@ async def test_create_returns_the_title_the_server_stored(clients: NcClients) ->
     created = {**NOTE_12, "id": 31, "title": "Protokoll 2026-08-14 (2)", "category": ""}
     with respx.mock(assert_all_called=True) as mock:
         mock_capabilities(mock)
+        mock_settings(mock)
         route = mock.post(NOTES_BASE).mock(return_value=httpx.Response(200, json=created))
         result = await notes_tools.create(
             clients, title="Protokoll 2026-08-14", content="# Protokoll\n"
@@ -297,6 +309,7 @@ async def test_create_without_a_rename_says_nothing_about_a_rename(clients: NcCl
     created = {**NOTE_12, "id": 32, "title": "Einkaufsliste", "category": "Privat"}
     with respx.mock(assert_all_called=True) as mock:
         mock_capabilities(mock)
+        mock_settings(mock)
         mock.post(NOTES_BASE).mock(return_value=httpx.Response(200, json=created))
         result = await notes_tools.create(
             clients, title="Einkaufsliste", content="Milch\n", category="Privat"
@@ -311,6 +324,7 @@ async def test_create_without_a_rename_says_nothing_about_a_rename(clients: NcCl
 async def test_create_reports_a_full_nextcloud_with_its_own_message(clients: NcClients) -> None:
     with respx.mock(assert_all_called=True) as mock:
         mock_capabilities(mock)
+        mock_settings(mock)
         mock.post(NOTES_BASE).mock(
             return_value=httpx.Response(
                 507, json={"status": 507, "message": "Insufficient storage"}
