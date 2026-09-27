@@ -279,12 +279,14 @@ CONFIG_DELETE_FORM = '"DELETE",'
 
 # Module level mutable state is forbidden as a rule, because a dictionary that outlives a
 # request is one refactor away from being a session store, and a session store is what
-# breaks the restart proof (D-20). These two are the documented exceptions: both are pure
-# latency optimisations, both may be empty at any moment without changing an answer, and
-# neither holds a credential.
+# breaks the restart proof (D-20). These three are the documented exceptions: all are pure
+# latency optimisations, all may be empty at any moment without changing an answer, and
+# none of them holds a credential.
 ALLOWED_MODULE_STATE: set[tuple[str, str]] = {
     ("nextcloud/http.py", "_clients"),  # one httpx client per event loop, weakly keyed
     ("nextcloud/capabilities.py", "_cache"),  # capabilities per (base_url, user), 60 s TTL
+    # tag name to ids per (base_url, user), 60 s TTL, positive only (E3, EXCL-02)
+    ("nextcloud/exclusion.py", "_tag_ids"),
 }
 
 _MUTABLE_FACTORIES = {
@@ -627,7 +629,7 @@ def test_the_tables_read_exemption_covers_two_call_forms_and_nothing_else() -> N
         assert (SRC / relative).is_file(), f"{relative} is exempt but does not exist"
 
 
-def test_no_module_level_mutable_state_outside_the_two_documented_caches() -> None:
+def test_no_module_level_mutable_state_outside_the_three_documented_caches() -> None:
     """D-20: nothing between two requests may remember anything about a session."""
     findings: list[str] = []
     for path in _source_files():
@@ -668,11 +670,12 @@ def _is_mutable(value: ast.expr) -> bool:
     return False
 
 
-def test_the_two_allowed_caches_still_exist_where_they_are_claimed_to_be() -> None:
+def test_the_three_allowed_caches_still_exist_where_they_are_claimed_to_be() -> None:
     """An allow list that points at nothing silently stops allowing anything."""
-    assert len(ALLOWED_MODULE_STATE) == 2, (
-        "the exceptions are counted, not only described: a third cache is a decision, and a "
-        "decision has to be made in a review and not in a diff (D-20, T-08-23)"
+    assert len(ALLOWED_MODULE_STATE) == 3, (
+        "the exceptions are counted, not only described: another cache is a decision, and a "
+        "decision has to be made in a review and not in a diff (D-20, T-08-23); the third "
+        "one (_tag_ids) was decided in the owner review E3 of phase 25"
     )
     for relative, name in ALLOWED_MODULE_STATE:
         path = SRC / relative
