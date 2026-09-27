@@ -44,11 +44,16 @@ D-26-02), and no configurable tag name. The name is ``kein-ki``, compared case-i
 after trimming blanks, and nothing else.
 """
 
+import asyncio
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+import httpx
+
+from ..errors import ToolError
+from . import NcClients
 from .clients import systemtags
 
 __all__ = [
@@ -56,6 +61,7 @@ __all__ = [
     "TAG_BUDGET",
     "TTL_SECONDS",
     "UNTAGGED",
+    "ExclusionGuard",
     "State",
     "TagScope",
     "Why",
@@ -63,6 +69,7 @@ __all__ = [
     "clear_cache",
     "exclude_tag_ids",
     "is_exclude_name",
+    "load_scope",
 ]
 
 EXCLUDE_TAG = "kein-ki"
@@ -175,3 +182,147 @@ class TagScope:
 
 #: The one value every "nothing is tagged" answer shares. Immutable, so not module state.
 UNTAGGED = TagScope("untagged")
+
+
+def _unverifiable(reason: Why) -> TagScope:
+    return TagScope("unverifiable", reason=reason)
+
+
+async def load_scope(clients: NcClients) -> TagScope:
+    """Ask Nextcloud what is tagged ``kein-ki`` for this user and return it as a value.
+
+    Every Nextcloud outcome ends in one of the three states and nothing raises for it: the
+    whole flight runs under ``TAG_BUDGET``, and a timeout, a transport failure, an
+    unparsable body or data that cannot be what Nextcloud sends all become
+    ``unverifiable`` with their reason. A cancellation is deliberately not caught: it is not
+    an answer and must never be stored as one.
+    """
+    try:
+        async with asyncio.timeout(TAG_BUDGET):
+            return await _flight(clients)
+    except TimeoutError:
+        return _unverifiable("timeout")
+    # The httpx timeouts are HTTPErrors as well, so they have to be told apart first.
+    except httpx.TimeoutException:
+        return _unverifiable("timeout")
+    except httpx.HTTPError:
+        return _unverifiable("unreachable")
+    except ToolError:
+        return _unverifiable("unparsable")
+    except ValueError:
+        return _unverifiable("unparsable")
+
+
+async def _fresh_ids(clients: NcClients, key: tuple[str, str]) -> tuple[str, ...] | TagScope:
+    """List the tags and return one id per spelling, or the state the listing already decides."""
+    listing = await systemtags.list_tags(clients.client, clients.creds)
+    if listing.status != 207:
+        return _unverifiable("status")
+    ids = exclude_tag_ids(listing.tags)
+    if not ids:
+        return UNTAGGED
+    _store_ids(key, ids)
+    return ids
+
+
+async def _flight(clients: NcClients) -> TagScope:
+    """The D-25-05 automaton: 207 is a set, one 412 re-lists once, anything else is a refusal."""
+    key = (clients.creds.base_url, clients.creds.user)
+    ids = _cached_ids(key)
+    if ids is None:
+        fresh = await _fresh_ids(clients, key)
+        if isinstance(fresh, TagScope):
+            return fresh
+        ids = fresh
+
+    first = await _report_all(clients, ids)
+    statuses = {answer.status for answer in first}
+    if statuses == {207}:
+        return _active(first)
+    if not statuses <= {207, 412}:
+        return _unverifiable("status")
+
+    # At least one id went stale: forget the ids, list exactly once more, ask again.
+    _drop_ids(key)
+    fresh = await _fresh_ids(clients, key)
+    if isinstance(fresh, TagScope):
+        return fresh
+    second = await _report_all(clients, fresh)
+    statuses = {answer.status for answer in second}
+    if statuses == {207}:
+        return _active(second)
+    if statuses <= {207, 412}:
+        # Stale right after a fresh listing; keep nothing that is known to be stale.
+        _drop_ids(key)
+        return _unverifiable("stale_twice")
+    return _unverifiable("status")
+
+
+async def _report_all(clients: NcClients, ids: tuple[str, ...]) -> list[systemtags.TaggedSet]:
+    """One REPORT per id, each with exactly that one id, all at once.
+
+    Every request is allowed to finish before the first failure is raised again, so the
+    mapping in :func:`load_scope` never runs while a sibling request is still in flight.
+    """
+    answers = await asyncio.gather(
+        *(systemtags.tagged_nodes(clients.client, clients.creds, tag_id) for tag_id in ids),
+        return_exceptions=True,
+    )
+    sets: list[systemtags.TaggedSet] = []
+    for answer in answers:
+        if isinstance(answer, BaseException):
+            raise answer
+        sets.append(answer)
+    return sets
+
+
+def _active(sets: Iterable[systemtags.TaggedSet]) -> TagScope:
+    """Unite every set; a single href that did not map makes the whole answer unverifiable.
+
+    The set is not narrowed to ``NC_MCP_FILES_ROOT``: a tagged folder above the sandbox has
+    to cover everything below it.
+    """
+    paths: set[str] = set()
+    fileids: set[str] = set()
+    for tagged in sets:
+        for node in tagged.nodes:
+            if node.path is None:
+                return _unverifiable("foreign_href")
+            paths.add(node.path)
+            fileids.add(node.fileid)
+    return TagScope("active", paths=frozenset(paths), fileids=frozenset(fileids))
+
+
+class ExclusionGuard:
+    """One flight per tool call: the first caller asks, every concurrent caller shares it.
+
+    One instance belongs to one tool call and dies with it, so the tagged set never
+    outlives the call (E3). The constructor takes nothing, which lets phase 27 hang a
+    ``field(default_factory=ExclusionGuard)`` onto ``NcClients``.
+
+    An ``unverifiable`` scope is stored like any other: whoever waited shares the failure,
+    not the cost. A cancelled flight stores nothing, so the next caller starts a new one;
+    that only doubles the cost and stays fail-closed.
+    """
+
+    __slots__ = ("_lock", "_scope")
+
+    def __init__(self) -> None:
+        # Created here, not on first use, like the lock of ``oauth.jwks.KeySet``.
+        self._lock = asyncio.Lock()
+        self._scope: TagScope | None = None
+
+    async def scope(self, clients: NcClients) -> TagScope:
+        """The scope of this tool call, asked for at most once however many parts need it."""
+        known = self._scope
+        if known is not None:
+            # The fast path takes no lock; nothing is awaited between check and return.
+            return known
+        async with self._lock:
+            # Re-check under the lock: whoever waited takes the outcome of the flight that
+            # just finished instead of starting a second one (single-flight).
+            known = self._scope
+            if known is None:
+                known = await load_scope(clients)
+                self._scope = known
+            return known

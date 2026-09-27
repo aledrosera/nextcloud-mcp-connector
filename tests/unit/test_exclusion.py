@@ -398,7 +398,7 @@ async def test_a_report_status_other_than_207_or_412_is_unverifiable(
     ],
 )
 async def test_a_transport_failure_of_the_report_is_unverifiable(
-    clients: NcClients, error: Exception, reason: str
+    clients: NcClients, error: Exception, reason: exclusion.Why
 ) -> None:
     with respx.mock(assert_all_mocked=True) as mock:
         mock.route(method="PROPFIND", url=TAGS).mock(
@@ -408,7 +408,7 @@ async def test_a_transport_failure_of_the_report_is_unverifiable(
 
         scope = await exclusion.load_scope(clients)
 
-    assert scope == exclusion.TagScope("unverifiable", reason=reason)  # type: ignore[arg-type]
+    assert scope == exclusion.TagScope("unverifiable", reason=reason)
     assert report.call_count == 1
 
 
@@ -432,12 +432,17 @@ async def test_a_report_slower_than_the_budget_is_unverifiable_and_does_not_wait
     clients: NcClients, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(exclusion, "TAG_BUDGET", 0.01)
+    # respx records a call only once its handler returns, and this one never does, so the
+    # handler counts its own entries.
+    entered = 0
 
     async def too_slow(_request: httpx.Request) -> httpx.Response:
+        nonlocal entered
+        entered += 1
         await asyncio.sleep(1)
         return listed(report_207())
 
-    with respx.mock(assert_all_mocked=True) as mock:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
         mock.route(method="PROPFIND", url=TAGS).mock(
             return_value=listed(tag_list(("64", "kein-ki")))
         )
@@ -448,7 +453,8 @@ async def test_a_report_slower_than_the_budget_is_unverifiable_and_does_not_wait
         elapsed = time.monotonic() - started
 
     assert scope == exclusion.TagScope("unverifiable", reason="timeout")
-    assert report.call_count == 1
+    assert entered == 1  # asked once, no retry after the budget ran out
+    assert report.call_count == 0  # and that one request never completed
     assert elapsed < 0.5
 
 
@@ -840,12 +846,14 @@ async def test_a_tagged_ancestor_above_the_sandbox_takes_effect(
 async def test_a_cancelled_flight_stores_nothing_and_the_next_call_starts_anew(
     clients: NcClients,
 ) -> None:
-    calls = 0
+    # respx records a call only once its handler returns, and the cancelled one never does,
+    # so the handler counts every REPORT that went out itself.
+    entered = 0
 
     async def first_hangs(_request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
+        nonlocal entered
+        entered += 1
+        if entered == 1:
             await asyncio.sleep(10)
         return listed(report_207(("A/doc.md", "957", False)))
 
@@ -857,11 +865,11 @@ async def test_a_cancelled_flight_stores_nothing_and_the_next_call_starts_anew(
         guard = exclusion.ExclusionGuard()
 
         holder = asyncio.create_task(guard.scope(clients))
-        for _ in range(50):
-            if report.call_count:
+        for _ in range(200):
+            if entered:
                 break
             await asyncio.sleep(0)
-        assert report.call_count == 1
+        assert entered == 1
         holder.cancel()
         with pytest.raises(asyncio.CancelledError):
             await holder
@@ -870,4 +878,5 @@ async def test_a_cancelled_flight_stores_nothing_and_the_next_call_starts_anew(
         scope = await guard.scope(clients)
 
     assert scope.state == "active"
-    assert report.call_count == 2
+    assert entered == 2  # the later call started a new flight
+    assert report.call_count == 1  # only the second REPORT ever completed
