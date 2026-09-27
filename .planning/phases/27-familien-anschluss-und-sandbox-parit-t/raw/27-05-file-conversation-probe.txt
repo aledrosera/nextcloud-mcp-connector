@@ -1,0 +1,118 @@
+# 27-05 file conversation probe, 2026-09-27 12:49:16 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_exclusion_probe.py -m integration -s -k file_conversation
+# nextcloud=35.0.0 spreed=25.0.0
+# probe file: /probe27-05-c4ae5470a4.txt (fileid 22098), shared with the second test account
+# GET /apps/spreed/api/v1/file/22098: HTTP 200 {"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":{"token":"8dhxnjqf"}}}
+# GET /apps/spreed/api/v4/file/22098: HTTP 404 {"ocs":{"meta":{"status":"failure","statuscode":998,"message":"Invalid query, please check the syntax. API specifications are here: http:\/\/www.freedesktop.org\/wiki\/Specifications\/open-collaboration-services.\n"},"data":[]}}
+# POST .../room/<token>/participants/active: HTTP 200
+# DELETE .../room/<token>/participants/active: HTTP 200
+# conversation in the list of this account: ja
+
+OBJECT_TYPE=file
+OBJECT_ID_IST_FILEID=ja
+NAME_IST_DATEINAME=ja
+
+--- raw list entry (selected fields)
+{
+  "token": "8dhxnjqf",
+  "type": 3,
+  "name": "probe27-05-c4ae5470a4.txt",
+  "displayName": "probe27-05-c4ae5470a4.txt",
+  "objectType": "file",
+  "objectId": "22098"
+}
+--- raw list entry (all fields)
+{
+  "id": 9,
+  "token": "8dhxnjqf",
+  "type": 3,
+  "name": "probe27-05-c4ae5470a4.txt",
+  "displayName": "probe27-05-c4ae5470a4.txt",
+  "objectType": "file",
+  "objectId": "22098",
+  "participantType": 3,
+  "participantFlags": 0,
+  "readOnly": 0,
+  "hasPassword": false,
+  "hasCall": false,
+  "callStartTime": 0,
+  "callRecording": 0,
+  "canStartCall": true,
+  "lastActivity": 1790506156,
+  "lastReadMessage": 51,
+  "unreadMessages": 0,
+  "unreadMention": false,
+  "unreadMentionDirect": false,
+  "isFavorite": false,
+  "canLeaveConversation": true,
+  "canDeleteConversation": false,
+  "notificationLevel": 1,
+  "notificationCalls": 1,
+  "lobbyState": 0,
+  "lobbyTimer": 0,
+  "lastPing": 0,
+  "sessionId": "0",
+  "sipEnabled": 0,
+  "actorType": "users",
+  "actorId": "alice",
+  "attendeeId": 9,
+  "permissions": 502,
+  "attendeePermissions": 0,
+  "callPermissions": 0,
+  "defaultPermissions": 0,
+  "canEnableSIP": false,
+  "attendeePin": "",
+  "description": "",
+  "lastCommonReadMessage": 51,
+  "listable": 0,
+  "callFlag": 0,
+  "messageExpiration": 0,
+  "avatarVersion": "42f6264c",
+  "isCustomAvatar": false,
+  "breakoutRoomMode": 0,
+  "breakoutRoomStatus": 0,
+  "recordingConsent": 0,
+  "mentionPermissions": 0,
+  "liveTranscriptionLanguageId": "",
+  "lastPinnedId": 0,
+  "hiddenPinnedId": 0,
+  "isArchived": false,
+  "isImportant": false,
+  "isSensitive": false,
+  "tagIds": [],
+  "hasScheduledMessages": 0,
+  "attributes": 0,
+  "lastMessage": {
+    "id": 52,
+    "token": "8dhxnjqf",
+    "actorType": "users",
+    "actorId": "alice",
+    "actorDisplayName": "alice",
+    "timestamp": 1790506156,
+    "message": "You joined the conversation",
+    "messageParameters": {
+      "actor": {
+        "type": "user",
+        "id": "alice",
+        "name": "alice",
+        "mention-id": "alice"
+      },
+      "user": {
+        "type": "user",
+        "id": "alice",
+        "name": "alice",
+        "mention-id": "alice"
+      }
+    },
+    "systemMessage": "user_added",
+    "messageType": "system",
+    "isReplyable": false,
+    "referenceId": "",
+    "reactions": {},
+    "expirationTimestamp": 0,
+    "markdown": false,
+    "threadId": 52
+  }
+}
+
+# cleanup: participation left, share removed, PROPFIND after DELETE 404

@@ -651,6 +651,11 @@ async def _fetch_message(clients: NcClients, token: str, message_id: str) -> dic
     message text carries none by decision of phase 9, because a marker inside a text every
     participant of a conversation may write is an attack path (ME-03), and the fact stands
     beside the text as ``metadata["truncated"]`` instead.
+
+    The ``kein-ki`` guard is inherited twice: ``one_room`` refuses a file conversation of a
+    withheld file like an unknown token, and the file screen of the talk module keeps the
+    placeholder of a withheld file raw. The title stays the conversation name; for a withheld
+    file conversation this line is never reached.
     """
     await capabilities.require_app(clients, talk_tools.APP)
     room = await talk_tools.one_room(clients, token, include_last_message=False)
@@ -658,7 +663,13 @@ async def _fetch_message(clients: NcClients, token: str, message_id: str) -> dic
         clients.client, clients.creds, token, message_id, limit=MESSAGE_CONTEXT_LIMIT
     )
 
-    entry = talk_tools.one_message(window, message_id)
+    # Only the wanted message is screened: a file beside it in the context window is never
+    # shown, so it must neither cost a guard request nor mark this answer as degraded.
+    wanted = str(message_id).strip()
+    screen = await talk_tools.file_screen(
+        clients, [raw for raw in window if str(raw.get("id")) == wanted]
+    )
+    entry = talk_tools.one_message(window, message_id, screen=screen)
     if entry is None:
         raise ToolError(
             message=(
@@ -696,6 +707,10 @@ async def _fetch_message(clients: NcClients, token: str, message_id: str) -> dic
         # ``message_truncated`` for the cut text of one entry, DF-11-01); ``fetch`` answers one
         # single message, so its ``metadata`` has one level and one word is unambiguous there.
         metadata["truncated"] = "true"
+    if screen.unavailable:
+        # A message is not a file: it stays readable with its file placeholders raw, and the
+        # one sentence says why (D-27-05, D-27-06).
+        metadata["degraded"] = withhold.EXCLUSION_UNAVAILABLE
 
     return {
         "id": ids.encode_message(token, message_id),
