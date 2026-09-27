@@ -292,4 +292,6 @@ Owner-Entscheid 27.09.2026 zu 27-09 (wörtlich): "Zweiter Lückenplan".
 
 Die Restüberschreitung (B full 0,992 s gegen 0,97 s) wird nicht akzeptiert. Nächster Schritt laut Checkpoint-Vorlage: die Pfadprüfung der Notiz in dieselbe Sammel-SEARCH holen (Notiz-Id = fileid, Beleg 25-MESSBERICHT). Die Phase bleibt offen bis zur Neumessung unter der Schwelle und erneuter Abnahme.
 
-Owner-Entscheid zu 27-10: Ausstehend
+Owner-Entscheid 27.09.2026 zu 27-10 (wörtlich): "Neumessung ruhiges Fenster".
+
+Kein weiterer Code-Umbau. Die Wanduhr-Messung vom 27.09. nachmittags ist wegen Host-Drift (Nachbarläufe streuen bis 1,2 s, auch der alte Code lag in den Kontrollen weit über der Schwelle) nicht entscheidungsfähig. Die Messung wird in einem ruhigen Host-Fenster wiederholt, wieder abwechselnd mit der Kontrolle; der Entscheid fällt danach.
