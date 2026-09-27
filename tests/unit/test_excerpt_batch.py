@@ -276,7 +276,9 @@ def force_old_route(monkeypatch: pytest.MonkeyPatch) -> None:
     """The code before plan 27-09: one SEARCH per excerpt, and the stat inside ``read``."""
 
     async def no_batch(_clients: NcClients, _identifiers: Any) -> Any:
-        raise ToolError(message="the batch lookup is switched off for the reference run")
+        raise ToolError(
+            message="the batch lookup is switched off for the reference run", hint="none"
+        )
 
     real_read = files_tools.read
 

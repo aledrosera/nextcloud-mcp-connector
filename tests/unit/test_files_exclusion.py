@@ -262,7 +262,7 @@ async def test_unverifiable_refuses_existing_and_missing_paths_alike(name: str) 
     ],
 )
 async def test_input_errors_still_come_before_any_request(
-    name: str, kwargs: dict[str, int]
+    name: str, kwargs: dict[str, Any]
 ) -> None:
     tool = files_tools.read if name == "read" else files_tools.download
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:

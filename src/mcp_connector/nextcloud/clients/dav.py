@@ -493,6 +493,82 @@ async def paths_of_fileids(
     }
 
 
+async def entries_of_fileids(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    fileids: Sequence[str],
+) -> dict[str, dict[str, Any] | None]:
+    """Map file ids onto their full entries, one SEARCH per block of ids (plan 27-09).
+
+    The batch form of :func:`find_by_fileid`, for a caller that needs several of them in
+    one tool call (the file excerpts of one ``prepare_context`` bundle). Same checks as
+    :func:`paths_of_fileids` (ASCII digits or ``ValueError`` before any request, duplicates
+    asked once, blocks of :data:`FILEID_BLOCK`), same scope as the single lookup, so the
+    sandbox holds in the query and again in the path check below.
+
+    The answer has three states per id, and the difference is load bearing:
+
+    * an entry: the first response Nextcloud gave for that id, exactly the one
+      :func:`find_by_fileid` returns (``entries[0]``);
+    * ``None``: the id is certainly not there. Either the first response for it lies
+      outside the home or ``NC_MCP_FILES_ROOT``, or the block came back with fewer
+      responses than ``nresults``, so nothing was cut off and a missing id is missing;
+    * absent: not known. A block that filled its ``nresults`` may have lost an id to a
+      doubled entry of another one, which the single lookup with ``nresults`` 1 would
+      still have found; the caller has to ask that id on its own.
+
+    Nothing is cached, the answer belongs to this call (E3, D-25-05); a failing block
+    raises for the whole call.
+    """
+    for fileid in fileids:
+        if not _DIGITS.fullmatch(fileid):
+            raise ValueError(f"{fileid!r} is not a numeric Nextcloud file id")
+    wanted = list(dict.fromkeys(fileids))
+    if not wanted:
+        return {}
+
+    scope = search_scope(creds)
+    blocks = [wanted[start : start + FILEID_BLOCK] for start in range(0, len(wanted), FILEID_BLOCK)]
+    answers = await asyncio.gather(
+        *(_search_fileid_entries(client, creds, scope, b) for b in blocks)
+    )
+    found: dict[str, dict[str, Any] | None] = {}
+    for answer in answers:
+        found.update(answer)
+    return found
+
+
+async def _search_fileid_entries(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    scope: str,
+    block: Sequence[str],
+) -> dict[str, dict[str, Any] | None]:
+    """One SEARCH of :func:`entries_of_fileids`, read response by response."""
+    response = await client.request(
+        "SEARCH",
+        f"{creds.base_url}{DAV_ROOT_PATH}",
+        headers={"Content-Type": "text/xml"},
+        content=build_fileids_body(scope, block),
+        auth=creds.auth(),
+    )
+    _check(response, "the searched file ids")
+    responses = xml.parse_multistatus(response.content)
+    home = _home_prefix(creds)
+    asked = set(block)
+    found: dict[str, dict[str, Any] | None] = {}
+    for href, props in responses:
+        fileid = props.get(f"{{{xml.OC}}}fileid", "")
+        if fileid not in asked or fileid in found:
+            continue
+        path = _home_path_of(href, home)
+        found[fileid] = _entry(path, props) if path is not None and in_files_root(path) else None
+    if len(responses) < len(block):
+        for fileid in block:
+            found.setdefault(fileid, None)
+    return found
+
+
 async def _search_fileids(
     client: httpx.AsyncClient,
     creds: Credentials,

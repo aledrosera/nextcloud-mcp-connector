@@ -748,6 +748,16 @@ async def _excerpts(
     The kinds come from :data:`EXCERPT_KINDS` and deliberately not from the bucket list: a
     later decision about how this answer is grouped must not silently widen what this server
     reads unasked.
+
+    **One file id lookup per bundle, not one per excerpt.** The file excerpts share one
+    SEARCH (``chatgpt.file_entries``), started as one task before the excerpts and awaited
+    by each file excerpt inside its own budget, and its entries replace the stat PROPFIND
+    of the read as well. Measured in plan 27-09 against the wall clock gap of
+    27-VERIFICATION (scenario B, ``detail="full"``): three serial round trips per excerpt
+    became two, and a bundle sends five requests less. Notes and cards never wait for it.
+    When the shared lookup fails, every file excerpt takes the single route of ``fetch``
+    and so gets exactly the sentence it always got. The entries live in this call only and
+    the task is cancelled before the answer leaves (E3, D-25-05).
     """
     targets = [
         hit
@@ -756,9 +766,21 @@ async def _excerpts(
         if hit.get("resolvable") is not False
     ][:MAX_EXCERPTS]
 
-    outcomes = await asyncio.gather(
-        *(_excerpt(clients, str(hit["id"])) for hit in targets), return_exceptions=True
+    file_ids = [str(hit["id"]) for hit in targets if hit.get("kind") == "file"]
+    lookup = (
+        asyncio.create_task(chatgpt_tools.file_entries(clients, file_ids)) if file_ids else None
     )
+    try:
+        outcomes = await asyncio.gather(
+            *(
+                _excerpt(clients, str(hit["id"]), lookup if hit.get("kind") == "file" else None)
+                for hit in targets
+            ),
+            return_exceptions=True,
+        )
+    finally:
+        if lookup is not None:
+            await _settle(lookup)
     for hit, outcome in zip(targets, outcomes, strict=True):
         if isinstance(outcome, BaseException):
             # The hit was found, and that stays true even when its content cannot be read.
@@ -772,15 +794,46 @@ async def _excerpts(
         hit["excerpt"] = outcome
 
 
-async def _excerpt(clients: NcClients, identifier: str) -> str:
+async def _excerpt(
+    clients: NcClients,
+    identifier: str,
+    lookup: asyncio.Task[dict[str, dict[str, Any] | None]] | None = None,
+) -> str:
     """One excerpt, under its own two ceilings, through the routing that already exists.
 
     The second ceiling is the one on the way in: the reader is told how much it may read,
     instead of reading its own default and having it thrown away here (LO-06).
+
+    A file excerpt waits for the shared ``lookup`` of its bundle inside its own budget,
+    through ``asyncio.shield`` so its own timeout never cancels the lookup of the others.
+    A lookup that failed sends it the single route, with the sentence it always had.
     """
     async with asyncio.timeout(EXCERPT_TIMEOUT):
-        fetched = await chatgpt_tools.fetch(clients, identifier, max_bytes=EXCERPT_READ_BYTES)
+        resolved: dict[str, dict[str, Any] | None] | None = None
+        if lookup is not None:
+            try:
+                resolved = await asyncio.shield(lookup)
+            except chatgpt_tools.LOOKUP_FAILURES:
+                resolved = None
+        fetched = await chatgpt_tools.fetch(
+            clients, identifier, max_bytes=EXCERPT_READ_BYTES, resolved=resolved
+        )
     return _capped(str(fetched.get("text") or ""))
+
+
+async def _settle(lookup: asyncio.Task[Any]) -> None:
+    """Cancel the shared lookup if it still runs and collect whatever it ended with.
+
+    No request of this bundle may outlive its answer, and an exception nobody retrieved
+    would be logged as "never retrieved" long after the call; every excerpt that needed
+    it has already turned it into its own outcome.
+    """
+    if not lookup.done():
+        lookup.cancel()
+        # wait() and not await: a cancellation of this very task must still propagate.
+        await asyncio.wait([lookup])
+    if not lookup.cancelled():
+        lookup.exception()
 
 
 def _capped(text: str) -> str:
