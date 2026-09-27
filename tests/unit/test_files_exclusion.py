@@ -7,6 +7,8 @@ a pair: a withheld path and a path that does not exist must answer with the same
 its ``truncated`` or its cursor.
 """
 
+import json
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -267,3 +269,303 @@ async def test_input_errors_still_come_before_any_request(
         with pytest.raises(ToolError):
             await tool(_clients(), path="/Docs/notes.txt", **kwargs)
         assert mock.calls.call_count == 0
+
+
+# --- files_list ----------------------------------------------------------------------------
+
+
+def _folder(path: str, fileid: str, *children: tuple[str, str, bool]) -> str:
+    """A Depth-1 answer: the folder itself plus (name, fileid, is_folder) children."""
+    entries = [(path, _props(fileid=fileid, folder=True))]
+    entries += [
+        (f"{path}/{name}", _props(fileid=child_id, folder=is_folder, name=name))
+        for name, child_id, is_folder in children
+    ]
+    return _multistatus(*entries)
+
+
+def _listing_route(mock: respx.MockRouter, path: str, body: str) -> respx.Route:
+    return mock.route(method="PROPFIND", url=f"{HOME}{path}").mock(
+        return_value=httpx.Response(207, text=body)
+    )
+
+
+DOCS = _folder(
+    "/Docs",
+    "10",
+    ("a.txt", "11", False),
+    ("geheim.txt", "901", False),
+    ("Projekt", "900", True),
+    ("z.txt", "12", False),
+)
+DOCS_TAGS = (("Docs/geheim.txt", "901", False), ("Docs/Projekt", "900", True))
+
+
+async def _list(path: str, **kwargs: Any) -> dict[str, Any]:
+    return await files_tools.list_dir(_clients(), path=path, **kwargs)
+
+
+async def _list_refusal(path: str) -> ToolError:
+    with pytest.raises(ToolError) as caught:
+        await _list(path)
+    return caught.value
+
+
+@pytest.mark.anyio
+async def test_list_leaves_tagged_children_out_and_counts_only_visible_ones() -> None:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        _, report = guard_routes.active(mock, *DOCS_TAGS)
+        _listing_route(mock, "/Docs", DOCS)
+        result = await _list("/Docs", limit=2)
+
+    assert [item["path"] for item in result["items"]] == ["/Docs/a.txt", "/Docs/z.txt"]
+    assert result["count"] == 2
+    assert "truncated" not in result
+    assert "next" not in result
+    assert report.call_count == 1
+    dumped = json.dumps(result)
+    assert "withheld" not in dumped
+    assert "exclusion" not in dumped
+    assert "degraded" not in result
+
+
+@pytest.mark.anyio
+async def test_list_truncated_and_next_rest_on_the_filtered_list() -> None:
+    children = [(f"v{index}.txt", str(20 + index), False) for index in range(1, 6)]
+    children += [(f"t{index}.txt", str(950 + index), False) for index in range(1, 4)]
+    body = _folder("/Docs", "10", *children)
+    tags = tuple((f"Docs/t{index}.txt", str(950 + index), False) for index in range(1, 4))
+
+    pages: list[dict[str, Any]] = []
+    cursor: str | None = None
+    for _ in range(3):
+        with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+            guard_routes.active(mock, *tags)
+            _listing_route(mock, "/Docs", body)
+            page = await _list("/Docs", limit=2, cursor=cursor)
+        pages.append(page)
+        cursor = page.get("next")
+
+    assert [[item["name"] for item in page["items"]] for page in pages] == [
+        ["v1.txt", "v2.txt"],
+        ["v3.txt", "v4.txt"],
+        ["v5.txt"],
+    ]
+    assert pages[0]["truncated"] is True
+    assert pages[1]["truncated"] is True
+    assert "truncated" not in pages[2]
+    assert "next" not in pages[2]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/Projekt", _folder("/Projekt", "900", ("a.txt", "905", False))),
+        ("/Projekt/Unter", _folder("/Projekt/Unter", "906")),
+        ("/Docs/geheim.txt", _multistatus(("/Docs/geheim.txt", _props(fileid="901")))),
+    ],
+)
+async def test_a_tagged_list_target_answers_like_a_missing_one(path: str, body: str) -> None:
+    """Also a tagged file: "is a file, not a folder" would confirm that it exists."""
+    tags = (("Projekt", "900", True), ("Docs/geheim.txt", "901", False))
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, *tags)
+        _listing_route(mock, path, body)
+        tagged = await _list_refusal(path)
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, *tags)
+        _missing_route(mock, path)
+        missing = await _list_refusal(path)
+
+    assert _tuple(tagged) == _tuple(missing)
+    assert _tuple(tagged) == _tuple(dav.not_found(path))
+
+
+@pytest.mark.anyio
+async def test_list_unverifiable_answers_the_same_for_existing_and_missing_folders() -> None:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.unverifiable(mock)
+        _listing_route(mock, "/Docs", DOCS)
+        existing = await _list("/Docs", limit=1)
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.unverifiable(mock)
+        _missing_route(mock, "/Docs")
+        missing = await _list("/Docs", limit=1)
+
+    assert existing == missing
+    assert existing == {
+        "path": "/Docs",
+        "count": 0,
+        "items": [],
+        "degraded": [withhold.degraded_entry("source")],
+    }
+
+
+@pytest.mark.anyio
+async def test_list_untagged_is_json_equal_to_the_answer_without_a_guard() -> None:
+    with pytest.MonkeyPatch.context() as patch:
+        guard_routes.patch_untagged(patch)
+        with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+            _listing_route(mock, "/Docs", DOCS)
+            baseline = await _list("/Docs", limit=2)
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.untagged(mock)
+        report = mock.route(method="REPORT", url=guard_routes.HOME)
+        _listing_route(mock, "/Docs", DOCS)
+        result = await _list("/Docs", limit=2)
+
+    assert json.dumps(result) == json.dumps(baseline)
+    assert result["truncated"] is True
+    assert report.call_count == 0
+
+
+# --- files_search --------------------------------------------------------------------------
+
+
+def _hits(indices: range) -> str:
+    return _multistatus(
+        *(
+            (
+                f"/Docs/budget-{index}.md",
+                _props(fileid=str(5000 + index), name=f"budget-{index}.md"),
+            )
+            for index in indices
+        )
+    )
+
+
+#: budget-1 and budget-2 carry the tag.
+SEARCH_TAGS = (("Docs/budget-1.md", "5001", False), ("Docs/budget-2.md", "5002", False))
+
+
+def _sent_limits(route: respx.Route) -> list[int]:
+    limits = []
+    for call in route.calls:
+        found = re.search(rb"nresults>(\d+)<", call.request.content)
+        assert found is not None
+        limits.append(int(found[1]))
+    return limits
+
+
+def _names(result: dict[str, Any]) -> list[str]:
+    return [item["name"] for item in result["items"]]
+
+
+@pytest.mark.anyio
+async def test_search_fetches_more_when_tagged_hits_leave_the_window_short() -> None:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        _, report = guard_routes.active(mock, *SEARCH_TAGS)
+        search = mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            side_effect=[
+                httpx.Response(207, text=_hits(range(4))),
+                httpx.Response(207, text=_hits(range(8))),
+            ]
+        )
+        result = await files_tools.search(_clients(), query="budget", limit=3)
+
+    assert _sent_limits(search) == [4, 8]
+    assert report.call_count == 1, "the second SEARCH shares the scope, no second REPORT"
+    assert _names(result) == ["budget-0.md", "budget-3.md", "budget-4.md"]
+    assert result["count"] == 3
+    assert result["truncated"] is True
+    assert "next" in result
+
+
+@pytest.mark.anyio
+async def test_search_truncated_never_comes_from_the_raw_list() -> None:
+    """Four raw hits for a window of three, but only three visible: nothing is truncated."""
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, *SEARCH_TAGS)
+        search = mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            side_effect=[
+                httpx.Response(207, text=_hits(range(4))),
+                httpx.Response(207, text=_hits(range(5))),
+            ]
+        )
+        result = await files_tools.search(_clients(), query="budget", limit=3)
+
+    assert _sent_limits(search) == [4, 8]
+    assert _names(result) == ["budget-0.md", "budget-3.md", "budget-4.md"]
+    assert "truncated" not in result
+    assert "next" not in result
+    dumped = json.dumps(result)
+    assert "withheld" not in dumped
+    assert "exclusion" not in dumped
+
+
+@pytest.mark.anyio
+async def test_search_short_raw_list_needs_no_second_search() -> None:
+    """Three raw hits for a fetch of four: nothing more exists, one visible remains."""
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, *SEARCH_TAGS)
+        search = mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            return_value=httpx.Response(207, text=_hits(range(3)))
+        )
+        result = await files_tools.search(_clients(), query="budget", limit=3)
+
+    assert search.call_count == 1
+    assert result["count"] == 1
+    assert _names(result) == ["budget-0.md"]
+    assert "truncated" not in result
+
+
+@pytest.mark.anyio
+async def test_search_next_page_counts_visible_hits_only() -> None:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, *SEARCH_TAGS)
+        mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            return_value=httpx.Response(207, text=_hits(range(6)))
+        )
+        first = await files_tools.search(_clients(), query="budget", limit=2)
+        second = await files_tools.search(_clients(), query="budget", limit=2, cursor=first["next"])
+
+    assert _names(first) == ["budget-0.md", "budget-3.md"]
+    assert _names(second) == ["budget-4.md", "budget-5.md"]
+    assert "truncated" not in second
+
+
+@pytest.mark.anyio
+async def test_search_unverifiable_answers_empty_with_one_degraded_entry() -> None:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.unverifiable(mock)
+        mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            return_value=httpx.Response(207, text=_hits(range(10)))
+        )
+        result = await files_tools.search(_clients(), query="budget", limit=3)
+
+    assert result == {
+        "query": "budget",
+        "folder": "/",
+        "count": 0,
+        "items": [],
+        "note": files_tools.SEARCH_NOTE,
+        "degraded": [withhold.degraded_entry("source")],
+    }
+
+
+@pytest.mark.anyio
+async def test_search_untagged_is_json_equal_and_sends_one_search() -> None:
+    with pytest.MonkeyPatch.context() as patch:
+        guard_routes.patch_untagged(patch)
+        with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+            mock.route(method="SEARCH", url=SEARCH_URL).mock(
+                return_value=httpx.Response(207, text=_hits(range(4)))
+            )
+            baseline = await files_tools.search(_clients(), query="budget", limit=3)
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.untagged(mock)
+        report = mock.route(method="REPORT", url=guard_routes.HOME)
+        search = mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            return_value=httpx.Response(207, text=_hits(range(4)))
+        )
+        result = await files_tools.search(_clients(), query="budget", limit=3)
+
+    assert json.dumps(result) == json.dumps(baseline)
+    assert result["truncated"] is True
+    assert search.call_count == 1
+    assert report.call_count == 0

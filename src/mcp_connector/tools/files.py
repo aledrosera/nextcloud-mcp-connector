@@ -27,6 +27,7 @@ from .. import config, ids, paging
 from ..errors import ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
+from ..nextcloud.exclusion import TagScope
 from . import withhold
 
 DEFAULT_MAX_BYTES = 512 * 1024
@@ -117,6 +118,11 @@ async def search(
 
     A limit outside the range is capped instead of refused. The model asked a legitimate
     question with an unhelpful number, and an error would only cost a round trip.
+
+    Hits tagged ``kein-ki`` or below a tagged folder are left out without a trace, and
+    the offsets of the cursor count visible hits only, so ``truncated`` never turns into
+    a counter of withheld ones (EXCL-01). When the tag check cannot be answered, the hit
+    list is empty with one ``degraded`` entry (D-27-03).
     """
     term = (query or "").strip()
     if not term:
@@ -132,10 +138,30 @@ async def search(
         paging.check_scope(state, "f", target_folder, "search")
         offset = paging.read_offset(state)
 
-    scope = dav.search_scope(clients.creds, target_folder)
+    search_scope = dav.search_scope(clients.creds, target_folder)
     # One more than the window, so "there is more" is an observation and not a guess.
-    fetch = min(offset + capped + 1, MAX_SEARCH_FETCH)
-    hits = await dav.search(clients.client, clients.creds, scope, term, fetch)
+    needed = offset + capped + 1
+    tags, first = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        dav.search(
+            clients.client, clients.creds, search_scope, term, min(needed, MAX_SEARCH_FETCH)
+        ),
+        return_exceptions=True,
+    )
+    if isinstance(tags, BaseException):
+        raise tags
+    if tags.state == "unverifiable":
+        return {
+            "query": term,
+            "folder": target_folder,
+            "count": 0,
+            "items": [],
+            "note": SEARCH_NOTE,
+            "degraded": [withhold.degraded_entry("source")],
+        }
+    if isinstance(first, BaseException):
+        raise first
+    hits, at_ceiling = await _visible_hits(clients, tags, search_scope, term, needed, first)
 
     window = hits[offset : offset + capped]
     result: dict[str, Any] = {
@@ -148,7 +174,7 @@ async def search(
     if len(hits) > offset + capped:
         result["truncated"] = True
         result["next"] = paging.encode_cursor({"o": offset + capped, "q": term, "f": target_folder})
-    elif offset + capped + 1 > MAX_SEARCH_FETCH and len(hits) == MAX_SEARCH_FETCH:
+    elif at_ceiling:
         # The sentinel row could not be requested: the fetch was clamped at the ceiling
         # and the server filled it completely, so more hits may exist. No cursor here,
         # because a later page cannot be served past the ceiling (WR-02).
@@ -168,6 +194,10 @@ async def list_dir(
     The order is fixed here rather than left to the server, because the pages of a listing
     are cut out of it: an unstable order would silently drop or repeat entries between two
     pages.
+
+    Entries tagged ``kein-ki`` or below a tagged folder are left out without a trace, and
+    a tagged target answers like a missing one (EXCL-01). When the tag check cannot be
+    answered, the listing is empty with one ``degraded`` entry (D-27-03).
     """
     target = dav.safe_path(path)
     capped = min(max(limit, 1), MAX_LIST_LIMIT)
@@ -178,13 +208,37 @@ async def list_dir(
         paging.check_scope(state, "p", target, "listing")
         offset = paging.read_offset(state)
 
-    itself, children = await dav.propfind_children(clients.client, clients.creds, target)
+    scope, listing = await asyncio.gather(
+        clients.exclusion.scope(clients),
+        dav.propfind_children(clients.client, clients.creds, target),
+        return_exceptions=True,
+    )
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        # The PROPFIND outcome is not read at all, not even its 404: an existing and a
+        # missing folder have to answer the same while the check cannot be answered.
+        return {
+            "path": target,
+            "count": 0,
+            "items": [],
+            "degraded": [withhold.degraded_entry("source")],
+        }
+    if isinstance(listing, BaseException):
+        raise listing
+    itself, entries = listing
+    # The target first and before its form: "is a file" would confirm a withheld file.
+    if _withheld(scope, itself):
+        raise dav.not_found(target)
     if not itself["is_collection"]:
         raise ToolError(
             message=f"{target} is a file, not a folder.",
             hint="Use files_read to read a file, or list the folder that contains it.",
         )
 
+    # Filtered before the sort and the window, so count, truncated and next only ever
+    # see what the caller may see (D-v1.7-02).
+    children = [entry for entry in entries if not _withheld(scope, entry)]
     children.sort(key=lambda entry: (not entry["is_collection"], entry["name"].casefold()))
     window = children[offset : offset + capped]
 
@@ -197,6 +251,44 @@ async def list_dir(
         result["truncated"] = True
         result["next"] = paging.encode_cursor({"o": offset + capped, "p": target})
     return result
+
+
+def _withheld(scope: TagScope, entry: dict[str, Any]) -> bool:
+    """Whether a dav entry (absolute home path, fileid) is tagged or below a tagged folder."""
+    return scope.excludes(path=entry["path"], fileid=entry["fileid"] or None)
+
+
+async def _visible_hits(
+    clients: NcClients,
+    scope: TagScope,
+    search_scope: str,
+    term: str,
+    needed: int,
+    first: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """The visible hits of a search, fetched until ``needed`` of them are known.
+
+    ``first`` is the answer to the first SEARCH, which ran alongside the guard with the
+    limit ``min(needed, MAX_SEARCH_FETCH)``. Filtering can leave fewer visible hits than
+    the window plus its sentinel row needs; then the search is repeated with a doubled
+    limit, until enough are visible, the server returned fewer than asked for (nothing
+    more exists) or the limit reached :data:`MAX_SEARCH_FETCH`. Only then does
+    ``truncated`` rest on an observation of a visible hit, never on a withheld one. The
+    repeated searches share the scope, so they cost no REPORT; without a tag the first
+    answer always suffices and exactly one SEARCH goes out, as before.
+
+    The second value says whether the answer stopped at the ceiling with a full raw
+    list, so more hits may exist than could be asked for (the ``SEARCH_CAP_NOTE`` case).
+    """
+    fetch = min(needed, MAX_SEARCH_FETCH)
+    raw = first
+    while True:
+        visible = [hit for hit in raw if not _withheld(scope, hit)]
+        if len(visible) >= needed or len(raw) < fetch or fetch >= MAX_SEARCH_FETCH:
+            break
+        fetch = min(fetch * 2, MAX_SEARCH_FETCH)
+        raw = await dav.search(clients.client, clients.creds, search_scope, term, fetch)
+    return visible, fetch >= MAX_SEARCH_FETCH and len(raw) >= MAX_SEARCH_FETCH
 
 
 def _as_item(entry: dict[str, Any]) -> dict[str, Any]:
