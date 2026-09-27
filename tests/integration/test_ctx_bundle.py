@@ -113,15 +113,17 @@ RUNS = 5
 PHASE25_REFERENCE = {"short": 0.72, "full": 0.81}
 THRESHOLD = {"short": 0.88, "full": 0.97}
 
-#: The raw protocol of plan 27-08. The wall clock test writes it, the request cost test
-#: appends to it.
+#: The raw protocol of plan 27-09 (after the gap closure: one file id lookup per bundle).
+#: The wall clock test writes it, the request cost test appends to it. The protocol of plan
+#: 27-08, raw/27-08-prepare-context.txt, stays in the repository as the finding before the
+#: fix.
 RAW = (
     Path(__file__).resolve().parents[2]
     / ".planning"
     / "phases"
     / "27-familien-anschluss-und-sandbox-parit-t"
     / "raw"
-    / "27-08-prepare-context.txt"
+    / "27-09-prepare-context.txt"
 )
 RAW_COMMAND = (
     "set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest "
@@ -174,7 +176,7 @@ def note(line: str) -> None:
 
 
 def raw(line: str, *, mode: str = "a") -> None:
-    """Write one line into the raw protocol of plan 27-08."""
+    """Write one line into the raw protocol of plan 27-09."""
     RAW.parent.mkdir(parents=True, exist_ok=True)
     with RAW.open(mode, encoding="utf-8") as fh:
         fh.write(line.rstrip("\n") + "\n")
@@ -272,12 +274,18 @@ class RequestCounter:
 
     def __init__(self) -> None:
         self.legs: list[str] = []
+        self.propfinds = 0
 
     async def __call__(self, request: httpx.Request) -> None:
         self.legs.append(leg_of(request.url.path, request.method))
+        if request.method.upper() == "PROPFIND" and request.url.path.startswith(
+            "/remote.php/dav/files/"
+        ):
+            self.propfinds += 1
 
     def reset(self) -> None:
         self.legs.clear()
+        self.propfinds = 0
 
     def tally(self) -> dict[str, int]:
         counted: dict[str, int] = {}
@@ -619,6 +627,16 @@ def tag_fixture(exapp_env: dict[str, str]) -> Iterator[TagFixture]:
     assert all(line.endswith(": 0") for line in lines if "listed" in line), lines
 
 
+def _excerpt_kinds(bundle: dict[str, Any]) -> list[str]:
+    """The kinds of the hits ``_excerpts`` reads, in its own order (EXCERPT_KINDS, cap)."""
+    return [
+        name
+        for name in context_tools.EXCERPT_KINDS
+        for hit in bundle["results"].get(name, [])
+        if hit.get("resolvable") is not False
+    ][: context_tools.MAX_EXCERPTS]
+
+
 def _guard_tally(tally: dict[str, int]) -> str:
     return ",".join(f"{leg}={tally.get(leg, 0)}" for leg in GUARD_LEGS)
 
@@ -640,7 +658,7 @@ async def test_the_wall_clock_against_the_phase_25_reference(exapp_env: dict[str
     clients = _appapi_clients(exapp_env, exapp_env["alice"], {"request": [counter]})
     async with clients.client:
         status = (await clients.client.get(f"{clients.creds.base_url}/status.php")).json()
-        raw(f"# 27-08 prepare_context wall clock {time.strftime('%Y-%m-%d %H:%M:%S %z')}", mode="w")
+        raw(f"# 27-09 prepare_context wall clock {time.strftime('%Y-%m-%d %H:%M:%S %z')}", mode="w")
         raw(f"# command: {RAW_COMMAND}")
         raw(
             f"# nextcloud={status.get('versionstring')} (status.php), user={clients.creds.user}, "
@@ -683,15 +701,30 @@ async def test_the_wall_clock_against_the_phase_25_reference(exapp_env: dict[str
                         tally = counter.tally()
                         blob = json.dumps(bundle, ensure_ascii=False, default=str)
                         seen = data.hexid in blob
+                        read = _excerpt_kinds(bundle) if detail == context_tools.FULL else []
                         raw(
                             f"LAUF szenario={scenario} detail={detail} lauf="
                             f"{'warmup' if run == 0 else run} s={taken:.3f} "
                             f"requests={counter.total} guard[{_guard_tally(tally)}] "
+                            f"propfind={counter.propfinds} "
+                            f"ausschnitte={','.join(read) or '-'} "
                             f"testdaten_im_buendel={'ja' if seen else 'nein'} "
                             f"degraded={bundle.get('degraded') or 'empty'}"
                         )
                         if scenario == "B":
                             assert not seen, f"a tagged test node reached the bundle: {blob[:400]}"
+                        if detail == context_tools.FULL:
+                            # Plan 27-09: one file id SEARCH for all file excerpts of a
+                            # bundle, plus in scenario B the guard SEARCH of the search leg
+                            # and the path check of each note excerpt (notes.read resolves
+                            # a note id below a tagged folder on its own, plan 27-04, and
+                            # never joins the file batch); no stat, one REPORT per answer.
+                            kinds = _excerpt_kinds(bundle)
+                            bound = (1 if "file" in kinds else 0) + (
+                                1 + kinds.count("note") if scenario == "B" else 0
+                            )
+                            assert tally.get("files-search", 0) <= bound, (kinds, tally)
+                            assert tally.get("exclusion-report", 0) <= 1, tally
                         if run == 0:
                             continue
                         timings.append(taken)
