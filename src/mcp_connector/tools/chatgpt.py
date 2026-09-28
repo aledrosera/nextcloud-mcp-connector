@@ -826,12 +826,19 @@ async def _fetch_table(clients: NcClients, table_id: str) -> dict[str, Any]:
     success that invites a model to fill the gap itself (threat T-11-17). An answer that carries
     the header row alone is the same case, because that row is the shape of the table and not
     its content.
+
+    The rows pass the same ``tables_tools.screen_links`` as ``tables_browse`` before a cell is
+    rendered (D-28-14): a link cell of a file tagged ``kein-ki`` answers like an empty one, and
+    when the check could not be answered every file link is withheld and ``metadata`` says so.
+    A withheld cell is still a cell, so a row that carried nothing else still counts as a row.
     """
     await capabilities.require_app(clients, tables_tools.APP)
     table = await tables_client.get_table(clients.client, clients.creds, table_id)
     rows = await tables_client.get_rows_simple(
         clients.client, clients.creds, table_id, limit=TABLE_ROWS
     )
+    screened = await tables_tools.screen_links(clients, rows)
+    rows = screened.rows
 
     shown = max(len(rows) - 1, 0)
     if not shown:
@@ -867,6 +874,8 @@ async def _fetch_table(clients: NcClients, table_id: str) -> dict[str, Any]:
     }
     if truncated:
         metadata["truncated"] = "true"
+    if screened.unavailable:
+        metadata["degraded"] = withhold.EXCLUSION_UNAVAILABLE
 
     return {
         "id": ids.encode_table(table_id),
