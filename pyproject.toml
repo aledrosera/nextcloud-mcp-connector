@@ -54,7 +54,10 @@ markers = [
 # the import path. This entry does, and only for that directory: the files there import
 # `topology` and nothing else of each other. tests/unit carries exactly one module that is
 # not a test file as well, `guard_routes.py`, the mock helpers of the kein-ki guard.
-pythonpath = ["tests/integration", "tests/unit"]
+# tests/integration also carries `canary_world.py`, the harness of phase 28, next to
+# `topology.py`. tests/contract carries the data modules `tool_classes.py` and
+# `result_shapes.py`, which the canary and the pair tests import.
+pythonpath = ["tests/integration", "tests/unit", "tests/contract"]
 
 [tool.ruff]
 line-length = 100
