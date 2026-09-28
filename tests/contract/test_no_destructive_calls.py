@@ -121,6 +121,19 @@ FORBIDDEN: dict[str, str] = {
     "/api/tags": "no tool may create, change or delete a mail tag, or put one on a message",
     "/api/trustedsenders": "no tool may grant or withdraw trust in a sender: that is a "
     "security decision of the account holder",
+    # The three entries below guard EXCL-07: the tag ``kein-ki`` is the one fact the
+    # exclusion guard trusts, so for this server it is read only. The relation route is what
+    # assigns a system tag to a file or takes it away again, and the connector builds no form
+    # of it at all. The occ tag commands belong to the integration harness only, which lives
+    # in tests/ and therefore outside SRC. The legacy route is ``Api#updateFileTags`` of the
+    # Files app, which rewrites the old file tags and the favourite mark with a plain POST.
+    # PROPPATCH on ``oc:tags`` and ``oc:favorite`` needs no entry of its own: that verb is
+    # forbidden above for every target, and a counter proof below shows it reports both.
+    "systemtags-relations": "no tool may assign a system tag to a file or remove it from one",
+    "tag:files": "the occ commands tag:files:add and tag:files:delete belong to the test "
+    "harness only",
+    "/apps/files/api/v1/files": "no tool may change the legacy file tags or the favourite "
+    "mark via POST",
 }
 
 # The only MOVE in production is Nextcloud's internal chunk-assembly step. It carries
@@ -174,6 +187,45 @@ MAIL_ROUTES: dict[str, str] = {
     "/api/tags": '    await ocs.ocs_post(client, creds, f"/apps/mail/api/tags/{tag}", body)',
     "/api/trustedsenders": '    url = ocs.ocs_url(creds, f"/apps/mail/api/trustedsenders/{s}")',
 }
+
+#: The three needles above that name a tag write path (EXCL-07), in a fixed order so the
+#: counting test below can compare them against their counter proofs as a set.
+SYSTEMTAGS_NEEDLES = ("systemtags-relations", "tag:files", "/apps/files/api/v1/files")
+
+#: The three tag needles with a line that would carry them into the code. Same job as the
+#: route dictionaries of Tables, Talk and Mail: a needle nobody ever hit is indistinguishable
+#: from no needle at all. Every line is written the way this project writes a path, an
+#: f-string with the base URL in it, and the occ line the way the integration harness spells
+#: the command it runs inside the container.
+SYSTEMTAGS_ROUTES: dict[str, str] = {
+    "systemtags-relations": "    await client.put("
+    'f"{creds.base_url}/remote.php/dav/systemtags-relations/files/{fileid}/{tag_id}")',
+    "tag:files": '    occ("tag:files:add", target, "kein-ki", "public")',
+    "/apps/files/api/v1/files": "    await client.post("
+    'f"{creds.base_url}/index.php/apps/files/api/v1/files{path}", json={"tags": tags})',
+}
+
+#: The two verbs a call on the system tag collection may carry. Everything else that touches
+#: that collection writes: POST creates a tag, PROPPATCH renames it or changes who may see
+#: and assign it, PUT and DELETE work on relations and tags (EXCL-07).
+READ_METHODS = frozenset({"PROPFIND", "REPORT"})
+
+#: The attribute names of an HTTP call on an httpx client. ``get`` is missing on purpose: it
+#: is also the name of every dictionary lookup, and a GET changes nothing anyway.
+CALL_ATTRS = frozenset({"request", "post", "put", "patch", "delete", "stream", "send"})
+
+#: The one module that talks to the system tag collection, held to the rule that it reads.
+SYSTEMTAGS_MODULE = "nextcloud/clients/systemtags.py"
+
+#: The two forms :mod:`mcp_connector.nextcloud.clients.systemtags` really builds, as pairs of
+#: verb and target in the spelling ``ast.unparse`` gives them: the tag listing on the
+#: collection and the one REPORT on the home root. The line needles cannot deliver this half
+#: of the proof, because both calls are written over several lines and a needle never sees
+#: the verb and the target on the same one.
+ALLOWED_SYSTEMTAGS_FORMS = (
+    ("PROPFIND", "f'{creds.base_url}{TAGS_PATH}'"),
+    ("REPORT", "home_url(creds)"),
+)
 
 #: The four forms :mod:`mcp_connector.nextcloud.clients.mail` really builds, written the way
 #: that module writes them: as the four path constants at the top of the file. This tuple is
@@ -615,6 +667,232 @@ def test_the_mail_modules_are_read_only_in_their_source(relative: str) -> None:
     findings = [call for call in WRITING_CALLS if call in text]
     assert findings == [], (
         f"{relative} is a read only module and must contain nothing but GETs: {findings}"
+    )
+
+
+@pytest.mark.parametrize(("needle", "line"), sorted(SYSTEMTAGS_ROUTES.items()))
+def test_each_systemtags_needle_trips_on_its_route_and_leaves_the_real_module_alone(
+    needle: str, line: str
+) -> None:
+    """Counter proof per tag needle: it hits the write path, and it misses today's code.
+
+    The tag ``kein-ki`` is the one thing the exclusion guard trusts, so this server must be
+    unable to put it on a file or take it away (EXCL-07). A POST or a PUT is enough for
+    either, and both are allowed verbs here, which is why the route itself is the needle.
+    The real source of the system tag client stays clean, and the same check reports each
+    route as soon as one line carries it.
+    """
+    relative = "nextcloud/clients/systemtags.py"
+    real = _code_lines(SRC / relative)
+    assert _violations(relative, real) == [], (
+        f"{relative} must be clean before a needle can prove anything"
+    )
+
+    findings = _violations(relative, [*real, (len(real) + 1, line)])
+    assert any(repr(needle) in finding for finding in findings), (
+        f"the gate must report {needle!r} for: {line.strip()}"
+    )
+
+
+def test_every_systemtags_needle_of_this_phase_has_a_counter_proof() -> None:
+    """A needle without a counter proof is a claim, and this file does not make claims."""
+    assert set(SYSTEMTAGS_ROUTES) == set(SYSTEMTAGS_NEEDLES), (
+        "every tag needle needs exactly one line here, and every line exactly one needle"
+    )
+    unarmed = sorted(needle for needle in SYSTEMTAGS_NEEDLES if needle not in FORBIDDEN)
+    assert unarmed == [], f"a tag needle that is not armed in FORBIDDEN: {unarmed}"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '    await client.request("PROPPATCH", url, content=b"<oc:tags>kein-ki</oc:tags>")',
+        '    await client.request("PROPPATCH", url, content=b"<oc:favorite>1</oc:favorite>")',
+    ],
+)
+def test_legacy_file_tag_writes_are_caught_by_the_global_proppatch_needle(line: str) -> None:
+    """The old file tags and the favourite mark are properties, so PROPPATCH already guards them.
+
+    No needle of their own: PROPPATCH is forbidden everywhere, and a second needle for the same
+    verb would only look like more security. What this test adds is the proof that the global
+    needle really reports both properties in the module where such a write would be written.
+    """
+    relative = "nextcloud/clients/dav.py"
+    real = _code_lines(SRC / relative)
+    findings = _violations(relative, [*real, (len(real) + 1, line)])
+    assert any(repr("PROPPATCH") in finding for finding in findings), (
+        f"the gate must report 'PROPPATCH' for: {line.strip()}"
+    )
+
+
+def _mentions_tags(node: ast.AST) -> bool:
+    """True when a call names the tag collection: the constant, or a literal carrying it.
+
+    ``ast.walk`` descends into the parts of an f-string as well, so a literal piece such as
+    ``/remote.php/dav/systemtags/`` inside ``f"{base}/remote.php/dav/systemtags/{id}"`` counts.
+    """
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and sub.id == "TAGS_PATH":
+            return True
+        if isinstance(sub, ast.Attribute) and sub.attr == "TAGS_PATH":
+            return True
+        if (
+            isinstance(sub, ast.Constant)
+            and isinstance(sub.value, str)
+            and "systemtags" in sub.value
+        ):
+            return True
+    return False
+
+
+def _is_a_read_request(node: ast.Call) -> bool:
+    """True for ``*.request(<PROPFIND or REPORT>, ...)`` and for nothing else."""
+    if not isinstance(node.func, ast.Attribute) or node.func.attr != "request":
+        return False
+    verb = node.args[0] if node.args else None
+    return isinstance(verb, ast.Constant) and verb.value in READ_METHODS
+
+
+def _http_calls(source: str) -> list[ast.Call]:
+    """Every call whose attribute name is one of :data:`CALL_ATTRS`, in source order."""
+    return [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in CALL_ATTRS
+    ]
+
+
+def tag_writes(relative: str, source: str) -> list[str]:
+    """Every HTTP call that names the tag collection and is not a PROPFIND or a REPORT.
+
+    The check works on whole call nodes, not on lines: the two real calls are written over
+    several lines, so a verb and its target never share one and a line needle would walk
+    past a POST written the same way (T-28-22).
+    """
+    return [
+        f"{relative}:{node.lineno}: write on systemtags"
+        for node in _http_calls(source)
+        if _mentions_tags(node) and not _is_a_read_request(node)
+    ]
+
+
+def systemtags_module_writes(source: str) -> list[str]:
+    """Every HTTP call in the system tag client that is not a PROPFIND or a REPORT.
+
+    This is the rule no mention check can replace: the REPORT goes to ``home_url(creds)``,
+    which names neither the constant nor the word, so a write on that target would pass
+    :func:`tag_writes` unseen (T-28-23).
+    """
+    return [
+        f"{SYSTEMTAGS_MODULE}:{node.lineno}: the system tag client may only read"
+        for node in _http_calls(source)
+        if not _is_a_read_request(node)
+    ]
+
+
+def _systemtags_request_forms(source: str) -> tuple[tuple[str, str], ...]:
+    """The pair of verb and unparsed target of every ``request`` call, in source order."""
+    forms: list[tuple[str, str]] = []
+    for node in _http_calls(source):
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "request":
+            continue
+        verb = ast.unparse(node.args[0]).strip("'\"") if node.args else ""
+        target = ast.unparse(node.args[1]) if len(node.args) > 1 else ""
+        forms.append((verb, target))
+    return tuple(sorted(forms))
+
+
+def test_no_module_writes_on_systemtags() -> None:
+    """EXCL-07: every call on the tag collection anywhere in src/ is a PROPFIND or a REPORT."""
+    findings: list[str] = []
+    for path in _source_files():
+        relative = path.relative_to(SRC).as_posix()
+        findings.extend(tag_writes(relative, path.read_text(encoding="utf-8")))
+
+    assert findings == [], "write on the system tag collection found:\n" + "\n".join(findings)
+
+
+_MULTILINE_TAG_WRITES = {
+    "POST on TAGS_PATH": (
+        "    await client.request(\n"
+        '        "POST",\n'
+        '        f"{creds.base_url}{TAGS_PATH}",\n'
+        "    )\n"
+    ),
+    "PROPPATCH on TAGS_PATH": (
+        "    await client.request(\n"
+        '        "PROPPATCH",\n'
+        '        f"{creds.base_url}{TAGS_PATH}{tag_id}",\n'
+        '        content=b"<oc:user-assignable>true</oc:user-assignable>",\n'
+        "    )\n"
+    ),
+    "delete on a tag": (
+        '    await client.delete(f"{creds.base_url}/remote.php/dav/systemtags/{tag_id}")\n'
+    ),
+    "put on a relation": (
+        "    await client.put(\n"
+        '        f"{creds.base_url}/remote.php/dav/systemtags/{tag_id}/files",\n'
+        '        content=b"",\n'
+        "    )\n"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "injected", list(_MULTILINE_TAG_WRITES.values()), ids=list(_MULTILINE_TAG_WRITES)
+)
+def test_the_systemtags_check_would_notice_a_multiline_write_in_real_code(injected: str) -> None:
+    """Counter proof: the real client is clean, and a write appended to it is reported.
+
+    The appended function runs through :func:`tag_writes`, the same function the gate uses:
+    a counter proof that reimplements the check proves something about the counter proof.
+    """
+    real = (SRC / SYSTEMTAGS_MODULE).read_text(encoding="utf-8")
+    assert tag_writes(SYSTEMTAGS_MODULE, real) == [], (
+        f"{SYSTEMTAGS_MODULE} must be clean before the injected call can prove anything"
+    )
+
+    source = f"{real}\n\nasync def _injected(client, creds, tag_id):\n{injected}"
+    assert tag_writes(SYSTEMTAGS_MODULE, source) != [], (
+        f"the check must report the injected write:\n{injected}"
+    )
+
+
+@pytest.mark.parametrize(
+    "injected",
+    [
+        '    await client.put(home_url(creds), content=b"")\n',
+        '    await client.request("POST", home_url(creds))\n',
+    ],
+)
+def test_the_systemtags_client_only_reads(injected: str) -> None:
+    """The module rule: no call in the system tag client writes, whatever it would address.
+
+    ``home_url(creds)`` names neither ``TAGS_PATH`` nor the word systemtags, so the mention
+    check alone would let a write on the home root through. This rule sees it.
+    """
+    real = (SRC / SYSTEMTAGS_MODULE).read_text(encoding="utf-8")
+    assert systemtags_module_writes(real) == [], (
+        f"{SYSTEMTAGS_MODULE} is a read only module and must contain nothing but reads"
+    )
+
+    source = f"{real}\n\nasync def _injected(client, creds):\n{injected}"
+    assert systemtags_module_writes(source) != [], (
+        f"the module rule must report the injected write: {injected.strip()}"
+    )
+
+
+def test_the_two_forms_the_systemtags_client_really_builds_stay_allowed() -> None:
+    """The other half of the proof: exactly the listing and the one REPORT, nothing more.
+
+    A third form is a decision about the tag the guard trusts, and a decision has to be made
+    in a review and not in a diff.
+    """
+    real = (SRC / SYSTEMTAGS_MODULE).read_text(encoding="utf-8")
+    assert _systemtags_request_forms(real) == tuple(sorted(ALLOWED_SYSTEMTAGS_FORMS)), (
+        "the system tag client builds a request form nobody allowed"
     )
 
 
