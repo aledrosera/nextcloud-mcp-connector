@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: ready_to_plan
-stopped_at: Phase 27 complete (10/10, verification human_needed nur SBX-01-CI), ready to discuss Phase 28
-last_updated: 2026-09-28T09:13:28.323Z
-last_activity: 2026-09-28 -- Phase 27 complete (Wanduhr-Neumessung, Owner-Abnahme, Verifier)
+status: planning
+stopped_at: Phase 28 context gathered
+last_updated: "2026-09-28T09:42:07.749Z"
+last_activity: 2026-09-28 -- Phase 28 context gathered
 progress:
   total_phases: 5
   completed_phases: 3
@@ -816,13 +816,12 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-28
-Stopped at: Phase 27 complete (Wanduhr per Owner-Abnahme 28.09., Verification human_needed nur SBX-01-CI)
-Nächster Schritt: /gsd:secure-phase 27, danach /gsd:discuss-phase 28 (Gates und Beweise)
-Resume file: .planning/phases/27-familien-anschluss-und-sandbox-parit-t/27-VERIFICATION.md
+Last session: 2026-09-28T09:42:07.727Z
+Stopped at: Phase 28 context gathered
+Nächster Schritt: /gsd:plan-phase 28 (Gates und Beweise, 28-CONTEXT.md D-28-01..13)
+Resume file: .planning/phases/28-gates-und-beweise/28-CONTEXT.md
 
 ## Operator Next Steps
 
-- /gsd:secure-phase 27
-- /gsd:discuss-phase 28
+- /gsd:plan-phase 28
 - Push-Entscheid (Owner): danach SBX-01-CI-Schritt prüfen
