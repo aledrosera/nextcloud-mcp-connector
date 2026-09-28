@@ -30,8 +30,8 @@ import httpx
 import pytest
 import respx
 from mcp import Client
-from result_shapes import normalised  # pyright: ignore[reportMissingImports]
-from tool_classes import NAMED_EXCEPTIONS, PAIR_CASES  # pyright: ignore[reportMissingImports]
+from result_shapes import normalised
+from tool_classes import NAMED_EXCEPTIONS, PAIR_CASES
 
 from mcp_connector.nextcloud import capabilities
 from mcp_connector.server import mcp
