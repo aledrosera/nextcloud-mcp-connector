@@ -260,9 +260,9 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 28-05-PLAN.md: Fix D-28-14 Tables-Link-Zellen in tables_browse und fetch(table) (Wave 2)
-- [ ] 28-06-PLAN.md: B5/B6 nach Owner-Entscheid D-28-19/20 (Wave 2)
-- [ ] 28-07-PLAN.md: Kanarien-Welt mit Aufbau- und Aufräumbeweis (Wave 2)
+- [x] 28-05-PLAN.md: Fix D-28-14 Tables-Link-Zellen in tables_browse und fetch(table) (Wave 2)
+- [x] 28-06-PLAN.md: B5/B6 nach Owner-Entscheid D-28-19/20 (Wave 2)
+- [x] 28-07-PLAN.md: Kanarien-Welt mit Aufbau- und Aufräumbeweis (Wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -326,7 +326,7 @@ Plans:
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
-| 28. Gates und Beweise | v1.7 | 4/12 | In Progress|  |
+| 28. Gates und Beweise | v1.7 | 7/12 | In Progress|  |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
 ## Coverage v1.7
