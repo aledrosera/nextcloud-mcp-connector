@@ -569,3 +569,86 @@ async def test_search_untagged_is_json_equal_and_sends_one_search() -> None:
     assert result["truncated"] is True
     assert search.call_count == 1
     assert report.call_count == 0
+
+
+# --- files_search with a tagged folder as its root (B5, D-28-19) ---------------------------
+
+#: The SEARCH answer of an invented scope, as nc35 gave it in 28-01 (A3): a Sabre 404.
+_SEARCH_404 = (
+    '<?xml version="1.0" encoding="utf-8"?>'
+    '<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">'
+    "<s:exception>Sabre\\DAV\\Exception\\NotFound</s:exception>"
+    "<s:message>File with name /Projekt could not be located</s:message></d:error>"
+)
+#: The SEARCH answer of a tagged scope in 28-01: an empty 207.
+_SEARCH_EMPTY = '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"/>'
+FOLDER_TAGS = (("Projekt", "900", True),)
+
+
+async def _search_refusal(folder: str, status: int, body: str) -> tuple[ToolError, int]:
+    """One files_search under an active guard; the refusal and the number of SEARCHes."""
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, *FOLDER_TAGS)
+        search = mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            return_value=httpx.Response(status, text=body)
+        )
+        with pytest.raises(ToolError) as caught:
+            await files_tools.search(_clients(), query="budget", folder=folder)
+    return caught.value, search.call_count
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("folder", ["/Projekt", "/Projekt/Unter"])
+async def test_search_in_a_tagged_folder_answers_like_an_invented_folder(folder: str) -> None:
+    """D-28-19: the tagged root answers up front with the 404 of an invented root.
+
+    Before the fix the tagged folder gave an empty hit list without an error, while the
+    invented one failed with ``File not found: /files/<user>/<folder>`` (28-01, A3). The
+    mocked answers are the ones nc35 gave: an empty 207 and a Sabre 404.
+    """
+    tagged, tagged_calls = await _search_refusal(folder, 207, _SEARCH_EMPTY)
+    invented, invented_calls = await _search_refusal(folder, 404, _SEARCH_404)
+
+    assert _tuple(tagged) == _tuple(invented)
+    assert _tuple(tagged) == _tuple(dav.not_found(f"/files/{USER}{folder}"))
+    assert tagged_calls == invented_calls == 1, "no own SEARCH, no extra request"
+
+
+@pytest.mark.anyio
+async def test_search_in_a_tagged_folder_and_an_invented_one_differ_only_in_the_path() -> None:
+    """Two different folders: the answers are equal once the two paths are replaced."""
+    tagged, _ = await _search_refusal("/Projekt", 207, _SEARCH_EMPTY)
+    invented, _ = await _search_refusal("/erfunden-1", 404, _SEARCH_404)
+
+    tagged_text = tagged.message.replace("/Projekt", "<F>")
+    invented_text = invented.message.replace("/erfunden-1", "<F>")
+    assert tagged_text == invented_text
+    assert (tagged.hint, tagged.reason) == (invented.hint, invented.reason)
+
+
+@pytest.mark.anyio
+async def test_search_in_a_visible_sibling_of_a_tagged_folder_is_not_refused() -> None:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, *FOLDER_TAGS)
+        mock.route(method="SEARCH", url=SEARCH_URL).mock(
+            return_value=httpx.Response(207, text=_hits(range(1)))
+        )
+        result = await files_tools.search(_clients(), query="budget", folder="/Projekt2")
+
+    assert result["count"] == 1
+
+
+@pytest.mark.anyio
+async def test_search_unverifiable_answers_tagged_and_invented_folders_alike() -> None:
+    answers = []
+    for status, body in ((207, _SEARCH_EMPTY), (404, _SEARCH_404)):
+        with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+            guard_routes.unverifiable(mock)
+            mock.route(method="SEARCH", url=SEARCH_URL).mock(
+                return_value=httpx.Response(status, text=body)
+            )
+            answers.append(await files_tools.search(_clients(), query="budget", folder="/Projekt"))
+
+    assert answers[0] == answers[1]
+    assert answers[0]["degraded"] == [withhold.degraded_entry("source")]
+    assert answers[0]["count"] == 0
