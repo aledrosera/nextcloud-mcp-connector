@@ -158,6 +158,36 @@ async def test_unverifiable_refuses_every_id_with_the_one_uniform_error() -> Non
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("status", [500, 503])
+async def test_a_failing_lookup_answers_a_tagged_id_and_an_unknown_one_alike(status: int) -> None:
+    """D-28-17: the error of the lookup answers before the tag, like files._visible_stat."""
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        mock.route(method="SEARCH", url=DAV_ROOT).mock(return_value=httpx.Response(status))
+        tagged = await refusal("file:901")
+
+    guard_routes.reset()
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        mock.route(method="SEARCH", url=DAV_ROOT).mock(return_value=httpx.Response(status))
+        invented = await refusal("file:999999999")
+
+    assert tagged == tuple(part.replace("999999999", "901") for part in invented)
+    assert "geheim" not in "".join(tagged)
+    assert tagged != await unknown("901")
+
+
+@pytest.mark.anyio
+async def test_unverifiable_still_answers_before_a_failing_lookup() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.unverifiable(mock)
+        mock.route(method="SEARCH", url=DAV_ROOT).mock(return_value=httpx.Response(500))
+        tagged = await refusal("file:901")
+
+    assert tagged == triple(withhold.unavailable_error())
+
+
+@pytest.mark.anyio
 async def test_one_fetch_sends_exactly_one_report() -> None:
     """files_tools.read asks the same guard again; the fast path answers, no second REPORT."""
     with respx.mock(assert_all_called=False) as mock:
