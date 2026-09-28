@@ -223,6 +223,50 @@ async def test_a_tag_set_between_two_chunks_stops_the_final_call() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("chunk_status", [404, 409])
+async def test_first_binary_chunk_into_a_tagged_folder_answers_like_an_invented_folder(
+    chunk_status: int,
+) -> None:
+    """B6, D-28-20 (no finding): chunk 1 of a multi-chunk upload, measured on nc35 in 28-01.
+
+    Into an invented folder Nextcloud accepts the MKCOL of the staging folder and refuses
+    the missing destination at the first chunk PUT; the connector turns that into the
+    missing-parent sentence. The tagged folder gets the same sentence before any write,
+    so the two answer alike except for the path. The staging folder the invented case
+    leaves behind is no oracle (no tool reads the upload area) and is a cleanup note for
+    phase 29, not part of this pin.
+    """
+    chunk = b"x" * files_tools.MIN_UPLOAD_CHUNK_BYTES
+    args: dict[str, Any] = {
+        "content_base64": base64.b64encode(chunk).decode("ascii"),
+        "total_bytes": len(chunk) + 4,
+        "final": False,
+    }
+    tagged_path = "/Projekt/neu.bin"
+    invented_path = "/erfunden-1/neu.bin"
+
+    with _mock() as mock:
+        guard_routes.active(mock, TAGGED_FOLDER)
+        tagged_writes = _Writes(mock, tagged_path)
+        tagged = await _binary(tagged_path, **args)
+
+    with _mock() as mock:
+        guard_routes.reset()
+        guard_routes.active(mock, TAGGED_FOLDER)
+        invented_writes = _Writes(mock, invented_path)
+        invented_writes.chunk.mock(return_value=httpx.Response(chunk_status))
+        invented = await _binary(invented_path, **args)
+
+    assert tagged_writes.count == 0, "no MKCOL, no chunk PUT for the tagged target"
+    assert (invented_writes.mkcol.call_count, invented_writes.chunk.call_count) == (1, 1)
+    assert tagged.message.replace("/Projekt", "<F>") == invented.message.replace(
+        "/erfunden-1", "<F>"
+    )
+    assert (tagged.hint, tagged.reason) == (invented.hint, invented.reason)
+    assert _tuple(tagged) == _tuple(dav.parent_missing(tagged_path))
+
+
+@pytest.mark.anyio
 async def test_unverifiable_refuses_every_upload_alike_without_writing() -> None:
     refusals: list[ToolError] = []
     counts: list[int] = []

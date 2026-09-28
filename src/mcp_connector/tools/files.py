@@ -124,6 +124,11 @@ async def search(
     the offsets of the cursor count visible hits only, so ``truncated`` never turns into
     a counter of withheld ones (EXCL-01). When the tag check cannot be answered, the hit
     list is empty with one ``degraded`` entry (D-27-03).
+
+    A tagged folder, or one below a tagged folder, given as ``folder`` does not exist as a
+    search root (D-28-19): it answers with exactly the ``File not found`` of an invented
+    folder, the same scope path included, instead of an empty hit list that would tell the
+    two apart. No request is added for it; the one SEARCH is sent either way.
     """
     term = (query or "").strip()
     if not term:
@@ -160,6 +165,10 @@ async def search(
             "note": SEARCH_NOTE,
             "degraded": [withhold.degraded_entry("source")],
         }
+    # D-28-19: a tagged folder does not exist as a search root. It answers with the 404 of
+    # an invented root, from the same factory and before the SEARCH outcome is read.
+    if tags.excludes(path=target_folder):
+        raise dav.not_found(search_scope)
     if isinstance(first, BaseException):
         raise first
     hits, at_ceiling = await _visible_hits(clients, tags, search_scope, term, needed, first)
