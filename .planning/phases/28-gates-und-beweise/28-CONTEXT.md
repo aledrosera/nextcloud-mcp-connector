@@ -1,7 +1,7 @@
 # Phase 28: Gates und Beweise - Context
 
 **Gathered:** 2026-09-28
-**Status:** Ready for planning
+**Status:** Ready for planning (Nachentscheide D-28-14..17 nach Research)
 
 <domain>
 ## Phase Boundary
@@ -40,6 +40,13 @@ Code in `src/` wird nur angefasst, wenn ein Beweis eine echte Lücke aufdeckt; d
 
 ### ChatGPT-search ohne degraded-Feld (Merker aus Phase 27)
 - **D-28-13:** Hinnehmen, testen, dokumentieren. Das Schema `{results:[{id,title,url}]}` bleibt unangetastet. Phase 28 beweist im Kanarien- und Paartest nur, dass im Ausfall nichts Getaggtes durchkommt. Dass `search` im Ausfall weniger Treffer liefert, ohne das zu melden, wird ein akzeptiertes Risiko mit einem Satz Doku in Phase 29. (Owner 28.09., Empfehlung übernommen)
+
+### Nachentscheide nach der Research (Owner 28.09., alle Empfehlung übernommen)
+- **D-28-14 (B1 Tables):** In Phase 28 fixen. `tables_browse` wird Leser (Aufteilung 12 liest / 3 schreibt / 7 nicht betroffen). Link-Zellen, die auf eine getaggte fileid zeigen (Name plus `/f/<fileid>`), werden wie ein leerer Wert behandelt, auch in `fetch(table:)`; im Ausfall fail-closed mit dem degraded-Idiom der Familie und `withhold.EXCLUSION_UNAVAILABLE`. Das Format der Link-Zelle in `rows/simple` (Research A1) wird vor dem Fix live gemessen.
+- **D-28-15 (B2 Talk):** Angleichen. Im Ausfall bekommt jedes Token, das nicht in der Konversationsliste sichtbar ist, denselben Einheitsfehler (`withhold.unavailable_error()`), auch ein erfundenes; gilt für `talk_send`, `talk_browse` auf Nachrichtenebene und `fetch(message:)` (Research B2, `talk.py:847-858`).
+- **D-28-16 (B4 notes_create):** Benannte, akzeptierte Ausnahme in der Paarliste: nicht existente Kategorie wird angelegt, getaggte wird abgewiesen. Ein Test hält genau diesen Unterschied fest (Pin, damit er nicht still wächst); Doku als Restorakel in Phase 29, gleicher Art wie T-27-16.
+- **D-28-17 (B3 Reihenfolge):** `fetch(file:)` und `notes_read` werten den Fehler des parallelen Requests VOR der Tag-Entscheidung aus, nach dem Muster `_visible_stat`; der Paartest deckt den 5xx-Fall ab.
+- Die offenen Live-Fragen der Research (A1 Link-Zellenformat, A3 SEARCH auf fehlendem Scope bzw. B5 `files_search` mit getaggtem `folder`, A4/B6 erster Chunk eines Binär-Uploads) werden im ersten Plan gemessen, bevor Fixes und Paartests darauf bauen; ein Befund, der eine neue Lücke zeigt, geht an den Owner-Checkpoint.
 
 ### Aus früheren Phasen übernommene Entscheide (gelten unverändert, nicht neu verhandeln)
 - **D-v1.7-01/02:** Fester Tag-Name `kein-ki`, Groß-/Kleinschreibung egal, Varianten vereinigt; kein Zähler für Zurückgehaltenes.
