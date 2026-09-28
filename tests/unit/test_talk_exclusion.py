@@ -540,6 +540,7 @@ async def test_the_history_of_a_tagged_file_conversation_answers_like_an_unknown
     guard_routes.reset()
     with respx.mock(assert_all_called=False) as mock:
         mock_talk(mock, [room()], None)
+        guard_routes.untagged(mock)
         with pytest.raises(ToolError) as unknown:
             await talk_tools.browse(fresh(), level="messages", token=FILE_TOKEN)
 
@@ -562,6 +563,7 @@ async def test_sending_into_a_tagged_file_conversation_answers_like_an_unknown_t
     guard_routes.reset()
     with respx.mock(assert_all_called=False) as mock:
         mock_talk(mock, [room()], None)
+        guard_routes.untagged(mock)
         with pytest.raises(ToolError) as unknown:
             await talk_tools.send(fresh(), FILE_TOKEN, "Hallo")
 
@@ -600,3 +602,84 @@ async def test_an_untagged_file_conversation_stays_readable() -> None:
 
     assert answer["conversation"] == SECRET_NAME
     assert answer["results"][0]["message"] == "Zur Datei"
+
+
+# --- invented tokens while the check cannot be answered (D-28-15) -------------------------
+
+INVENTED = "nosuch99"
+
+#: The three outage forms of the guard: REPORT 500, 412 on every REPORT, REPORT timeout.
+OUTAGES = ("unverifiable", "stale", "timeout")
+
+
+def arm_outage(mock: respx.MockRouter, outage: str) -> None:
+    getattr(guard_routes, outage)(mock)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("outage", OUTAGES)
+async def test_an_invented_token_in_an_outage_answers_like_a_file_conversation(
+    outage: str,
+) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        arm_outage(mock, outage)
+        with pytest.raises(ToolError) as file_conversation:
+            await talk_tools.browse(fresh(), level="messages", token=FILE_TOKEN)
+
+    guard_routes.reset()
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        arm_outage(mock, outage)
+        with pytest.raises(ToolError) as invented:
+            await talk_tools.browse(fresh(), level="messages", token=INVENTED)
+
+    assert refusal(invented.value) == refusal(withhold.unavailable_error())
+    assert refusal(invented.value) == refusal(file_conversation.value)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("outage", OUTAGES)
+async def test_sending_with_an_invented_token_in_an_outage_is_the_unit_refusal(
+    outage: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("NC_MCP_TALK_SEND", raising=False)
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        arm_outage(mock, outage)
+        post = mock.post(f"{CHAT_BASE}/{INVENTED}")
+        with pytest.raises(ToolError) as invented:
+            await talk_tools.send(fresh(), INVENTED, "Hallo")
+
+    assert post.call_count == 0
+    assert refusal(invented.value) == refusal(withhold.unavailable_error())
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("outage", OUTAGES)
+async def test_one_room_refuses_an_invented_token_in_an_outage(outage: str) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [room()], None)
+        arm_outage(mock, outage)
+        with pytest.raises(ToolError) as invented:
+            await talk_tools.one_room(fresh(), INVENTED, include_last_message=False)
+
+    assert refusal(invented.value) == refusal(withhold.unavailable_error())
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("state", ["untagged", "active"])
+async def test_an_invented_token_outside_an_outage_is_still_an_unknown_token(state: str) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], None)
+        if state == "untagged":
+            guard_routes.untagged(mock)
+        else:
+            guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        with pytest.raises(ToolError) as invented:
+            await talk_tools.one_room(fresh(), INVENTED, include_last_message=False)
+
+    assert invented.value.message == (
+        f"The token {INVENTED!r} is not in the conversation list of this account."
+    )
+    assert refusal(invented.value) != refusal(withhold.unavailable_error())
