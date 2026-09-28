@@ -272,7 +272,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 28-11-PLAN.md: GATE-03 Live-Paare gegen nc35 und CI-Schritt im Job exapp (Wave 4)
+- [x] 28-11-PLAN.md: GATE-03 Live-Paare gegen nc35 und CI-Schritt im Job exapp (Wave 4)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -326,7 +326,7 @@ Plans:
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
-| 28. Gates und Beweise | v1.7 | 10/12 | In Progress|  |
+| 28. Gates und Beweise | v1.7 | 11/12 | In Progress|  |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
 ## Coverage v1.7
