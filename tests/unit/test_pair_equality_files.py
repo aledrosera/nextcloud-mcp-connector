@@ -20,6 +20,8 @@ test, so two sides that both run into the same unmocked request cannot pass as e
 hence the ``reportMissingImports`` ignore on the imports from there.
 """
 
+import base64
+import time
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -29,9 +31,11 @@ import pytest
 import respx
 from mcp import Client
 from result_shapes import normalised  # pyright: ignore[reportMissingImports]
+from tool_classes import NAMED_EXCEPTIONS, PAIR_CASES  # pyright: ignore[reportMissingImports]
 
 from mcp_connector.nextcloud import capabilities
 from mcp_connector.server import mcp
+from mcp_connector.tools import files as files_tools
 
 BASE = guard_routes.BASE
 USER = guard_routes.USER
@@ -49,6 +53,20 @@ GUARD_MODES = ("active", "stale_once", "stale_twice", "timeout", "server_error")
 TAGGED_FILE: Node = ("Docs/geheim.txt", "901", False)
 TAGGED_FOLDER: Node = ("Projekt", "900", True)
 TAGS = (TAGGED_FILE, TAGGED_FOLDER)
+
+#: Every pair case of the family, compared here; pinned against ``PAIR_CASES``.
+COVERED = {
+    ("files_read", "path"),
+    ("files_download", "path"),
+    ("files_list", "folder"),
+    ("files_search", "folder"),
+    ("files_upload", "text"),
+    ("files_upload", "binary_chunk1"),
+    ("fetch", "file"),
+}
+#: The cases of the family that are named exceptions (D-28-16), each with its own test.
+#: None since 28-06: B5 was fixed (D-28-19) and B6 has no finding (D-28-20).
+NAMED_HERE: set[tuple[str, str]] = set()
 
 
 @pytest.fixture(autouse=True)
@@ -134,21 +152,48 @@ async def pair(
     tool: str,
     tagged_args: dict[str, Any],
     unknown_args: dict[str, Any],
-    tagged_value: str,
-    unknown_value: str,
+    tagged_value: str | tuple[str, ...],
+    unknown_value: str | tuple[str, ...],
     mock_tagged: Mocks,
     mock_unknown: Mocks,
     mode: str,
     unexpected: list[str],
 ) -> tuple[str, str]:
-    """Both answers of one pair, each normalised on its own requested id."""
+    """Both answers of one pair, each normalised on its own requested id.
+
+    A value may be a tuple when the tool echoes the argument in a second spelling, as
+    files_search does with its scope ``/files/<user><folder>`` (D-28-19).
+    """
     tagged = await _call(tool, tagged_args, mode, mock_tagged, unexpected)
     unknown = await _call(tool, unknown_args, mode, mock_unknown, unexpected)
-    return normalised(tagged, tagged_value), normalised(unknown, unknown_value)
+    return (
+        normalised(tagged, *_values(tagged_value)),
+        normalised(unknown, *_values(unknown_value)),
+    )
 
 
-def _assert_equal(tagged: str, unknown: str) -> None:
+def _values(value: str | tuple[str, ...]) -> tuple[str, ...]:
+    return (value,) if isinstance(value, str) else value
+
+
+#: The guard states in which the guard answers ``active``; the others are ``unverifiable``.
+ANSWERED = ("active", "stale_once")
+#: A fragment of every answer while the check cannot be answered, refusal or degraded entry.
+UNANSWERED = "could not be answered"
+#: Fragments of the refusals under an active guard, after the requested id became <ID>.
+NOT_FOUND = "File not found: <ID>."
+PARENT_MISSING = "of <ID> does not exist."
+NO_FILEID = "This account has no file with the id <ID>."
+
+
+def _assert_equal(tagged: str, unknown: str, mode: str, answered: str) -> None:
+    """Equal, and the refusal of the expected state, not an input error on both sides.
+
+    ``answered`` is a fragment of the answer the guard state ``active`` must give.
+    """
     assert tagged == unknown, f"tagged:  {tagged}\nunknown: {unknown}"
+    expected = answered if mode in ANSWERED else UNANSWERED
+    assert expected in tagged, f"expected {expected!r} in {tagged}"
 
 
 # --- WebDAV answers -------------------------------------------------------------------------
@@ -238,7 +283,7 @@ async def test_files_read_answers_a_tagged_path_like_a_missing_one(
             mode,
             unexpected,
         )
-        _assert_equal(tagged, unknown)
+        _assert_equal(tagged, unknown, mode, NOT_FOUND)
         assert '"isError": true' in tagged
 
 
@@ -259,7 +304,7 @@ async def test_files_download_answers_a_tagged_path_like_a_missing_one(
             mode,
             unexpected,
         )
-        _assert_equal(tagged, unknown)
+        _assert_equal(tagged, unknown, mode, NOT_FOUND)
         assert '"isError": true' in tagged
 
 
@@ -287,7 +332,7 @@ async def test_files_list_answers_a_tagged_folder_like_an_invented_one(
             mode,
             unexpected,
         )
-        _assert_equal(tagged, unknown)
+        _assert_equal(tagged, unknown, mode, NOT_FOUND)
 
 
 # --- fetch(file:) ---------------------------------------------------------------------------
@@ -336,7 +381,7 @@ async def test_fetch_file_answers_a_tagged_id_like_an_unknown_one(
             mode,
             unexpected,
         )
-        _assert_equal(tagged, unknown)
+        _assert_equal(tagged, unknown, mode, NO_FILEID)
         assert "geheim" not in tagged
         assert '"isError": true' in tagged
 
@@ -362,5 +407,169 @@ async def test_fetch_file_answers_a_failing_lookup_alike(
         "active",
         unexpected,
     )
-    _assert_equal(tagged, unknown)
+    assert tagged == unknown, f"tagged:  {tagged}\nunknown: {unknown}"
+    assert NO_FILEID not in tagged, "the error of the lookup answers, not an unknown id"
     assert '"isError": true' in tagged
+
+
+# --- files_search(folder) -------------------------------------------------------------------
+
+#: The SEARCH answer of an invented scope as nc35 gave it in 28-01 (A3): a Sabre 404.
+_SEARCH_404 = (
+    '<?xml version="1.0" encoding="utf-8"?>'
+    '<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">'
+    "<s:exception>Sabre\\DAV\\Exception\\NotFound</s:exception>"
+    "<s:message>File with name /erfunden-1 could not be located</s:message></d:error>"
+)
+
+
+def _search_answers(status: int, body: str) -> Mocks:
+    def mocks(mock: respx.MockRouter) -> None:
+        mock.route(method="SEARCH", url=DAV_ROOT).mock(
+            return_value=httpx.Response(status, text=body)
+        )
+
+    return mocks
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", GUARD_MODES)
+async def test_files_search_answers_a_tagged_folder_like_an_invented_one(
+    mode: str, unexpected: list[str]
+) -> None:
+    """The tagged root gets an empty 207 and the invented one a 404, as measured in 28-01.
+
+    The refusal names the folder as the search scope ``/files/<user><folder>``, the wording
+    D-28-19 fixed; that spelling is the requested folder as well, so it is replaced too. The
+    word boundary of ``normalised`` would not see ``/Projekt`` after ``/files/alice``.
+    """
+    for folder in ("/Projekt", "/Projekt/Unter"):
+        tagged, unknown = await pair(
+            "files_search",
+            {"query": "budget", "folder": folder},
+            {"query": "budget", "folder": "/erfunden-1"},
+            (folder, f"/files/{USER}{folder}"),
+            ("/erfunden-1", f"/files/{USER}/erfunden-1"),
+            _search_answers(207, _multistatus()),
+            _search_answers(404, _SEARCH_404),
+            mode,
+            unexpected,
+        )
+        _assert_equal(tagged, unknown, mode, NOT_FOUND)
+
+
+# --- files_upload: text and the first binary chunk ------------------------------------------
+
+INVENTED_FOLDER = "/erfunden-1"
+
+
+def _text_put(path: str, status: int) -> Mocks:
+    def mocks(mock: respx.MockRouter) -> None:
+        mock.route(method="PUT", url=f"{FILES}{path}").mock(return_value=httpx.Response(status))
+
+    return mocks
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", GUARD_MODES)
+async def test_files_upload_text_into_a_tagged_target_answers_like_an_invented_folder(
+    mode: str, unexpected: list[str]
+) -> None:
+    """A tagged folder and a tagged file under a visible parent against a missing parent."""
+    invented = f"{INVENTED_FOLDER}/neu.txt"
+    for path in ("/Projekt/neu.txt", "/Docs/geheim.txt"):
+        tagged, unknown = await pair(
+            "files_upload",
+            {"path": path, "content": "# Neue Notiz\n"},
+            {"path": invented, "content": "# Neue Notiz\n"},
+            path,
+            invented,
+            _text_put(path, 201),
+            _text_put(invented, 409),
+            mode,
+            unexpected,
+        )
+        _assert_equal(tagged, unknown, mode, PARENT_MISSING)
+        assert '"isError": true' in tagged
+
+
+def _staging(chunk_status: int) -> Mocks:
+    """MKCOL of the staging folder and the chunk PUT, below the upload area of the user."""
+
+    def mocks(mock: respx.MockRouter) -> None:
+        mock.route(method="MKCOL", url__startswith=UPLOADS).mock(return_value=httpx.Response(201))
+        mock.route(method="PUT", url__startswith=UPLOADS).mock(
+            return_value=httpx.Response(chunk_status)
+        )
+
+    return mocks
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", GUARD_MODES)
+async def test_files_upload_first_binary_chunk_answers_like_an_invented_folder(
+    mode: str, unexpected: list[str]
+) -> None:
+    """Chunk 1 of several (B6, D-28-20): Nextcloud refuses the invented folder at the PUT."""
+    chunk = b"x" * files_tools.MIN_UPLOAD_CHUNK_BYTES
+    args = {
+        "content_base64": base64.b64encode(chunk).decode("ascii"),
+        "total_bytes": len(chunk) + 4,
+        "chunk_index": 1,
+        "final": False,
+    }
+    path = "/Projekt/neu.bin"
+    invented = f"{INVENTED_FOLDER}/neu.bin"
+    tagged, unknown = await pair(
+        "files_upload",
+        {"path": path, **args},
+        {"path": invented, **args},
+        path,
+        invented,
+        _staging(201),
+        _staging(404),
+        mode,
+        unexpected,
+    )
+    _assert_equal(tagged, unknown, mode, PARENT_MISSING)
+    assert '"isError": true' in tagged
+
+
+# --- coverage and time ----------------------------------------------------------------------
+
+
+def test_the_files_family_covers_exactly_its_pair_cases() -> None:
+    """No pair case of the family is skipped quietly, and no named exception is hidden."""
+    family = {case for case, name in PAIR_CASES.items() if name == "files"}
+    assert family == COVERED
+    named = {case for case in NAMED_EXCEPTIONS if PAIR_CASES.get(case) == "files"}
+    assert named == NAMED_HERE, "a named exception of the family needs its own named test"
+
+
+@pytest.mark.anyio
+async def test_time_is_not_part_of_the_comparison(unexpected: list[str]) -> None:
+    """D-28-12: a slow and a fast answer of the same refusal normalise to the same string.
+
+    The response time is no field of the answer, so ``normalised`` carries no time value;
+    a timing oracle is accepted and documented in phase 29.
+    """
+
+    def slow(mock: respx.MockRouter) -> None:
+        def answer(_request: httpx.Request) -> httpx.Response:
+            time.sleep(0.2)
+            return httpx.Response(404)
+
+        mock.route(method="PROPFIND", url=f"{FILES}{UNKNOWN_PATH}").mock(side_effect=answer)
+
+    fast, delayed = await pair(
+        "files_read",
+        {"path": UNKNOWN_PATH},
+        {"path": UNKNOWN_PATH},
+        UNKNOWN_PATH,
+        UNKNOWN_PATH,
+        _missing(UNKNOWN_PATH),
+        slow,
+        "active",
+        unexpected,
+    )
+    assert fast == delayed
