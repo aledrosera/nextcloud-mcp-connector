@@ -174,6 +174,7 @@ async def test_a_failing_lookup_answers_a_tagged_id_and_an_unknown_one_alike(sta
 
     assert tagged == tuple(part.replace("999999999", "901") for part in invented)
     assert "geheim" not in "".join(tagged)
+    guard_routes.reset()
     assert tagged != await unknown("901")
 
 

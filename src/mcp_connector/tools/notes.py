@@ -169,7 +169,10 @@ async def read(
     ``NC_MCP_FILES_ROOT``, a file that is no note and an unknown id all answer with the one
     sentence of :func:`_note_not_found`; the note fetched in parallel never leaves this
     function in any of those branches. When the check cannot be answered, every id gets
-    the same ``withhold.unavailable_error()``.
+    the same ``withhold.unavailable_error()``. The answers are read in the order of
+    ``files._visible_stat``: an error of the guard, ``unverifiable``, an error of the note
+    fetched in parallel (a 404 or 998 first becomes :func:`_note_not_found`), then the tag,
+    so a failing Notes app answers a tagged id and an unknown one alike (D-28-17).
 
     ``batch`` is Python only and never on the wire: ``prepare_context`` hands it in so the
     path check of a note excerpt rides in the one file id SEARCH of its bundle (plan
@@ -187,13 +190,13 @@ async def read(
         raise scope
     if scope.state == "unverifiable":
         raise withhold.unavailable_error()
-    if scope.excludes(fileid=raw):
-        raise _note_not_found(raw)
     if isinstance(fetched, ToolError) and fetched.reason == REASON_UNKNOWN_ID:
         # A 404 or 998 of the Notes app, without its detail text (no file id oracle).
         raise _note_not_found(raw) from None
     if isinstance(fetched, BaseException):
         raise fetched
+    if scope.excludes(fileid=raw):
+        raise _note_not_found(raw)
     if withhold.needs_paths(scope):
         await _check_note_path(clients, scope, raw, batch)
 
