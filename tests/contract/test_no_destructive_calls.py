@@ -205,6 +205,28 @@ SYSTEMTAGS_ROUTES: dict[str, str] = {
     'f"{creds.base_url}/index.php/apps/files/api/v1/files{path}", json={"tags": tags})',
 }
 
+#: The two verbs a call on the system tag collection may carry. Everything else that touches
+#: that collection writes: POST creates a tag, PROPPATCH renames it or changes who may see
+#: and assign it, PUT and DELETE work on relations and tags (EXCL-07).
+READ_METHODS = frozenset({"PROPFIND", "REPORT"})
+
+#: The attribute names of an HTTP call on an httpx client. ``get`` is missing on purpose: it
+#: is also the name of every dictionary lookup, and a GET changes nothing anyway.
+CALL_ATTRS = frozenset({"request", "post", "put", "patch", "delete", "stream", "send"})
+
+#: The one module that talks to the system tag collection, held to the rule that it reads.
+SYSTEMTAGS_MODULE = "nextcloud/clients/systemtags.py"
+
+#: The two forms :mod:`mcp_connector.nextcloud.clients.systemtags` really builds, as pairs of
+#: verb and target in the spelling ``ast.unparse`` gives them: the tag listing on the
+#: collection and the one REPORT on the home root. The line needles cannot deliver this half
+#: of the proof, because both calls are written over several lines and a needle never sees
+#: the verb and the target on the same one.
+ALLOWED_SYSTEMTAGS_FORMS = (
+    ("PROPFIND", "f'{creds.base_url}{TAGS_PATH}'"),
+    ("REPORT", "home_url(creds)"),
+)
+
 #: The four forms :mod:`mcp_connector.nextcloud.clients.mail` really builds, written the way
 #: that module writes them: as the four path constants at the top of the file. This tuple is
 #: the half of the proof the needles cannot deliver, and for this family it carries more weight
@@ -700,6 +722,177 @@ def test_legacy_file_tag_writes_are_caught_by_the_global_proppatch_needle(line: 
     findings = _violations(relative, [*real, (len(real) + 1, line)])
     assert any(repr("PROPPATCH") in finding for finding in findings), (
         f"the gate must report 'PROPPATCH' for: {line.strip()}"
+    )
+
+
+def _mentions_tags(node: ast.AST) -> bool:
+    """True when a call names the tag collection: the constant, or a literal carrying it.
+
+    ``ast.walk`` descends into the parts of an f-string as well, so a literal piece such as
+    ``/remote.php/dav/systemtags/`` inside ``f"{base}/remote.php/dav/systemtags/{id}"`` counts.
+    """
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and sub.id == "TAGS_PATH":
+            return True
+        if isinstance(sub, ast.Attribute) and sub.attr == "TAGS_PATH":
+            return True
+        if (
+            isinstance(sub, ast.Constant)
+            and isinstance(sub.value, str)
+            and "systemtags" in sub.value
+        ):
+            return True
+    return False
+
+
+def _is_a_read_request(node: ast.Call) -> bool:
+    """True for ``*.request(<PROPFIND or REPORT>, ...)`` and for nothing else."""
+    if not isinstance(node.func, ast.Attribute) or node.func.attr != "request":
+        return False
+    verb = node.args[0] if node.args else None
+    return isinstance(verb, ast.Constant) and verb.value in READ_METHODS
+
+
+def _http_calls(source: str) -> list[ast.Call]:
+    """Every call whose attribute name is one of :data:`CALL_ATTRS`, in source order."""
+    return [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in CALL_ATTRS
+    ]
+
+
+def tag_writes(relative: str, source: str) -> list[str]:
+    """Every HTTP call that names the tag collection and is not a PROPFIND or a REPORT.
+
+    The check works on whole call nodes, not on lines: the two real calls are written over
+    several lines, so a verb and its target never share one and a line needle would walk
+    past a POST written the same way (T-28-22).
+    """
+    return [
+        f"{relative}:{node.lineno}: write on systemtags"
+        for node in _http_calls(source)
+        if _mentions_tags(node) and not _is_a_read_request(node)
+    ]
+
+
+def systemtags_module_writes(source: str) -> list[str]:
+    """Every HTTP call in the system tag client that is not a PROPFIND or a REPORT.
+
+    This is the rule no mention check can replace: the REPORT goes to ``home_url(creds)``,
+    which names neither the constant nor the word, so a write on that target would pass
+    :func:`tag_writes` unseen (T-28-23).
+    """
+    return [
+        f"{SYSTEMTAGS_MODULE}:{node.lineno}: the system tag client may only read"
+        for node in _http_calls(source)
+        if not _is_a_read_request(node)
+    ]
+
+
+def _systemtags_request_forms(source: str) -> tuple[tuple[str, str], ...]:
+    """The pair of verb and unparsed target of every ``request`` call, in source order."""
+    forms: list[tuple[str, str]] = []
+    for node in _http_calls(source):
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "request":
+            continue
+        verb = ast.unparse(node.args[0]).strip("'\"") if node.args else ""
+        target = ast.unparse(node.args[1]) if len(node.args) > 1 else ""
+        forms.append((verb, target))
+    return tuple(sorted(forms))
+
+
+def test_no_module_writes_on_systemtags() -> None:
+    """EXCL-07: every call on the tag collection anywhere in src/ is a PROPFIND or a REPORT."""
+    findings: list[str] = []
+    for path in _source_files():
+        relative = path.relative_to(SRC).as_posix()
+        findings.extend(tag_writes(relative, path.read_text(encoding="utf-8")))
+
+    assert findings == [], "write on the system tag collection found:\n" + "\n".join(findings)
+
+
+_MULTILINE_TAG_WRITES = {
+    "POST on TAGS_PATH": (
+        "    await client.request(\n"
+        '        "POST",\n'
+        '        f"{creds.base_url}{TAGS_PATH}",\n'
+        "    )\n"
+    ),
+    "PROPPATCH on TAGS_PATH": (
+        "    await client.request(\n"
+        '        "PROPPATCH",\n'
+        '        f"{creds.base_url}{TAGS_PATH}{tag_id}",\n'
+        '        content=b"<oc:user-assignable>true</oc:user-assignable>",\n'
+        "    )\n"
+    ),
+    "delete on a tag": (
+        '    await client.delete(f"{creds.base_url}/remote.php/dav/systemtags/{tag_id}")\n'
+    ),
+    "put on a relation": (
+        "    await client.put(\n"
+        '        f"{creds.base_url}/remote.php/dav/systemtags/{tag_id}/files",\n'
+        '        content=b"",\n'
+        "    )\n"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "injected", list(_MULTILINE_TAG_WRITES.values()), ids=list(_MULTILINE_TAG_WRITES)
+)
+def test_the_systemtags_check_would_notice_a_multiline_write_in_real_code(injected: str) -> None:
+    """Counter proof: the real client is clean, and a write appended to it is reported.
+
+    The appended function runs through :func:`tag_writes`, the same function the gate uses:
+    a counter proof that reimplements the check proves something about the counter proof.
+    """
+    real = (SRC / SYSTEMTAGS_MODULE).read_text(encoding="utf-8")
+    assert tag_writes(SYSTEMTAGS_MODULE, real) == [], (
+        f"{SYSTEMTAGS_MODULE} must be clean before the injected call can prove anything"
+    )
+
+    source = f"{real}\n\nasync def _injected(client, creds, tag_id):\n{injected}"
+    assert tag_writes(SYSTEMTAGS_MODULE, source) != [], (
+        f"the check must report the injected write:\n{injected}"
+    )
+
+
+@pytest.mark.parametrize(
+    "injected",
+    [
+        '    await client.put(home_url(creds), content=b"")\n',
+        '    await client.request("POST", home_url(creds))\n',
+    ],
+)
+def test_the_systemtags_client_only_reads(injected: str) -> None:
+    """The module rule: no call in the system tag client writes, whatever it would address.
+
+    ``home_url(creds)`` names neither ``TAGS_PATH`` nor the word systemtags, so the mention
+    check alone would let a write on the home root through. This rule sees it.
+    """
+    real = (SRC / SYSTEMTAGS_MODULE).read_text(encoding="utf-8")
+    assert systemtags_module_writes(real) == [], (
+        f"{SYSTEMTAGS_MODULE} is a read only module and must contain nothing but reads"
+    )
+
+    source = f"{real}\n\nasync def _injected(client, creds):\n{injected}"
+    assert systemtags_module_writes(source) != [], (
+        f"the module rule must report the injected write: {injected.strip()}"
+    )
+
+
+def test_the_two_forms_the_systemtags_client_really_builds_stay_allowed() -> None:
+    """The other half of the proof: exactly the listing and the one REPORT, nothing more.
+
+    A third form is a decision about the tag the guard trusts, and a decision has to be made
+    in a review and not in a diff.
+    """
+    real = (SRC / SYSTEMTAGS_MODULE).read_text(encoding="utf-8")
+    assert _systemtags_request_forms(real) == tuple(sorted(ALLOWED_SYSTEMTAGS_FORMS)), (
+        "the system tag client builds a request form nobody allowed"
     )
 
 
