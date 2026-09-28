@@ -39,9 +39,12 @@ from lxml import etree
 from mcp import Client
 from mcp.types import CallToolResult
 
+from mcp_connector import ids
 from mcp_connector.config import normalize_base_url
 from mcp_connector.nextcloud import capabilities, exclusion
+from mcp_connector.nextcloud.clients import caldav as caldav_client
 from mcp_connector.nextcloud.clients import dav
+from mcp_connector.nextcloud.clients import deck as deck_client
 from mcp_connector.nextcloud.clients import systemtags as systemtags_client
 from mcp_connector.nextcloud.clients import tables as tables_client
 from mcp_connector.nextcloud.credentials import Credentials
@@ -53,7 +56,9 @@ __all__ = [
     "Cleanup",
     "Harness",
     "LiveEnv",
+    "World",
     "call",
+    "canary_world",
     "check",
     "credentials",
     "ensure_tag",
@@ -82,6 +87,19 @@ _PROPFIND = (
     b"<d:prop><oc:fileid/><d:getetag/></d:prop></d:propfind>"
 )
 _OCS_HEADERS = {"OCS-APIRequest": "true", "Accept": "application/json"}
+_NC = "{http://nextcloud.org/ns}"
+_TRASH_PROPFIND = (
+    b'<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">'
+    b"<d:prop><nc:trashbin-filename/></d:prop></d:propfind>"
+)
+NOTES_API = "/index.php/apps/notes/api/v1"
+SHARES_API = "/apps/files_sharing/api/v1/shares"
+TALK_ROOMS = "/apps/spreed/api/v4/room"
+TALK_CHAT = "/apps/spreed/api/v1/chat"
+#: Share types of ``OCP\\Share\\IShare``: a user, a Talk room and a Deck card.
+SHARE_USER, SHARE_ROOM, SHARE_DECK = 0, 10, 12
+#: Nextcloud keeps a deleted calendar and object in its calendar trash bin unless told not to.
+_NO_CAL_TRASH = {"X-NC-CalDAV-No-Trashbin": "1"}
 
 
 # --- protocol -------------------------------------------------------------------------
@@ -366,6 +384,172 @@ class Harness:
         )
         return response.status_code
 
+    def row_request(self, method: str, row_id: str) -> int:
+        response = self.request(
+            method,
+            f"{self.base_url}{tables_client.V1_PREFIX}/rows/{row_id}",
+            headers=dict(tables_client.TABLES_HEADERS),
+        )
+        return response.status_code
+
+    # Files: plain reads and the tag REPORT the guard itself sends.
+
+    def get_text(self, path: str) -> tuple[int, str]:
+        response = self.request("GET", self.dav_url(path))
+        return response.status_code, response.text
+
+    def tagged_fileids(self, tag_id: str) -> tuple[int, set[str]]:
+        """``(status, fileids)`` of the ``REPORT oc:filter-files`` over the whole home."""
+        response = self.request(
+            "REPORT",
+            f"{self.base_url}{dav.DAV_FILES_PREFIX}{quote(self.user, safe='')}/",
+            headers={"Content-Type": "application/xml"},
+            content=systemtags_client.filter_files_body(tag_id),
+        )
+        if response.status_code != 207:
+            return response.status_code, set()
+        tree = etree.fromstring(response.content)
+        found = {(node.text or "").strip() for node in tree.iter(f"{_OC}fileid")}
+        return 207, {fileid for fileid in found if fileid}
+
+    def trash_entries(self, needle: str) -> list[str]:
+        """The hrefs of every trash bin entry whose original name contains ``needle``."""
+        response = self.request(
+            "PROPFIND",
+            f"{self.base_url}/remote.php/dav/trashbin/{quote(self.user)}/trash/",
+            headers={"Depth": "1", "Content-Type": "application/xml"},
+            content=_TRASH_PROPFIND,
+        )
+        if response.status_code != 207:
+            return []
+        tree = etree.fromstring(response.content)
+        hrefs: list[str] = []
+        for entry in tree.iter(f"{_DAV}response"):
+            name = entry.findtext(f".//{_NC}trashbin-filename") or ""
+            href = entry.findtext(f"{_DAV}href") or ""
+            if needle in name and href:
+                hrefs.append(href)
+        return hrefs
+
+    def purge_trash(self, needle: str) -> None:
+        origin = httpx.URL(self.base_url)
+        for href in self.trash_entries(needle):
+            self.request("DELETE", str(origin.copy_with(path=href, query=None)))
+
+    # Notes.
+
+    def notes(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+        response = self.request(
+            method, f"{self.base_url}{NOTES_API}{path}", headers=_OCS_HEADERS, json=body
+        )
+        assert response.status_code < 300, f"notes {method} {path}: {response.status_code}"
+        return response.json() if response.content else None
+
+    def note_status(self, note_id: str) -> int:
+        return self.request(
+            "GET", f"{self.base_url}{NOTES_API}/notes/{note_id}", headers=_OCS_HEADERS
+        ).status_code
+
+    def delete_note(self, note_id: str) -> int:
+        return self.request(
+            "DELETE", f"{self.base_url}{NOTES_API}/notes/{note_id}", headers=_OCS_HEADERS
+        ).status_code
+
+    def note_ids(self) -> set[str]:
+        listing = self.notes("GET", "/notes?exclude=content") or []
+        return {str(n["id"]) for n in listing if isinstance(n, dict) and "id" in n}
+
+    # Shares.
+
+    def share(self, path: str, share_type: int, share_with: str) -> tuple[int, str, str]:
+        """``(status, share id, raw)``; the caller decides whether a refusal is fatal."""
+        response = self.ocs_post(
+            SHARES_API, {"path": path, "shareType": share_type, "shareWith": share_with}
+        )
+        share_id = ""
+        with contextlib.suppress(ValueError, KeyError, TypeError):
+            share_id = str(response.json()["ocs"]["data"]["id"])
+        return response.status_code, share_id, short(response.text, 300)
+
+    def share_status(self, share_id: str) -> int:
+        return self.ocs_get(f"{SHARES_API}/{share_id}").status_code
+
+    # Talk.
+
+    def room_tokens(self) -> set[str]:
+        data = self.ocs_data(self.ocs_get(TALK_ROOMS), "list rooms")
+        return {str(r.get("token")) for r in data or [] if isinstance(r, dict)}
+
+    # Calendar.
+
+    def calendar_url(self, calendar_uri: str) -> str:
+        return (
+            f"{self.base_url}{caldav_client.DAV_CALENDARS_PREFIX}{quote(self.user, safe='')}/"
+            f"{quote(calendar_uri, safe='')}/"
+        )
+
+    def mkcalendar(self, calendar_uri: str, name: str) -> int:
+        body = (
+            '<?xml version="1.0"?><c:mkcalendar xmlns:d="DAV:" '
+            'xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop>'
+            f"<d:displayname>{name}</d:displayname>"
+            '<c:supported-calendar-component-set><c:comp name="VEVENT"/>'
+            "</c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>"
+        ).encode()
+        return self.request(
+            "MKCALENDAR",
+            self.calendar_url(calendar_uri),
+            headers={"Content-Type": "application/xml"},
+            content=body,
+        ).status_code
+
+    def delete_calendar_url(self, url: str) -> int:
+        return self.request("DELETE", url, headers=_NO_CAL_TRASH).status_code
+
+    def status_of(self, url: str) -> int:
+        return self.request(
+            "PROPFIND",
+            url,
+            headers={"Depth": "0", "Content-Type": "application/xml"},
+            content=_PROPFIND,
+        ).status_code
+
+    # Deck: scaffolding only, the connector never creates a board or a stack.
+
+    def deck(self, method: str, path: str, body: dict[str, Any] | None = None) -> httpx.Response:
+        return self.request(
+            method,
+            f"{self.base_url}{deck_client.DECK_API_PREFIX}{path}",
+            headers=dict(deck_client.DECK_HEADERS),
+            json=body,
+        )
+
+    def deck_created(self, path: str, body: dict[str, Any]) -> str:
+        response = self.deck("POST", path, body)
+        assert response.status_code < 300, f"deck POST {path}: {response.status_code}"
+        return str(response.json()["id"])
+
+    def deck_state(self, path: str) -> str:
+        """``404``, ``gelöscht`` (soft deleted, ``deletedAt`` set) or what the entry still is."""
+        response = self.deck("GET", path)
+        if response.status_code != 200:
+            return str(response.status_code)
+        try:
+            deleted = int(response.json().get("deletedAt") or 0)
+        except (ValueError, TypeError, AttributeError):
+            return f"unlesbar {short(response.text, 80)}"
+        return "gelöscht" if deleted > 0 else "noch aktiv"
+
+    def board_state(self, board_id: str) -> str:
+        """The board as the board list shows it: absent, soft deleted or still active."""
+        response = self.deck("GET", "/boards")
+        if response.status_code != 200:
+            return f"liste {response.status_code}"
+        for board in response.json():
+            if isinstance(board, dict) and str(board.get("id")) == board_id:
+                return "gelöscht" if int(board.get("deletedAt") or 0) > 0 else "noch aktiv"
+        return "entfernt"
+
 
 # --- cleanup --------------------------------------------------------------------------
 
@@ -441,8 +625,12 @@ class Cleanup:
         return lines
 
 
+#: The read back raw values a cleanup line may end on; anything else is a residue.
+CLEANUP_OK = (": 404", ": leer", ": entfernt", ": vorbestehend", ": gelöscht")
+
+
 def cleanup_ok(line: str) -> bool:
-    return line.endswith((": 404", ": entfernt", ": vorbestehend"))
+    return line.endswith(CLEANUP_OK)
 
 
 # --- tool calls -----------------------------------------------------------------------
@@ -494,3 +682,475 @@ def guard_outage(env: LiveEnv, mode: str) -> Iterator[respx.Route]:
 def run_id() -> tuple[str, str]:
     """``(stem, marker)`` of one run: lower case ASCII letters and digits only (pitfall 5)."""
     return f"kanarie28x{uuid.uuid4().hex[:8]}", f"mk{uuid.uuid4().hex}"
+
+
+# --- the canary world (plan 28-07) ------------------------------------------------------
+
+#: What a write tool of the canary may leave behind, see :meth:`World.register_tool_write`.
+WRITE_KINDS = ("event", "card", "row", "note", "message")
+
+
+def _fold(line: str) -> str:
+    """One iCalendar content line folded at 75 octets (RFC 5545 section 3.1), ASCII only."""
+    parts, rest = [line[:75]], line[75:]
+    while rest:
+        parts.append(" " + rest[:74])
+        rest = rest[74:]
+    return "\r\n".join(parts)
+
+
+def _absent(values: set[str], wanted: str) -> str:
+    return "entfernt" if wanted not in values else "noch gelistet"
+
+
+@dataclasses.dataclass(frozen=True)
+class World:
+    """Everything one canary run built, tagged and will remove again.
+
+    No name a later tool receives as an argument carries the marker: path arguments point at
+    ``Gesperrt-<h>`` below the root, the search word is the stem, and the tagged category is
+    ``<stem>-kat``. The marker only lives in the name of the tagged file and note (which the
+    guard must hide) and in the content of every tagged node. The control marker lives in an
+    untagged file and note, so an empty index or a wrong container shows up as a missing
+    control hit instead of a green canary.
+
+    The instance is frozen; the three collections at the end are mutable on purpose:
+    ``proof`` carries the raw values of the build proof, ``writes_ledger`` what a write tool
+    created, and ``cleanup_lines`` the read back cleanup after the block.
+    """
+
+    h: str
+    stamm: str
+    marker: str
+    control_marker: str
+    env: LiveEnv
+    harness: Harness
+    notes_root: str = "/Notes"
+    fileids: dict[str, str] = dataclasses.field(default_factory=dict)
+    note_id: str = ""
+    control_note_id: str = ""
+    category_note_id: str = ""
+    talk_token: str = ""
+    file_room_token: str = ""
+    table_id: str = ""
+    column_id: str = ""
+    row_ids: tuple[str, ...] = ()
+    calendar_uri: str = ""
+    event_uid: str = ""
+    board_id: str = ""
+    stack_id: str = ""
+    card_id: str = ""
+    deck_attachment: str = ""
+    tag_id: str = ""
+    proof: dict[str, str] = dataclasses.field(default_factory=dict)
+    writes_ledger: list[str] = dataclasses.field(default_factory=list)
+    cleanup_lines: list[str] = dataclasses.field(default_factory=list)
+
+    @property
+    def root(self) -> str:
+        return f"/{self.stamm}"
+
+    @property
+    def tagged_file(self) -> str:
+        return f"/{self.stamm}/{self.stamm}-{self.marker}.txt"
+
+    @property
+    def tagged_name(self) -> str:
+        return self.tagged_file.rsplit("/", 1)[-1]
+
+    @property
+    def locked_dir(self) -> str:
+        return f"/{self.stamm}/Gesperrt-{self.h}"
+
+    @property
+    def locked_file(self) -> str:
+        return f"{self.locked_dir}/inhalt-{self.h}.txt"
+
+    @property
+    def control_file(self) -> str:
+        return f"/{self.stamm}/{self.stamm}-kontrolle-{self.control_marker}.txt"
+
+    @property
+    def control_name(self) -> str:
+        return self.control_file.rsplit("/", 1)[-1]
+
+    @property
+    def tagged_category(self) -> str:
+        return f"{self.stamm}-kat"
+
+    @property
+    def category_path(self) -> str:
+        return f"{self.notes_root}/{self.tagged_category}"
+
+    @property
+    def calendar_url(self) -> str:
+        return self.harness.calendar_url(self.calendar_uri or self.stamm)
+
+    def link_cell(self, name: str, fileid: str) -> str:
+        """A Tables link cell in the form plan 28-01 measured (finding A1)."""
+        return json.dumps(
+            {"title": name, "value": f"{self.env.url}/f/{fileid}", "providerId": "files"},
+            ensure_ascii=False,
+        )
+
+    def register_tool_write(self, kind: str, ident: str) -> None:
+        """Book one thing a write tool created, so the cleanup removes and reads it back.
+
+        ``kind`` is one of :data:`WRITE_KINDS`; ``ident`` is the id the tool answered
+        (``event:<cal>:<object>``, ``card:<b>:<s>:<c>``, a row id, ``note:<id>`` or
+        ``message:<token>:<id>``).
+        """
+        if kind not in WRITE_KINDS:
+            raise ValueError(f"unknown write kind {kind!r}, expected one of {WRITE_KINDS}")
+        if not ident or " " in ident:
+            raise ValueError(f"not a usable id for {kind}: {ident!r}")
+        self.writes_ledger.append(f"{kind} {ident}")
+
+
+def _add_share(cleanup: Cleanup, harness: Harness, share_id: str, label: str) -> None:
+    cleanup.add(
+        f"share {label} {share_id}",
+        lambda: harness.ocs_delete(f"{SHARES_API}/{share_id}"),
+        lambda: str(harness.share_status(share_id)),
+    )
+
+
+def _message_state(harness: Harness, token: str, message_id: str) -> str:
+    response = harness.ocs_get(f"{TALK_CHAT}/{token}/{message_id}/context?limit=1")
+    if response.status_code != 200:
+        return str(response.status_code)
+    data = response.json()["ocs"]["data"] or []
+    for message in data:
+        if isinstance(message, dict) and str(message.get("id")) == message_id:
+            deleted = message.get("messageType") == "comment_deleted"
+            return "gelöscht" if deleted else "noch da"
+    return "entfernt"
+
+
+def _add_tool_write(cleanup: Cleanup, harness: Harness, entry: str) -> None:
+    """One ledger entry as a cleanup step with its read back, removed before the world."""
+    kind, _, ident = entry.partition(" ")
+    # A row has no prefix in ids.py; every other kind is read with the codec of the tools.
+    coded = kind != "row" and ident.startswith(f"{kind}:")
+    parts = ids.parse(ident)[1] if coded else tuple(ident.split(":"))
+    if kind == "event":
+        url = f"{harness.calendar_url(parts[0])}{quote(parts[-1], safe='')}"
+        cleanup.add(
+            f"tool {entry}",
+            lambda: harness.delete_calendar_url(url),
+            lambda: str(harness.status_of(url)),
+        )
+    elif kind == "card":
+        assert len(parts) == 3, f"a card needs board, stack and card: {entry}"
+        path = f"/boards/{parts[0]}/stacks/{parts[1]}/cards/{parts[2]}"
+        cleanup.add(
+            f"tool {entry}", lambda: harness.deck("DELETE", path), lambda: harness.deck_state(path)
+        )
+    elif kind == "row":
+        row_id = parts[-1]
+        cleanup.add(
+            f"tool {entry}",
+            lambda: harness.row_request("DELETE", row_id),
+            lambda: str(harness.row_request("GET", row_id)),
+        )
+    elif kind == "note":
+        note_id = parts[-1]
+        cleanup.add(
+            f"tool {entry}",
+            lambda: harness.delete_note(note_id),
+            lambda: str(harness.note_status(note_id)),
+        )
+    else:
+        token, message_id = parts[0], parts[-1]
+        cleanup.add(
+            f"tool {entry}",
+            lambda: harness.ocs_delete(f"{TALK_CHAT}/{token}/{message_id}"),
+            lambda: _message_state(harness, token, message_id),
+        )
+
+
+def _event_ics(world: World, uid: str, tagged_fileid: str) -> bytes:
+    """One event whose ATTACH points at the tagged file, the way the Calendar app links one."""
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//nc-mcp-connector//canary 28-07//EN",
+        "BEGIN:VEVENT",
+        f"UID:{uid}",
+        "DTSTAMP:20260928T080000Z",
+        "DTSTART:20261005T090000Z",
+        "DTEND:20261005T100000Z",
+        f"SUMMARY:{world.stamm}",
+        (
+            f"ATTACH;FMTTYPE=text/plain;FILENAME={world.tagged_name};"
+            f"X-NC-FILE-ID={tagged_fileid}:{world.env.url}/f/{tagged_fileid}"
+        ),
+        "END:VEVENT",
+        "END:VCALENDAR",
+    ]
+    return ("\r\n".join(_fold(line) for line in lines) + "\r\n").encode("utf-8")
+
+
+def _build_files(world: World, cleanup: Cleanup) -> None:
+    harness, marker = world.harness, world.marker
+    harness.mkcol(world.root)
+    cleanup.add_path(harness, world.root)
+    harness.put(world.tagged_file, f"getaggt {world.stamm} {marker}\n".encode())
+    harness.mkcol(world.locked_dir)
+    harness.put(world.locked_file, f"gesperrt {world.stamm} {marker}\n".encode())
+    harness.put(world.control_file, f"kontrolle {world.stamm} {world.control_marker}\n".encode())
+    for key, path in (
+        ("root", world.root),
+        ("tagged_file", world.tagged_file),
+        ("locked_dir", world.locked_dir),
+        ("locked_file", world.locked_file),
+        ("control_file", world.control_file),
+    ):
+        world.fileids[key] = harness.fileid(path)
+    world.proof["dateien"] = "PROPFIND 207 " + " ".join(
+        f"{key}={value}" for key, value in world.fileids.items()
+    )
+
+
+def _build_notes(world: World, cleanup: Cleanup) -> dict[str, str]:
+    harness = world.harness
+    note_ids: list[str] = []
+    cleanup.add_path(harness, world.category_path)
+    cleanup.add(
+        "notes",
+        lambda: [harness.delete_note(note_id) for note_id in note_ids],
+        lambda: "leer" if not set(note_ids) & harness.note_ids() else "noch da",
+    )
+    planned = {
+        "note": (f"{world.stamm}-{world.marker}", f"{world.marker} getaggte Notiz", ""),
+        "category_note": (
+            f"{world.stamm}-katnotiz",
+            f"{world.marker} Notiz in getaggter Kategorie",
+            world.tagged_category,
+        ),
+        "control_note": (f"{world.stamm}-kontrolle", f"{world.control_marker} Kontrolle", ""),
+    }
+    created: dict[str, str] = {}
+    for key, (title, text, category) in planned.items():
+        body: dict[str, Any] = {"title": title, "content": f"{title}\n{text}\n"}
+        if category:
+            body["category"] = category
+        note = harness.notes("POST", "/notes", body)
+        created[key] = str(note["id"])
+        note_ids.append(created[key])
+    world.fileids["category"] = harness.fileid(world.category_path)
+    listed = harness.note_ids()
+    assert set(note_ids) <= listed, f"notes not listed: {set(note_ids) - listed}"
+    world.proof["notizen"] = f"{len(note_ids)} angelegt und gelistet {created}"
+    return created
+
+
+def _build_talk(world: World, cleanup: Cleanup) -> tuple[str, str]:
+    harness, user2 = world.harness, world.env.user2 or ""
+    response = harness.ocs_post(TALK_ROOMS, {"roomType": 2, "roomName": world.stamm})
+    token = str(harness.ocs_data(response, f"create room {world.stamm}")["token"])
+    cleanup.add(
+        f"talk raum {world.stamm}",
+        lambda: harness.ocs_delete(f"{TALK_ROOMS}/{token}"),
+        lambda: _absent(harness.room_tokens(), token),
+    )
+    status, share_id, raw = harness.share(world.tagged_file, SHARE_ROOM, token)
+    assert status == 200, f"share into room: {status} {raw}"
+    assert share_id, f"share into room without id: {raw}"
+    _add_share(cleanup, harness, share_id, "raum")
+
+    status, share_id, raw = harness.share(world.tagged_file, SHARE_USER, user2)
+    assert status == 200, f"share with {user2}: {status} {raw}"
+    assert share_id, f"share with {user2} without id: {raw}"
+    _add_share(cleanup, harness, share_id, "user2")
+    data = harness.ocs_data(
+        harness.ocs_get(f"/apps/spreed/api/v1/file/{world.fileids['tagged_file']}"), "file room"
+    )
+    file_token = str((data or {}).get("token") or "")
+    assert file_token, f"no file conversation: {data}"
+    cleanup.add(
+        "talk datei-raum",
+        lambda: harness.ocs_delete(f"{TALK_ROOMS}/{file_token}/participants/self"),
+        lambda: _absent(harness.room_tokens(), file_token),
+    )
+    harness.ocs_post(f"{TALK_ROOMS}/{file_token}/participants/active", {})
+    harness.ocs_delete(f"{TALK_ROOMS}/{file_token}/participants/active")
+    tokens = harness.room_tokens()
+    assert token in tokens, "the harness room is not listed"
+    assert file_token in tokens, "the file conversation is not listed"
+    world.proof["talk"] = f"raum {token} gelistet, datei geteilt (typ 10)"
+    world.proof["datei-raum"] = f"{file_token} gelistet nach Freigabe an {user2} (typ 0)"
+    return token, file_token
+
+
+def _build_table(world: World, cleanup: Cleanup) -> tuple[str, str, tuple[str, ...]]:
+    harness = world.harness
+    table_id = harness.create_table(f"{world.stamm}-t")
+    cleanup.add_table(harness, table_id)
+    column_id = harness.create_link_column(table_id, "Verweis")
+    rows = (
+        harness.create_row(
+            table_id,
+            {column_id: world.link_cell(world.tagged_name, world.fileids["tagged_file"])},
+        ),
+        harness.create_row(
+            table_id,
+            {column_id: world.link_cell(world.control_name, world.fileids["control_file"])},
+        ),
+    )
+    status, raw = harness.rows_simple_raw(table_id)
+    wire = raw.replace("\\/", "/")
+    assert status == 200, f"rows/simple {table_id}: {status}"
+    assert world.tagged_name in wire, "row 1 does not carry the tagged name, the canary is blunt"
+    assert f"/f/{world.fileids['tagged_file']}" in wire, "row 1 does not link the tagged file"
+    assert world.control_name in wire, "row 2 does not carry the control name"
+    world.proof["tables-link"] = f"tabelle {table_id} rows/simple {status} roh: {short(raw, 400)}"
+    return table_id, column_id, tuple(str(row["id"]) for row in rows)
+
+
+def _build_calendar(world: World, cleanup: Cleanup) -> str:
+    harness, url = world.harness, world.calendar_url
+    status = harness.mkcalendar(world.stamm, world.stamm)
+    assert status == 201, f"MKCALENDAR {world.stamm}: {status}"
+    cleanup.add(
+        f"kalender {world.stamm}",
+        lambda: harness.delete_calendar_url(url),
+        lambda: str(harness.status_of(url)),
+    )
+    uid = f"{world.stamm}-{uuid.uuid4().hex[:8]}"
+    event_url = f"{url}{uid}.ics"
+    response = harness.request(
+        "PUT",
+        event_url,
+        headers={"Content-Type": "text/calendar; charset=utf-8", "If-None-Match": "*"},
+        content=_event_ics(world, uid, world.fileids["tagged_file"]),
+    )
+    assert response.status_code == 201, f"PUT event: {response.status_code}"
+    read = harness.request("GET", event_url)
+    unfolded = read.text.replace("\r\n ", "").replace("\n ", "")
+    attach = next((line for line in unfolded.splitlines() if line.startswith("ATTACH")), "")
+    assert read.status_code == 200, f"GET event: {read.status_code}"
+    assert world.tagged_name in attach, f"no ATTACH to the tagged file: {short(unfolded)}"
+    world.proof["kalender-attach"] = f"GET {read.status_code} {attach}"
+    return uid
+
+
+def _build_deck(world: World, cleanup: Cleanup) -> tuple[str, str, str, str]:
+    harness = world.harness
+    board_id = harness.deck_created("/boards", {"title": world.stamm, "color": "0082c9"})
+    cleanup.add(
+        f"deck board {board_id}",
+        lambda: harness.deck("DELETE", f"/boards/{board_id}"),
+        lambda: harness.board_state(board_id),
+    )
+    stack_id = harness.deck_created(
+        f"/boards/{board_id}/stacks", {"title": world.stamm, "order": 1}
+    )
+    card_id = harness.deck_created(
+        f"/boards/{board_id}/stacks/{stack_id}/cards",
+        {"title": world.stamm, "type": "plain", "order": 999},
+    )
+    # A file attachment of Deck is a share of type 12 at the card, which is what the Deck
+    # frontend creates when a file from Files is attached; a refusal is recorded, not fatal.
+    status, share_id, raw = harness.share(world.tagged_file, SHARE_DECK, card_id)
+    if status == 200 and share_id:
+        _add_share(cleanup, harness, share_id, "deck")
+        attachment = f"share typ 12 an karte {card_id}: {status} id {share_id}"
+    else:
+        attachment = f"share typ 12 an karte {card_id} abgelehnt: {status} {raw}"
+    world.proof["deck"] = f"board {board_id} stack {stack_id} karte {card_id}; {attachment}"
+    return board_id, stack_id, card_id, attachment
+
+
+def _tag_world(world: World, cleanup: Cleanup, created_notes: dict[str, str]) -> str:
+    tag_id, created = ensure_tag()
+    tagged: list[str] = []
+    cleanup.add_tag(tag_id, created, tagged)
+    for fileid in (
+        world.fileids["tagged_file"],
+        world.fileids["locked_dir"],
+        created_notes["note"],
+        world.fileids["category"],
+    ):
+        tag(fileid)
+        tagged.append(fileid)
+    status, found = world.harness.tagged_fileids(tag_id)
+    missing = set(tagged) - found
+    assert status == 207, f"tag REPORT: {status}"
+    assert not missing, f"not tagged: {sorted(missing)}"
+    control = {world.fileids["control_file"], created_notes["control_note"]} & found
+    assert not control, f"a control node is tagged: {sorted(control)}"
+    world.proof["tags"] = (
+        f"REPORT {status} tag {tag_id} ({'angelegt' if created else 'vorbestehend'}) "
+        f"getaggt {sorted(tagged)} kontrolle ungetaggt"
+    )
+    return tag_id
+
+
+@contextlib.contextmanager
+def canary_world(env: LiveEnv, raw: Path) -> Iterator[World]:
+    """Build, tag and prove the canary world of one run, and remove it with read back proof.
+
+    Every side effect is booked in a :class:`Cleanup` the moment it exists, so a failing
+    build removes what was made so far. The cleanup lines go to ``raw`` and into
+    :attr:`World.cleanup_lines`; asserting them is the caller's part.
+    """
+    if not env.user2:
+        pytest.skip("NC_MCP_TEST_USER2 is missing, the file conversation needs a second account")
+    harness = Harness(env)
+    cleanup = Cleanup()
+    stamm, marker = run_id()
+    base = World(
+        h=stamm.removeprefix("kanarie28x"),
+        stamm=stamm,
+        marker=marker,
+        control_marker=f"ck{uuid.uuid4().hex}",
+        env=env,
+        harness=harness,
+    )
+    # Registered first, so it runs last: whatever the deletions above moved into the trash
+    # bin is purged by the stem, which no foreign entry carries.
+    cleanup.add(
+        f"papierkorb {stamm}",
+        lambda: harness.purge_trash(stamm),
+        lambda: "leer" if not harness.trash_entries(stamm) else "noch da",
+    )
+    try:
+        settings = harness.notes("GET", "/settings") or {}
+        notes_root = "/" + str(settings.get("notesPath") or "Notes").strip("/")
+        base = dataclasses.replace(base, notes_root=notes_root)
+        _build_files(base, cleanup)
+        created_notes = _build_notes(base, cleanup)
+        talk_token, file_room_token = _build_talk(base, cleanup)
+        table_id, column_id, row_ids = _build_table(base, cleanup)
+        event_uid = _build_calendar(base, cleanup)
+        board_id, stack_id, card_id, attachment = _build_deck(base, cleanup)
+        tag_id = _tag_world(base, cleanup, created_notes)
+        world = dataclasses.replace(
+            base,
+            note_id=created_notes["note"],
+            control_note_id=created_notes["control_note"],
+            category_note_id=created_notes["category_note"],
+            talk_token=talk_token,
+            file_room_token=file_room_token,
+            table_id=table_id,
+            column_id=column_id,
+            row_ids=row_ids,
+            calendar_uri=stamm,
+            event_uid=event_uid,
+            board_id=board_id,
+            stack_id=stack_id,
+            card_id=card_id,
+            deck_attachment=attachment,
+            tag_id=tag_id,
+        )
+        yield world
+    finally:
+        for entry in base.writes_ledger:
+            _add_tool_write(cleanup, harness, entry)
+        lines = cleanup.run()
+        base.cleanup_lines.extend(lines)
+        for line in lines:
+            record(raw, line)
+        harness.close()
+        fresh_guard()
