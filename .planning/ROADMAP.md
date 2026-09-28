@@ -109,7 +109,7 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
 - [x] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox
  (completed 2026-09-28)
 
-- [ ] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate
+- [x] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate (completed 2026-09-28)
 - [ ] **Phase 29: Prüfkommando und Doku** - `occ mcp_connector:exclusion:check` meldet wirkungslose Konfigurationen, die dreisprachige Doku sagt das Gemessene samt ehrlicher Grenzen
 
 ## Phase Details
@@ -276,7 +276,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 28-12-PLAN.md: Gate-Lauf, Regression Phase 27, 28-LIVE-BEWEIS.md, Owner-Abnahme (Wave 5)
+- [x] 28-12-PLAN.md: Gate-Lauf, Regression Phase 27, 28-LIVE-BEWEIS.md, Owner-Abnahme (Wave 5)
 
 ### Phase 29: Prüfkommando und Doku
 
@@ -326,7 +326,7 @@ Plans:
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
-| 28. Gates und Beweise | v1.7 | 11/12 | In Progress|  |
+| 28. Gates und Beweise | v1.7 | 12/12 | Complete   | 2026-09-28 |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
 ## Coverage v1.7
