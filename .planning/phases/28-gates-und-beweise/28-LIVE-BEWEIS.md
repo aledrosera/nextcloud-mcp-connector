@@ -114,12 +114,12 @@ Die acht Unit-Dateien der Fixes (`test_tables_exclusion`, `test_search_exclusion
 
 B6 (erster Binär-Chunk, D-28-20) brauchte keinen Fix: `BEFUND B6 gleich`, `BEFUND B6-text gleich` (raw/28-01-live-questions.txt).
 
-**Zwei konservative Regeln des Ausführenden zu D-28-21, zur Bestätigung bei der Abnahme:**
+**Zwei konservative Regeln des Ausführenden zu D-28-21 (bei der Abnahme vom Owner bestätigt):**
 
 1. **Unbekanntes Token:** ein `talk-conversations`-Treffer, dessen Token nicht in der Gesprächsliste des Kontos steht, bekommt die Id `-`, die keine Datei trägt, und wird zurückgehalten, sobald irgendetwas getaggt ist (fail-closed wie `room_fileid`). Ohne jeden Tag (`untagged`) bleibt er.
 2. **Nicht lesbare Gesprächsliste:** alle `talk-conversations`-Treffer werden zurückgehalten, dazu genau ein degraded-Eintrag unter dem Provider-Namen: `{"provider": "talk-conversations", "reason": "The conversation list could not be read, so conversation hits are withheld."}`. Das ist nicht der Wortlaut `EXCLUSION_UNAVAILABLE`, weil nicht die Ausschlussprüfung, sondern die Talk-Liste ausfiel.
 
-Beide Regeln stehen im Docstring von `_screen_conversations` und in `tests/unit/test_search_exclusion.py`; der Owner-Entscheid D-28-21 hat sie nicht ausdrücklich genannt.
+Beide Regeln stehen im Docstring von `_screen_conversations` und in `tests/unit/test_search_exclusion.py`. Der ursprüngliche Owner-Entscheid D-28-21 nannte sie nicht ausdrücklich; bei der Abnahme am 28.09.2026 hat der Owner beide bestätigt ("Beide so lassen (Empfohlen)", siehe "## Abnahme").
 
 ## Messung vor den Fixes (28-01)
 
@@ -167,8 +167,12 @@ Zum Budget: Der Plan nennt als Referenz 16412 Bytes vom 2026-09-20. Dieser Wert 
 - **Tables ohne Sandbox (T-28-44):** Tables bekommt wie Talk nur den Tag, keine Sandbox; `NC_MCP_FILES_ROOT` wirkt dort nur über die Pfadauflösung bei getaggtem Ordner. Fremdtext mit `/f/<id>` ohne `providerId: "files"` bleibt unverändert (T-28-43, Research A2).
 - **ExApp/HaRP-Kette nicht eigens durch die Kanarie gelaufen:** Kanarie und Live-Paare rufen `Client(mcp)` mit App-Passwort direkt gegen nc35 (Nextcloud-Seite der Topologie), nicht über AppAPI-Impersonation und HaRP. Die ExApp-Kette ist nur durch die bestehenden Phase-27-Beweise und den CI-Job exapp abgedeckt.
 - **SBX-01 und der neue Kanarien-/Paar-Schritt in CI:** erst nach dem Push des Owners belegt (siehe "Offen").
-- Die zwei konservativen Regeln zu D-28-21 (siehe "Fixes dieser Phase") gehören in die Doku, falls der Owner sie bestätigt.
+- Die zwei vom Owner bestätigten Regeln zu D-28-21 (siehe "Fixes dieser Phase") gehören in die Doku.
 
 ## Abnahme
 
-Owner-Entscheid zu Phase 28: Ausstehend
+Owner-Entscheid 28.09.2026 am Checkpoint 28-12 zu den zwei Regeln von D-28-21 (wörtlich): "Beide so lassen (Empfohlen)". Das unbekannte Token bleibt zurückgehalten, sobald etwas getaggt ist; eine nicht lesbare Gesprächsliste hält alle `talk-conversations`-Treffer mit genau einem degraded-Eintrag unter dem Provider-Namen zurück. Nachtrag in 28-CONTEXT.md unter D-28-21.
+
+Owner-Entscheid 28.09.2026 zu Phase 28 (wörtlich): "Abnehmen (Empfohlen)".
+
+Die vier Erfolgskriterien sind abgenommen. Offen bleiben wie oben aufgeführt: der CI-Nachweis für GATE-02/GATE-03 und SBX-01, der erst nach dem Push durch den Owner läuft (Abschnitt "Offen"), und die Merker für Phase 29 (D-28-12, D-28-13, D-28-16, D-28-20, T-28-44, ExApp/HaRP-Kette). Phase 28 ist damit zur Verifikation frei.

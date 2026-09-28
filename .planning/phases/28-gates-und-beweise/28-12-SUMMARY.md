@@ -3,14 +3,14 @@ phase: 28-gates-und-beweise
 plan: 12
 subsystem: Live-Beweis, Gates, Regression Phase 27
 tags: [gate-01, gate-02, gate-03, excl-07, live, nc35, abnahme]
-status: checkpoint-open
+status: complete
 requires:
   - 28-03 (EXCL-07 Nadeln)
   - 28-08, 28-09 (GATE-03 Unit)
   - 28-10 (Kanarie, D-28-21)
   - 28-11 (Live-Paare, CI-Schritt)
 provides:
-  - .planning/phases/28-gates-und-beweise/28-LIVE-BEWEIS.md (wartet auf Owner-Abnahme)
+  - .planning/phases/28-gates-und-beweise/28-LIVE-BEWEIS.md (vom Owner am 28.09.2026 abgenommen)
   - raw/28-12-gates.txt, raw/28-12-exclusion-live.txt
 affects: [29]
 tech-stack:
@@ -23,7 +23,10 @@ key-files:
     - .planning/phases/28-gates-und-beweise/raw/28-12-exclusion-live.txt
   modified:
     - tests/integration/test_exclusion_live.py
+    - .planning/phases/28-gates-und-beweise/28-CONTEXT.md
 decisions:
+  - "Owner 28.09.2026 zu den D-28-21-Regeln: 'Beide so lassen (Empfohlen)'; Nachtrag in 28-CONTEXT.md"
+  - "Owner 28.09.2026 zu Phase 28: 'Abnehmen (Empfohlen)'; CI-Nachweis nach Push und Merker Phase 29 bleiben offen"
   - "test_exclusion_live.py nimmt den Container aus topology.NC_CONTAINER; keine Erwartung umgestellt, weil kein Fall das Verhalten vor D-28-15/D-28-17 festhielt"
   - "Budget-Referenz 16412 (2026-09-20) ist älter als Phase 27; Phase 28 hat das Budget nicht verändert (17233 Bytes am Phasenanfang 372db35 und heute)"
   - "Die Phase-28-Integrationsdateien hängen an die Plan-Rohdateien 28-01/07/10/11 an; Kernzeilen des gemeinsamen Laufs stehen in raw/28-12-gates.txt, die vier Dateien sind zurückgesetzt"
@@ -34,7 +37,7 @@ metrics:
 
 # Phase 28 Plan 12: Gate-Lauf, Regression und Live-Beweis Summary
 
-Voller Gate-Lauf grün (5049 passed, ruff, format, pyright latest, vulture, Budget 17233 Bytes), Phase-27-Live-Beweise nach allen Fixes 10 passed ohne Urteil nein, alle vier Phase-28-Integrationsdateien gemeinsam 14 passed gegen nc35. Der Live-Beweis 28-LIVE-BEWEIS.md liegt vor. **Checkpoint Task 3 (Owner-Abnahme) ist offen.**
+Voller Gate-Lauf grün (5049 passed, ruff, format, pyright latest, vulture, Budget 17233 Bytes), Phase-27-Live-Beweise nach allen Fixes 10 passed ohne Urteil nein, alle vier Phase-28-Integrationsdateien gemeinsam 14 passed gegen nc35. Der Live-Beweis 28-LIVE-BEWEIS.md liegt vor und ist vom Owner am 28.09.2026 abgenommen.
 
 ## Tasks
 
@@ -42,7 +45,7 @@ Voller Gate-Lauf grün (5049 passed, ruff, format, pyright latest, vulture, Budg
 | ---- | ---- | ------ | ------ |
 | 1 | Voller Gate-Lauf und Regressionslauf der Phase-27-Live-Beweise | 77904d1 | erledigt |
 | 2 | 28-LIVE-BEWEIS.md schreiben | d066a0b | erledigt |
-| 3 | Owner-Abnahme Phase 28 (checkpoint:human-verify, blocking) | offen | wartet auf Owner |
+| 3 | Owner-Abnahme Phase 28 (checkpoint:human-verify, blocking) | dieser Commit (docs(28-12)) | erledigt, abgenommen |
 
 ## Ergebnisse
 
@@ -76,9 +79,14 @@ Keine.
 
 Keine neue Oberfläche. T-28-120 (Zahlen wörtlich aus raw/), T-28-121 (27-07-live.txt ohne Diff), T-28-122 (Abschnitt "Offen": CI erst nach Push) und T-28-123 (Merker mit Entscheidungs-Ids) sind umgesetzt.
 
-## Checkpoint offen
+## Checkpoint geschlossen
 
-Task 3 wartet auf den Owner-Entscheid unter "## Abnahme" in 28-LIVE-BEWEIS.md ("Owner-Entscheid zu Phase 28: Ausstehend"). Zur Bestätigung stehen dort außerdem die zwei konservativen Regeln zu D-28-21 (unbekanntes Token zurückgehalten, sobald etwas getaggt ist; nicht lesbare Gesprächsliste hält alle talk-conversations-Treffer mit einem degraded-Eintrag unter dem Provider-Namen zurück).
+Owner-Entscheide vom 28.09.2026, übermittelt über den Orchestrator und wörtlich eingetragen:
+
+- zu den zwei D-28-21-Regeln: "Beide so lassen (Empfohlen)". Das unbekannte Token bleibt zurückgehalten, sobald etwas getaggt ist; eine nicht lesbare Gesprächsliste hält alle talk-conversations-Treffer mit genau einem degraded-Eintrag unter dem Provider-Namen zurück. Nachtrag unter D-28-21 in 28-CONTEXT.md.
+- zu Phase 28: "Abnehmen (Empfohlen)", eingetragen unter "## Abnahme" in 28-LIVE-BEWEIS.md.
+
+Offen bleiben: der CI-Nachweis GATE-02/GATE-03 und SBX-01 nach dem Push durch den Owner sowie die Merker für Phase 29.
 
 ## Self-Check: PASSED
 
