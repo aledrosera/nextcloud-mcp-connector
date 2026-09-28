@@ -428,6 +428,157 @@ async def test_talk_message_hits_are_not_file_bearing_per_the_nc35_probe() -> No
     assert "degraded" not in result
 
 
+# --- talk-conversations against the conversation list (D-28-21) ----------------------------
+
+ROOM_URL = f"{BASE}/ocs/v2.php/apps/spreed/api/v4/room"
+
+
+def conversation_entry(token: str, title: str) -> dict[str, Any]:
+    """A talk-conversations hit: the room name as title and ``/call/<token>`` as link."""
+    return {
+        "thumbnailUrl": f"{BASE}/ocs/v2.php/apps/spreed/api/v1/room/{token}/avatar",
+        "title": title,
+        "subline": "",
+        "resourceUrl": f"{BASE}/call/{token}",
+        "icon": "",
+        "rounded": True,
+        "attributes": [],
+    }
+
+
+def room(token: str, name: str, fileid: str | None = None) -> dict[str, Any]:
+    raw: dict[str, Any] = {"token": token, "displayName": name, "objectType": "", "objectId": ""}
+    if fileid is not None:
+        raw.update(objectType="file", objectId=fileid)
+    return raw
+
+
+ROOMS = [
+    room("tagroom1", "geheim.txt", "5001"),
+    room("freeroom", "frei.txt", "4711"),
+    room("teamroom", "Team"),
+]
+CONVERSATION_HITS = [
+    conversation_entry("tagroom1", "geheim.txt"),
+    conversation_entry("freeroom", "frei.txt"),
+    conversation_entry("teamroom", "Team"),
+]
+
+
+def rooms_answer(rooms: list[dict[str, Any]]) -> httpx.Response:
+    return httpx.Response(200, json=envelope(rooms))
+
+
+def call_ids(*tokens: str) -> list[str]:
+    return [f"url:{BASE}/call/{token}" for token in tokens]
+
+
+@pytest.mark.anyio
+async def test_a_tagged_file_room_is_dropped_silently_and_the_others_stay() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        _, report = guard_routes.active(mock, ("Docs/geheim.txt", "5001", False))
+        rooms = mock.get(ROOM_URL).mock(return_value=rooms_answer(ROOMS))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-conversations"))
+        mock.get(search_url("talk-conversations")).mock(return_value=answer(CONVERSATION_HITS))
+
+        result = await search_tools.unified_search(fresh(), query="txt")
+
+    assert ids_of(result) == call_ids("freeroom", "teamroom")
+    assert rooms.call_count == 1
+    assert report.call_count == 1, "one guard REPORT for the whole answer"
+    assert "degraded" not in result
+    assert "skipped" not in result
+    dumped = json.dumps(result)
+    assert "geheim" not in dumped
+    assert "tagroom1" not in dumped
+
+
+@pytest.mark.anyio
+async def test_a_conversation_hit_missing_from_the_list_is_withheld_when_something_is_tagged() -> (
+    None
+):
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "5001", False))
+        mock.get(ROOM_URL).mock(return_value=rooms_answer([room("teamroom", "Team")]))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-conversations"))
+        mock.get(search_url("talk-conversations")).mock(
+            return_value=answer(
+                [conversation_entry("ghostroom", "x.txt"), conversation_entry("teamroom", "Team")]
+            )
+        )
+
+        result = await search_tools.unified_search(fresh(), query="x")
+
+    assert ids_of(result) == call_ids("teamroom")
+    assert "degraded" not in result
+
+
+@pytest.mark.anyio
+async def test_unverifiable_withholds_file_rooms_keeps_plain_rooms_and_says_so_once() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.unverifiable(mock)
+        mock.get(ROOM_URL).mock(return_value=rooms_answer(ROOMS))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-conversations", "files"))
+        mock.get(search_url("talk-conversations")).mock(return_value=answer(CONVERSATION_HITS))
+        mock.get(search_url("files")).mock(
+            return_value=answer([files_entry("4711", "Docs/frei.txt")])
+        )
+
+        result = await search_tools.unified_search(fresh(), query="txt")
+
+    assert ids_of(result) == call_ids("teamroom")
+    assert result["degraded"] == [EXCLUSION]
+
+
+@pytest.mark.anyio
+async def test_without_conversation_hits_the_room_list_is_never_read() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "5001", False))
+        rooms = mock.get(ROOM_URL).mock(return_value=rooms_answer(ROOMS))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-conversations", "files"))
+        mock.get(search_url("talk-conversations")).mock(return_value=answer([]))
+        mock.get(search_url("files")).mock(
+            return_value=answer([files_entry("4711", "Docs/frei.txt")])
+        )
+
+        result = await search_tools.unified_search(fresh(), query="frei")
+
+    assert rooms.call_count == 0
+    assert ids_of(result) == ["file:4711"]
+
+
+@pytest.mark.anyio
+async def test_untagged_keeps_every_conversation_hit_without_reading_the_room_list() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.untagged(mock)
+        rooms = mock.get(ROOM_URL).mock(return_value=rooms_answer(ROOMS))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-conversations"))
+        mock.get(search_url("talk-conversations")).mock(return_value=answer(CONVERSATION_HITS))
+
+        result = await search_tools.unified_search(fresh(), query="txt")
+
+    assert rooms.call_count == 0
+    assert ids_of(result) == call_ids("tagroom1", "freeroom", "teamroom")
+
+
+@pytest.mark.anyio
+async def test_a_failing_room_list_withholds_the_conversation_hits_and_names_the_provider() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "5001", False))
+        mock.get(ROOM_URL).mock(return_value=httpx.Response(500))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-conversations", "files"))
+        mock.get(search_url("talk-conversations")).mock(return_value=answer(CONVERSATION_HITS))
+        mock.get(search_url("files")).mock(
+            return_value=answer([files_entry("4711", "Docs/frei.txt")])
+        )
+
+        result = await search_tools.unified_search(fresh(), query="txt")
+
+    assert ids_of(result) == ["file:4711"]
+    assert [entry["provider"] for entry in result["degraded"]] == ["talk-conversations"]
+    assert "geheim" not in json.dumps(result)
+
+
 # --- one flight per call, outside the provider timeout (E3, Merker (c)) --------------------
 
 
