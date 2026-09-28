@@ -121,6 +121,19 @@ FORBIDDEN: dict[str, str] = {
     "/api/tags": "no tool may create, change or delete a mail tag, or put one on a message",
     "/api/trustedsenders": "no tool may grant or withdraw trust in a sender: that is a "
     "security decision of the account holder",
+    # The three entries below guard EXCL-07: the tag ``kein-ki`` is the one fact the
+    # exclusion guard trusts, so for this server it is read only. The relation route is what
+    # assigns a system tag to a file or takes it away again, and the connector builds no form
+    # of it at all. The occ tag commands belong to the integration harness only, which lives
+    # in tests/ and therefore outside SRC. The legacy route is ``Api#updateFileTags`` of the
+    # Files app, which rewrites the old file tags and the favourite mark with a plain POST.
+    # PROPPATCH on ``oc:tags`` and ``oc:favorite`` needs no entry of its own: that verb is
+    # forbidden above for every target, and a counter proof below shows it reports both.
+    "systemtags-relations": "no tool may assign a system tag to a file or remove it from one",
+    "tag:files": "the occ commands tag:files:add and tag:files:delete belong to the test "
+    "harness only",
+    "/apps/files/api/v1/files": "no tool may change the legacy file tags or the favourite "
+    "mark via POST",
 }
 
 # The only MOVE in production is Nextcloud's internal chunk-assembly step. It carries
@@ -173,6 +186,23 @@ MAIL_ROUTES: dict[str, str] = {
     "/api/thread": '    await ocs.ocs_post(client, creds, f"/apps/mail/api/thread/{t}/move", b)',
     "/api/tags": '    await ocs.ocs_post(client, creds, f"/apps/mail/api/tags/{tag}", body)',
     "/api/trustedsenders": '    url = ocs.ocs_url(creds, f"/apps/mail/api/trustedsenders/{s}")',
+}
+
+#: The three needles above that name a tag write path (EXCL-07), in a fixed order so the
+#: counting test below can compare them against their counter proofs as a set.
+SYSTEMTAGS_NEEDLES = ("systemtags-relations", "tag:files", "/apps/files/api/v1/files")
+
+#: The three tag needles with a line that would carry them into the code. Same job as the
+#: route dictionaries of Tables, Talk and Mail: a needle nobody ever hit is indistinguishable
+#: from no needle at all. Every line is written the way this project writes a path, an
+#: f-string with the base URL in it, and the occ line the way the integration harness spells
+#: the command it runs inside the container.
+SYSTEMTAGS_ROUTES: dict[str, str] = {
+    "systemtags-relations": "    await client.put("
+    'f"{creds.base_url}/remote.php/dav/systemtags-relations/files/{fileid}/{tag_id}")',
+    "tag:files": '    occ("tag:files:add", target, "kein-ki", "public")',
+    "/apps/files/api/v1/files": "    await client.post("
+    'f"{creds.base_url}/index.php/apps/files/api/v1/files{path}", json={"tags": tags})',
 }
 
 #: The four forms :mod:`mcp_connector.nextcloud.clients.mail` really builds, written the way
@@ -615,6 +645,61 @@ def test_the_mail_modules_are_read_only_in_their_source(relative: str) -> None:
     findings = [call for call in WRITING_CALLS if call in text]
     assert findings == [], (
         f"{relative} is a read only module and must contain nothing but GETs: {findings}"
+    )
+
+
+@pytest.mark.parametrize(("needle", "line"), sorted(SYSTEMTAGS_ROUTES.items()))
+def test_each_systemtags_needle_trips_on_its_route_and_leaves_the_real_module_alone(
+    needle: str, line: str
+) -> None:
+    """Counter proof per tag needle: it hits the write path, and it misses today's code.
+
+    The tag ``kein-ki`` is the one thing the exclusion guard trusts, so this server must be
+    unable to put it on a file or take it away (EXCL-07). A POST or a PUT is enough for
+    either, and both are allowed verbs here, which is why the route itself is the needle.
+    The real source of the system tag client stays clean, and the same check reports each
+    route as soon as one line carries it.
+    """
+    relative = "nextcloud/clients/systemtags.py"
+    real = _code_lines(SRC / relative)
+    assert _violations(relative, real) == [], (
+        f"{relative} must be clean before a needle can prove anything"
+    )
+
+    findings = _violations(relative, [*real, (len(real) + 1, line)])
+    assert any(repr(needle) in finding for finding in findings), (
+        f"the gate must report {needle!r} for: {line.strip()}"
+    )
+
+
+def test_every_systemtags_needle_of_this_phase_has_a_counter_proof() -> None:
+    """A needle without a counter proof is a claim, and this file does not make claims."""
+    assert set(SYSTEMTAGS_ROUTES) == set(SYSTEMTAGS_NEEDLES), (
+        "every tag needle needs exactly one line here, and every line exactly one needle"
+    )
+    unarmed = sorted(needle for needle in SYSTEMTAGS_NEEDLES if needle not in FORBIDDEN)
+    assert unarmed == [], f"a tag needle that is not armed in FORBIDDEN: {unarmed}"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '    await client.request("PROPPATCH", url, content=b"<oc:tags>kein-ki</oc:tags>")',
+        '    await client.request("PROPPATCH", url, content=b"<oc:favorite>1</oc:favorite>")',
+    ],
+)
+def test_legacy_file_tag_writes_are_caught_by_the_global_proppatch_needle(line: str) -> None:
+    """The old file tags and the favourite mark are properties, so PROPPATCH already guards them.
+
+    No needle of their own: PROPPATCH is forbidden everywhere, and a second needle for the same
+    verb would only look like more security. What this test adds is the proof that the global
+    needle really reports both properties in the module where such a write would be written.
+    """
+    relative = "nextcloud/clients/dav.py"
+    real = _code_lines(SRC / relative)
+    findings = _violations(relative, [*real, (len(real) + 1, line)])
+    assert any(repr("PROPPATCH") in finding for finding in findings), (
+        f"the gate must report 'PROPPATCH' for: {line.strip()}"
     )
 
 
