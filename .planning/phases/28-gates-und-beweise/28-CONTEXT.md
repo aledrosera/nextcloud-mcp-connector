@@ -48,6 +48,12 @@ Code in `src/` wird nur angefasst, wenn ein Beweis eine echte Lücke aufdeckt; d
 - **D-28-17 (B3 Reihenfolge):** `fetch(file:)` und `notes_read` werten den Fehler des parallelen Requests VOR der Tag-Entscheidung aus, nach dem Muster `_visible_stat`; der Paartest deckt den 5xx-Fall ab.
 - Die offenen Live-Fragen der Research (A1 Link-Zellenformat, A3 SEARCH auf fehlendem Scope bzw. B5 `files_search` mit getaggtem `folder`, A4/B6 erster Chunk eines Binär-Uploads) werden im ersten Plan gemessen, bevor Fixes und Paartests darauf bauen; ein Befund, der eine neue Lücke zeigt, geht an den Owner-Checkpoint.
 
+### Nachentscheide nach der Messung 28-01 (Owner 28.09.2026)
+Grundlage: `raw/28-01-live-questions.txt` (nc35, NC 35.0.0, 3 passed, Block ZUSAMMENFASSUNG 28-01).
+- **D-28-18 (A1 Zellform):** Owner-Wortlaut: "Wie gemessen (Empfohlen)": 28-05 filtert genau das gemessene Format (JSON-String, providerId "files", fileid aus dem value-Ende "/f/<id>", escapte Slashes beachten); getaggt -> Zelle wie null, im Ausfall fail-closed; andere providerIds unberührt. Gemessene Zellform in `rows/simple`: JSON-String `{"title": "<Dateiname>", "value": "<url>/f/<fileid>", "providerId": "files"}` mit PHP-escapten Schrägstrichen (`\/`), eine leere Zelle kommt als `null`.
+- **D-28-19 (B5 files_search-Ordner):** Owner-Wortlaut: "Fixen (Empfohlen)": getaggter/ausgeschlossener Ordner in files_search antwortet vorab mit genau dem Fehler des erfundenen Ordners (dav.not_found(search_scope), gleicher Scope-Pfad-Wortlaut); umgesetzt in 28-06. Gemessen: der erfundene Ordner antwortet "File not found: /files/<user>/<Ordner>. Hint: List the parent folder first to get the exact spelling of the path.", der getaggte heute eine leere Trefferliste ohne Fehler.
+- **D-28-20 (B6 erster Binär-Chunk):** Owner-Wortlaut: "Kein Befund, Staging als Merker (Empfohlen)": nur Paartest; der liegen gebliebene Staging-Ordner uploads/<user>/nc-mcp-<sha256> ist kein Orakel und wird Aufräum-Merker für Backlog/Phase 29, kein Fix in 28. Gemessen: Chunk 1 (5 MiB) in getaggten und erfundenen Ordner antwortet wortgleich bis auf den Pfad; der Text-Upload ebenso (B6-text gleich).
+
 ### Aus früheren Phasen übernommene Entscheide (gelten unverändert, nicht neu verhandeln)
 - **D-v1.7-01/02:** Fester Tag-Name `kein-ki`, Groß-/Kleinschreibung egal, Varianten vereinigt; kein Zähler für Zurückgehaltenes.
 - **D-25-05:** Fail-closed-Automat (207 / 412 einmal neu auflösen / sonst nicht prüfbar); Capability wird nicht befragt.
