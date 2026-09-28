@@ -1,0 +1,94 @@
+
+# 28-10 canary normal 2026-09-28 14:41:09 +0200 head=64af5f6 container=nc35-nc user=alice
+# kommando: PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_canary.py -m integration -s
+# stamm=kanarie28xf6df8606 marker=mk94178bf3f1684c7595686f6a8cbe2572 kontroll-marker=ck2bc15038a91440e099dd6ec5d3d3ad88
+GATE-02 files_search normal {"query": "kanarie28xf6df8606"} seite 1: ja (is_error=False {"query":"kanarie28xf6df8606","folder":"/","count":3,"items":[{"path":"/kanarie28xf6df8606/kanarie28xf6df8606-kontrolle-)
+AUFRUF normal files_search {"query": "kanarie28xf6df8606"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE files_search normal {"query": "kanarie28xf6df8606"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 files_list normal {"path": "/kanarie28xf6df8606"} seite 1: ja (is_error=False {"path":"/kanarie28xf6df8606","count":1,"items":[{"path":"/kanarie28xf6df8606/kanarie28xf6df8606-kontrolle-ck2bc15038a91)
+AUFRUF normal files_list {"path": "/kanarie28xf6df8606"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE files_list normal {"path": "/kanarie28xf6df8606"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 files_list normal {"path": "/kanarie28xf6df8606/Gesperrt-f6df8606"} seite 1: ja (is_error=True Error executing tool files_list: File not found: /kanarie28xf6df8606/Gesperrt-f6df8606. Hint: List the parent folder fir)
+AUFRUF normal files_list {"path": "/kanarie28xf6df8606/Gesperrt-f6df8606"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 files_read normal {"path": "/kanarie28xf6df8606/Gesperrt-f6df8606/inhalt-f6df8606.txt"} seite 1: ja (is_error=True Error executing tool files_read: File not found: /kanarie28xf6df8606/Gesperrt-f6df8606/inhalt-f6df8606.txt. Hint: List t)
+AUFRUF normal files_read {"path": "/kanarie28xf6df8606/Gesperrt-f6df8606/inhalt-f6df8606.txt"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 files_read normal {"path": "/kanarie28xf6df8606/kanarie28xf6df8606-kontrolle-ck2bc15038a91440e099dd6ec5d3d3ad88.txt"} seite 1: ja (is_error=False {"path":"/kanarie28xf6df8606/kanarie28xf6df8606-kontrolle-ck2bc15038a91440e099dd6ec5d3d3ad88.txt","content":"kontrolle k)
+AUFRUF normal files_read {"path": "/kanarie28xf6df8606/kanarie28xf6df8606-kontrolle-ck2bc15038a91440e099dd6ec5d3d3ad88.txt"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE files_read normal {"path": "/kanarie28xf6df8606/kanarie28xf6df8606-kontrolle-ck2bc15038a91440e099dd6ec5d3d3ad88.txt"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 files_download normal {"path": "/kanarie28xf6df8606/Gesperrt-f6df8606/inhalt-f6df8606.txt"} seite 1: ja (is_error=True Error executing tool files_download: File not found: /kanarie28xf6df8606/Gesperrt-f6df8606/inhalt-f6df8606.txt. Hint: Li)
+AUFRUF normal files_download {"path": "/kanarie28xf6df8606/Gesperrt-f6df8606/inhalt-f6df8606.txt"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 files_upload normal {"content": "x", "path": "/kanarie28xf6df8606/Gesperrt-f6df8606/neu-f6df8606.txt"} seite 1: ja (is_error=True Error executing tool files_upload: The parent folder /kanarie28xf6df8606/Gesperrt-f6df8606 of /kanarie28xf6df8606/Gesper)
+AUFRUF normal files_upload {"content": "x", "path": "/kanarie28xf6df8606/Gesperrt-f6df8606/neu-f6df8606.txt"} seiten=1 is_error=[True] gebucht=['-']
+ABWEISUNG files_upload normal {"content": "x", "path": "/kanarie28xf6df8606/Gesperrt-f6df8606/neu-f6df8606.txt"}: ja (is_error=[True] gebucht=['-'])
+GATE-02 notes_search normal {"query": "kanarie28xf6df8606"} seite 1: ja (is_error=False {"count":1,"results":[{"id":"note:22591","title":"kanarie28xf6df8606-kontrolle","excerpt":"ck2bc15038a91440e099dd6ec5d3d)
+AUFRUF normal notes_search {"query": "kanarie28xf6df8606"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE notes_search normal {"query": "kanarie28xf6df8606"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 notes_read normal {"note_id": "note:22588"} seite 1: ja (is_error=True Error executing tool notes_read: Nextcloud did not find the note 22588. Hint: Search for it first; the id or the name is)
+AUFRUF normal notes_read {"note_id": "note:22588"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 notes_read normal {"note_id": "note:22591"} seite 1: ja (is_error=False {"id":"note:22591","title":"kanarie28xf6df8606-kontrolle","content":"kanarie28xf6df8606-kontrolle\nck2bc15038a91440e099d)
+AUFRUF normal notes_read {"note_id": "note:22591"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE notes_read normal {"note_id": "note:22591"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 notes_create normal {"category": "kanarie28xf6df8606-kat", "content": "x", "title": "kanarie28xf6df8606-neu"} seite 1: ja (is_error=True Error executing tool notes_create: The parent folder /Notes/kanarie28xf6df8606-kat of /Notes/kanarie28xf6df8606-kat/kana)
+AUFRUF normal notes_create {"category": "kanarie28xf6df8606-kat", "content": "x", "title": "kanarie28xf6df8606-neu"} seiten=1 is_error=[True] gebucht=['-']
+ABWEISUNG notes_create normal {"category": "kanarie28xf6df8606-kat", "content": "x", "title": "kanarie28xf6df8606-neu"}: ja (is_error=[True] gebucht=['-'])
+GATE-02 unified_search normal {"limit": 100, "query": "kanarie28xf6df8606"} seite 1: nein ({"query":"kanarie28xf6df8606","count":9,"results":[{"id":"note:22591","title":"kanarie28xf6df8606-kontrolle","subline":"ck2bc15038a91440e099dd6ec5d3d3ad88 Kontrolle","url":"http://127.0.0.1:8082/apps/)
+CLEANUP papierkorb kanarie28xf6df8606: leer
+CLEANUP PROPFIND /kanarie28xf6df8606: 404
+CLEANUP PROPFIND /Notes/kanarie28xf6df8606-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28xf6df8606: entfernt
+CLEANUP share raum 51: 404
+CLEANUP share user2 52: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 13: 404
+CLEANUP kalender kanarie28xf6df8606: 404
+CLEANUP deck board 20: gelöscht
+CLEANUP share deck 53: 404
+CLEANUP tag kein-ki: entfernt
+
+# 28-10 canary normal 2026-09-28 14:41:59 +0200 head=64af5f6 container=nc35-nc user=alice
+# kommando: PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_canary.py -m integration -s
+# stamm=kanarie28x53683f9c marker=mkd96c55ed220a499e9068e4545671bda9 kontroll-marker=ck429f264e78b340edb1e3ee55a5d5a4bd
+GATE-02 files_search normal {"query": "kanarie28x53683f9c"} seite 1: ja (is_error=False {"query":"kanarie28x53683f9c","folder":"/","count":3,"items":[{"path":"/kanarie28x53683f9c/kanarie28x53683f9c-kontrolle-)
+AUFRUF normal files_search {"query": "kanarie28x53683f9c"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE files_search normal {"query": "kanarie28x53683f9c"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 files_list normal {"path": "/kanarie28x53683f9c"} seite 1: ja (is_error=False {"path":"/kanarie28x53683f9c","count":1,"items":[{"path":"/kanarie28x53683f9c/kanarie28x53683f9c-kontrolle-ck429f264e78b)
+AUFRUF normal files_list {"path": "/kanarie28x53683f9c"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE files_list normal {"path": "/kanarie28x53683f9c"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 files_list normal {"path": "/kanarie28x53683f9c/Gesperrt-53683f9c"} seite 1: ja (is_error=True Error executing tool files_list: File not found: /kanarie28x53683f9c/Gesperrt-53683f9c. Hint: List the parent folder fir)
+AUFRUF normal files_list {"path": "/kanarie28x53683f9c/Gesperrt-53683f9c"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 files_read normal {"path": "/kanarie28x53683f9c/Gesperrt-53683f9c/inhalt-53683f9c.txt"} seite 1: ja (is_error=True Error executing tool files_read: File not found: /kanarie28x53683f9c/Gesperrt-53683f9c/inhalt-53683f9c.txt. Hint: List t)
+AUFRUF normal files_read {"path": "/kanarie28x53683f9c/Gesperrt-53683f9c/inhalt-53683f9c.txt"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 files_read normal {"path": "/kanarie28x53683f9c/kanarie28x53683f9c-kontrolle-ck429f264e78b340edb1e3ee55a5d5a4bd.txt"} seite 1: ja (is_error=False {"path":"/kanarie28x53683f9c/kanarie28x53683f9c-kontrolle-ck429f264e78b340edb1e3ee55a5d5a4bd.txt","content":"kontrolle k)
+AUFRUF normal files_read {"path": "/kanarie28x53683f9c/kanarie28x53683f9c-kontrolle-ck429f264e78b340edb1e3ee55a5d5a4bd.txt"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE files_read normal {"path": "/kanarie28x53683f9c/kanarie28x53683f9c-kontrolle-ck429f264e78b340edb1e3ee55a5d5a4bd.txt"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 files_download normal {"path": "/kanarie28x53683f9c/Gesperrt-53683f9c/inhalt-53683f9c.txt"} seite 1: ja (is_error=True Error executing tool files_download: File not found: /kanarie28x53683f9c/Gesperrt-53683f9c/inhalt-53683f9c.txt. Hint: Li)
+AUFRUF normal files_download {"path": "/kanarie28x53683f9c/Gesperrt-53683f9c/inhalt-53683f9c.txt"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 files_upload normal {"content": "x", "path": "/kanarie28x53683f9c/Gesperrt-53683f9c/neu-53683f9c.txt"} seite 1: ja (is_error=True Error executing tool files_upload: The parent folder /kanarie28x53683f9c/Gesperrt-53683f9c of /kanarie28x53683f9c/Gesper)
+AUFRUF normal files_upload {"content": "x", "path": "/kanarie28x53683f9c/Gesperrt-53683f9c/neu-53683f9c.txt"} seiten=1 is_error=[True] gebucht=['-']
+ABWEISUNG files_upload normal {"content": "x", "path": "/kanarie28x53683f9c/Gesperrt-53683f9c/neu-53683f9c.txt"}: ja (is_error=[True] gebucht=['-'])
+GATE-02 notes_search normal {"query": "kanarie28x53683f9c"} seite 1: ja (is_error=False {"count":1,"results":[{"id":"note:22600","title":"kanarie28x53683f9c-kontrolle","excerpt":"ck429f264e78b340edb1e3ee55a5d)
+AUFRUF normal notes_search {"query": "kanarie28x53683f9c"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE notes_search normal {"query": "kanarie28x53683f9c"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 notes_read normal {"note_id": "note:22597"} seite 1: ja (is_error=True Error executing tool notes_read: Nextcloud did not find the note 22597. Hint: Search for it first; the id or the name is)
+AUFRUF normal notes_read {"note_id": "note:22597"} seiten=1 is_error=[True] gebucht=['-']
+GATE-02 notes_read normal {"note_id": "note:22600"} seite 1: ja (is_error=False {"id":"note:22600","title":"kanarie28x53683f9c-kontrolle","content":"kanarie28x53683f9c-kontrolle\nck429f264e78b340edb1e)
+AUFRUF normal notes_read {"note_id": "note:22600"} seiten=1 is_error=[False] gebucht=['-']
+KONTROLLE notes_read normal {"note_id": "note:22600"}: ja (kontroll-marker gesehen in 1 seite(n))
+GATE-02 notes_create normal {"category": "kanarie28x53683f9c-kat", "content": "x", "title": "kanarie28x53683f9c-neu"} seite 1: ja (is_error=True Error executing tool notes_create: The parent folder /Notes/kanarie28x53683f9c-kat of /Notes/kanarie28x53683f9c-kat/kana)
+AUFRUF normal notes_create {"category": "kanarie28x53683f9c-kat", "content": "x", "title": "kanarie28x53683f9c-neu"} seiten=1 is_error=[True] gebucht=['-']
+ABWEISUNG notes_create normal {"category": "kanarie28x53683f9c-kat", "content": "x", "title": "kanarie28x53683f9c-neu"}: ja (is_error=[True] gebucht=['-'])
+GATE-02 unified_search normal {"limit": 100, "query": "kanarie28x53683f9c"} seite 1: nein (@1555: ...vable":false},{"id":"url:http://127.0.0.1:8082/call/6nzewyoh","title":"kanarie28x53683f9c-mkd96c55ed220a499e9068e4545671bda9.txt","url":"http://127.0.0.1:8082/call/6nzewyoh","provider":"talk-conversations","kind":"...)
+CLEANUP papierkorb kanarie28x53683f9c: leer
+CLEANUP PROPFIND /kanarie28x53683f9c: 404
+CLEANUP PROPFIND /Notes/kanarie28x53683f9c-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28x53683f9c: entfernt
+CLEANUP share raum 54: 404
+CLEANUP share user2 55: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 14: 404
+CLEANUP kalender kanarie28x53683f9c: 404
+CLEANUP deck board 21: gelöscht
+CLEANUP share deck 56: 404
+CLEANUP tag kein-ki: entfernt
