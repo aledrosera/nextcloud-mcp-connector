@@ -23,18 +23,33 @@ middleware stays the authority; the pre-check is only the better error message.
 Deliberately absent: update, delete, creating columns or whole tables, importing a scheme
 and every share path. The client below has no code for any of it, which is what makes the
 create-only annotation of ``tables_create_row`` honest rather than a promise (T-08-11).
+
+**A link cell is a stored copy of a file (D-28-14).** A Tables link column that points at a
+Nextcloud file keeps the file name and the file id in the cell itself, so a row read would
+name a file tagged ``kein-ki`` without ever touching the file. :func:`screen_links` runs once
+per call before any cell is projected, in ``tables_browse`` and in ``fetch(table:)`` alike,
+and a cell of a tagged file answers exactly like an empty link cell.
 """
 
 import json
+from collections.abc import Collection
+from dataclasses import dataclass
 from typing import Any
 
-from .. import paging
+import httpx
+
+from .. import paging, provider_map
 from ..errors import ToolError
 from ..nextcloud import NcClients, capabilities
+from ..nextcloud.clients import dav
 from ..nextcloud.clients import tables as tables_client
-from . import marks
+from . import marks, withhold
 
 APP = "tables"
+
+#: The ``providerId`` of a link cell that points at a Nextcloud file (D-28-18, measured in
+#: 28-01). Every other provider (a web address, a contact) names no file and stays untouched.
+_FILES_PROVIDER = "files"
 
 #: The three navigation levels of ``tables_browse``, in the order a model walks them.
 LEVELS = ("tables", "columns", "rows")
@@ -362,6 +377,11 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
     The table itself is read first, for two answers out of one request (K11): ``rowsCount``
     is what turns "there is more" into an observation instead of a guess, and ``title`` is
     what the answer calls the table.
+
+    The rows pass :func:`screen_links` before a single cell is projected (D-28-14): a link
+    cell carries its own copy of a file name and a file id, so a tagged file would otherwise
+    be named here. When the check could not be answered, every file link is withheld and the
+    answer carries the one ``degraded`` entry of this family.
     """
     info = await tables_client.get_table(clients.client, clients.creds, table)
 
@@ -376,6 +396,8 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
     payload = await tables_client.get_rows_simple(
         clients.client, clients.creds, table, limit=limit, offset=offset
     )
+    screened = await screen_links(clients, payload)
+    payload = screened.rows
     titles = [_text(cell) for cell in payload[0]] if payload else []
     results = [_row(titles, values) for values in payload[1:]]
 
@@ -389,6 +411,8 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
     count = _row_count(info)
     if count is not None:
         answer["rowsCount"] = count
+    if screened.unavailable:
+        answer["degraded"] = [withhold.degraded_entry("source")]
     # Two ways to know that this window is not the whole table, and the second one is the
     # only one left when the app reported no count: a window that came back full has a next
     # page behind it often enough to say so, and a wrong "there is more" costs one empty
@@ -406,6 +430,121 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
         answer["truncated"] = True
         answer["next"] = paging.encode_cursor({"o": offset + len(results), "t": table})
     return answer
+
+
+@dataclass(frozen=True, slots=True)
+class LinkScreenResult:
+    """The rows of one ``rows/simple`` answer after the ``kein-ki`` screen, decided once.
+
+    ``rows`` is the payload with every withheld link cell set to ``None``, which is what the
+    app itself answers for an empty link cell, so a withheld cell and an empty one cannot be
+    told apart. ``unavailable`` says that the check could not be answered and every file link
+    was withheld for that reason, so the caller adds its one ``degraded`` entry.
+    """
+
+    rows: list[list[Any]]
+    unavailable: bool
+
+
+async def screen_links(clients: NcClients, payload: list[list[Any]]) -> LinkScreenResult:
+    """Withhold every link cell that points at a file tagged ``kein-ki`` (D-28-14).
+
+    Public because ``tools/chatgpt.py`` screens ``fetch(table:)`` with the same function; one
+    decision for both tools means one truth about which cell stays.
+
+    The title row (the first list) is never touched. The guard is asked only when a value
+    row carries a file link at all: a table without one costs no request (the same rule as
+    ``talk.file_screen``), and the whole window costs at most one REPORT.
+
+    *   ``untagged``: every cell stays as it came.
+    *   ``unverifiable``: every file link cell is withheld, and ``unavailable`` is set.
+    *   ``active`` without a tagged folder: the file id decides.
+    *   ``active`` with a tagged folder: the file ids are resolved into paths with one
+        ``dav.paths_of_fileids`` call. An id that does not resolve is withheld, and a failing
+        lookup withholds every file link like the ``unverifiable`` state does.
+    *   A file link whose id cannot be read is withheld while a tag is active.
+
+    Tables gets no sandbox of its own, only the tag, like Talk: ``NC_MCP_FILES_ROOT`` does
+    not filter link cells, and it only shapes the path lookup when a folder carries the tag
+    (an id outside the root then does not resolve and is withheld). Noted for phase 29.
+    """
+    found: dict[tuple[int, int], str] = {}
+    for row_index, values in enumerate(payload[1:], start=1):
+        if not isinstance(values, list):
+            continue
+        for column_index, cell in enumerate(values):
+            fileid = _linked_fileid(cell)
+            if fileid is not None:
+                found[(row_index, column_index)] = fileid
+    if not found:
+        return LinkScreenResult(payload, unavailable=False)
+
+    scope = await clients.exclusion.scope(clients)
+    if scope.state == "untagged":
+        return LinkScreenResult(payload, unavailable=False)
+    if scope.state == "unverifiable":
+        return LinkScreenResult(_blank(payload, found), unavailable=True)
+
+    resolved: dict[str, str] = {}
+    if scope.has_folders:
+        ask = sorted({fileid for fileid in found.values() if fileid})
+        if ask:
+            try:
+                resolved = await dav.paths_of_fileids(clients.client, clients.creds, ask)
+            except (ToolError, httpx.HTTPError, ValueError):
+                return LinkScreenResult(_blank(payload, found), unavailable=True)
+
+    hidden: set[tuple[int, int]] = set()
+    for position, fileid in found.items():
+        if not fileid:
+            hidden.add(position)
+            continue
+        path: str | None = None
+        if scope.has_folders:
+            path = resolved.get(fileid)
+            if path is None:
+                hidden.add(position)
+                continue
+        if scope.excludes(path=path, fileid=fileid):
+            hidden.add(position)
+    return LinkScreenResult(_blank(payload, hidden), unavailable=False)
+
+
+def _linked_fileid(value: Any) -> str | None:
+    """The file id of a file link cell, ``""`` for one without a readable id, else ``None``.
+
+    The form is the one measured in 28-01 (D-28-18): a JSON string ``{"title": <name>,
+    "value": "<url>/f/<fileid>", "providerId": "files"}``, with the slashes PHP-escaped on
+    the wire. An object of the same shape counts as well. Anything else is not a file link:
+    ``null``, free text that happens to contain ``/f/123``, a link of another provider. The
+    file id is read by ``provider_map.file_id``, the one reader of ``/f/<fileid>`` there is.
+    """
+    link: Any = value
+    if isinstance(value, str):
+        if not value.lstrip().startswith("{"):
+            return None
+        try:
+            link = json.loads(value)
+        except ValueError:
+            return None
+    if not isinstance(link, dict):
+        return None
+    if str(link.get("providerId") or "").strip() != _FILES_PROVIDER:
+        return None
+    target = link.get("value")
+    if not isinstance(target, str):
+        return ""
+    return provider_map.file_id({}, target.replace("\\/", "/").strip())
+
+
+def _blank(payload: list[list[Any]], positions: Collection[tuple[int, int]]) -> list[list[Any]]:
+    """The payload with the cells at ``positions`` (row, column) set to ``None``."""
+    if not positions:
+        return payload
+    rows = [list(values) if isinstance(values, list) else values for values in payload]
+    for row_index, column_index in positions:
+        rows[row_index][column_index] = None
+    return rows
 
 
 def _row(titles: list[str], values: list[Any]) -> dict[str, Any]:
