@@ -34,7 +34,7 @@ SC1-Zeilen im maßgeblichen Lauf: 24, alle `ja`.
 | fetch mit vorher bekannter fileid | SC2 | `fetch vorher gelesen vor dem Taggen: ja (scope=untagged ...)`; danach `wie unbekannte Id: ja ('This account has no file with the id 22215.')` | ja, auch eine vor dem Taggen gelesene fileid | raw/27-07-live.txt |
 | systemtags-Provider | SC2 | `roh=6 roh_mit_attributes=5 antwort=1 ohne_fileId=1 leaks=[]` | ja, die getaggte Menge wird nicht verraten | raw/27-07-live.txt |
 | prepare_context | SC2 | `weder Treffer noch Ausschnitt noch Digest-Name getaggt: ja (treffer=8 ausschnitte=2 degraded=['mail', 'file:22220'])` | ja; `file:22220` ist der Ordner der Laufkennung, den fetch als Ordner ablehnt (kein Ausschlussbezug) | raw/27-07-live.txt |
-| prepare_context Wanduhr | test_ctx_bundle, Messung 1b | siehe Abschnitt "Wanduhr prepare_context", Unterabschnitt "Nach dem Lückenplan 27-09" | 27-08: drei von vier Zeilen innerhalb, B full 1,047 s überschritten; **nach 27-09: drei von vier Zeilen innerhalb, B full 0,992 s weiterhin überschritten (um 0,022 s)**; **nach 27-10 (Unterabschnitt "Nach dem Lückenplan 27-10"): alle vier Zeilen überschritten, B full 2,163 s, bei gleich hoher Kontrolle mit dem Code vor 27-10 (Host-Drift); Wanduhr in dieser Sitzung nicht entscheidungsfähig, Request-Seite belegt (files-search 3 auf 2)** | raw/27-08-prepare-context.txt, raw/27-09-prepare-context.txt, raw/27-10-prepare-context.txt |
+| prepare_context Wanduhr | test_ctx_bundle, Messung 1b | siehe Abschnitt "Wanduhr prepare_context", Unterabschnitt "Nach dem Lückenplan 27-09" | 27-08: drei von vier Zeilen innerhalb, B full 1,047 s überschritten; **nach 27-09: drei von vier Zeilen innerhalb, B full 0,992 s weiterhin überschritten (um 0,022 s)**; **nach 27-10 (Unterabschnitt "Nach dem Lückenplan 27-10"): alle vier Zeilen überschritten, B full 2,163 s, bei gleich hoher Kontrolle mit dem Code vor 27-10 (Host-Drift); Wanduhr in dieser Sitzung nicht entscheidungsfähig, Request-Seite belegt (files-search 3 auf 2)**; **Neumessung 28.09. (Unterabschnitt "Neumessung im ruhigen Fenster"): Messung 1 alle vier Zeilen innerhalb (B full 0,937 s), über 6 Messungen B full Median 1,139 s gegen Kontrolle 1,048 s, Wirkung kleiner als die Streuung; Owner-Entscheid offen** | raw/27-08-prepare-context.txt, raw/27-09-prepare-context.txt, raw/27-10-prepare-context.txt |
 
 SC2-Zeilen im maßgeblichen Lauf: 10, alle `ja`. Die Wanduhr ist der einzige Teil mit Überschreitung.
 
@@ -216,6 +216,44 @@ Deutung aus diesen Zahlen:
 - Nicht belegt ist die Wanduhr: die Drift des Hosts überdeckt in dieser Sitzung jede Wirkung des Plans. Die Schwellen sind nicht angefasst, es wurde nichts außerhalb des Plans getunt.
 - Für eine entscheidungsfähige Zahl braucht es eine Neumessung in einem ruhigen Fenster (Notes-Provider wieder im Bereich von 27-09), wieder abwechselnd mit der Kontrolle.
 
+### Neumessung im ruhigen Fenster (28.09.)
+
+**Datum:** 28.09.2026, 10:20 bis 10:42 +0200, Messung 1 um 10:20:24 (ganze Datei `test_ctx_bundle.py`, 10 passed), danach abwechselnd Kontrolle und Messung nur mit dem Wanduhr-Test per `-k`
+
+**Kommando:** `set -a && . ./.env.nc35 && set +a && export NC_MCP_E2E_COMPOSE_FILE=compose.nc35.yml NC_MCP_E2E_PROJECT=nc-mcp-nc35 NC_MCP_E2E_NEXTCLOUD=nc35-nc NC_MCP_E2E_HARP=nc35-harp NC_MCP_E2E_CADDY=nc35-caddy NC_MCP_E2E_CONTAINERS=nc35-nc,nc_app_mcp_connector,nc35-harp,nc35-caddy,nc35-greenmail && PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_ctx_bundle.py -m integration -s`. Messung = main 656af9d; Kontrolle = `git archive 43c5a9d` in ein nicht committetes, danach gelöschtes Verzeichnis, `PYTHONPATH=<archiv>/src`. Szenarien, 5 Läufe nach 1 Aufwärmlauf, frischer Guard je Aufruf und die Schwellen 0,88 s / 0,97 s unverändert.
+
+**Hostruhe vorher** (Anhang 2 der Rohdatei): status.php 0,016 bis 0,059 s, Notes-Provider 0,56 bis 0,67 s (27.09.: 0,64 bis 1,06 s), Datei-Provider 0,06 bis 0,11 s, Windows-Last 12 bis 22 %, Defender ohne nennenswerte CPU-Zeit.
+
+| Lauf | Zeit | A short | A full | B short | B full |
+|---|---|---|---|---|---|
+| **Messung 1 (nach 27-10, ganze Datei)** | 10:20 | 0,768 | 0,898 | 0,813 | **0,937** |
+| Kontrolle 1 (vor 27-10) | 10:22 | 0,860 | 0,869 | 0,799 | 0,990 |
+| Messung 2 | 10:23 | 0,806 | 0,884 | 0,877 | 0,980 |
+| Kontrolle 2 | 10:24 | 0,791 | 0,886 | 0,870 | 1,075 |
+| Messung 3 | 10:25 | 0,871 | 1,383 | 1,149 | 1,351 |
+| Kontrolle 3 | 10:26 | 1,138 | 0,934 | 1,063 | 1,048 |
+| Messung 4 | 10:27 | 0,855 | 0,897 | 0,780 | 1,060 |
+| Kontrolle 4 | 10:27 | 0,866 | 1,023 | 0,824 | 0,979 |
+| Messung 5 | 10:28 | 0,791 | 0,915 | 0,950 | 1,360 |
+| Messung 6 | 10:29 | 0,781 | 0,893 | 1,058 | 1,219 |
+| Kontrolle 5 | 10:41 | 0,810 | 1,080 | 0,934 | 1,215 |
+| Median der Mediane, Messung (6) | | 0,798 | 0,897 | 0,913 | 1,139 |
+| Median der Mediane, Kontrolle (5) | | 0,860 | 0,934 | 0,870 | 1,048 |
+
+Jede LAUF-Zeile B full der Messungen zeigt `files-search=2`, jede der Kontrollen `files-search=3` (je 6 von 6), also wirklich der neue beziehungsweise alte Code.
+
+Deutung aus diesen Zahlen:
+
+- **Messung 1 liegt in allen vier Zeilen innerhalb** (B full 0,937 s, 0,033 s unter der Schwelle). Die Request-Seite ist wieder belegt: `requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note`, kalt 23 und warm 20 Requests wie am 27.09.
+- **B full ist trotzdem nicht stabil unter 0,97 s:** von sechs Messungen liegt nur Messung 1 innerhalb, Messung 2 knapp darüber (0,980 s), der Median der Mediane ist 1,139 s. Die Kontrolle mit dem alten Code liegt in allen fünf Läufen über 0,97 s (0,979 bis 1,215 s).
+- **Paarweise in den ruhigen Nachbarfenstern:** Messung 1 gegen Kontrolle 1 0,053 s schneller, Messung 2 gegen Kontrolle 2 0,095 s schneller, Messung 4 gegen Kontrolle 4 0,081 s langsamer. Die Wirkung von 27-10 (erwartet 0,03 bis 0,06 s) ist kleiner als die Streuung zwischen Nachbarläufen (bis 0,4 s in Messung 3, 5, 6 und Kontrolle 3, 5), auch in diesem Fenster.
+- A short, A full und B short liegen in 7 bis 9 von 11 Läufen innerhalb, bei beiden Codeständen gleich.
+- Die Schwellen sind nicht angefasst, es wurde nichts getunt.
+
+**Nebenbefund Harness** (Anhang 3 der Rohdatei): Das Kommando der Rohdatei-Kopfzeile (`RAW_COMMAND`) setzt die `NC_MCP_E2E_*`-Exporte nicht. Ohne sie läuft `occ` im Container `nc-mcp-exapp-nc` statt `nc35-nc`, und Szenario B scheitert mit `occ tag:files:add ... file ... not found`. Ohne `PYTHONUTF8=1` bricht zudem der Protokolltest an einem Talk-Raumnamen mit U+2705 (cp1252-Konsole). Beides betrifft nur den Harness, nicht den Connector. Nach der Reihe sind `tag:list` auf beiden Instanzen leer und keine `wanduhr27`-Datei mehr in der Suche.
+
+Rohdatei: `raw/27-10-prepare-context-2026-09-28.txt` (Kopf = Messung 1, Anhang 1 alle Läufe, Anhang 2 Hostruhe, Anhang 3 Topologie-Falle).
+
 ## Request-Kosten eines Bündels (neu verankert, gemessen)
 
 Kategorien des Guards eigenständig gezählt (Pitfall 7): `exclusion-tags` (PROPFIND /remote.php/dav/systemtags), `exclusion-report` (REPORT auf /remote.php/dav/files/), `files-search` (SEARCH auf die DAV-Wurzel).
@@ -295,3 +333,5 @@ Die Restüberschreitung (B full 0,992 s gegen 0,97 s) wird nicht akzeptiert. Nä
 Owner-Entscheid 27.09.2026 zu 27-10 (wörtlich): "Neumessung ruhiges Fenster".
 
 Kein weiterer Code-Umbau. Die Wanduhr-Messung vom 27.09. nachmittags ist wegen Host-Drift (Nachbarläufe streuen bis 1,2 s, auch der alte Code lag in den Kontrollen weit über der Schwelle) nicht entscheidungsfähig. Die Messung wird in einem ruhigen Host-Fenster wiederholt, wieder abwechselnd mit der Kontrolle; der Entscheid fällt danach.
+
+Neumessung 28.09.2026 gelaufen (Abschnitt "Neumessung im ruhigen Fenster (28.09.)"). Owner-Entscheid dazu: offen.

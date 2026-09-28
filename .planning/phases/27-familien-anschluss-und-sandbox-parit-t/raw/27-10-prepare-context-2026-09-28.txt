@@ -1,0 +1,126 @@
+# 27-10 prepare_context wall clock 2026-09-28 10:20:24 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_ctx_bundle.py -m integration -s
+# nextcloud=35.0.0 (status.php), user=alice, query='Abnahme', runs=5 after 1 warm-up, fresh guard per call
+# topology: nc35-nc, nc_app_mcp_connector, nc35-harp, nc35-caddy, nc35-greenmail
+# threshold: reference phase 25 (short 0.72 s, full 0.81 s) + guard flight 0.107 s (tag list 48 ms + REPORT level 1 59 ms) + noise 0.05 s = 0.877 -> 0.88 s and 0.967 -> 0.97 s
+# test data: /wanduhr27-6171cc75-Abnahme/ (with one file) and /wanduhr27-6171cc75-Abnahme.txt
+LAUF szenario=A detail=short lauf=warmup s=0.866 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=[{'provider': 'search-deck-comment', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-comment.'}]
+LAUF szenario=A detail=short lauf=1 s=0.768 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=2 s=0.753 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=3 s=0.750 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=[{'provider': 'search-deck-card-board', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-card-board.'}]
+LAUF szenario=A detail=short lauf=4 s=0.854 requests=20 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=empty
+LAUF szenario=A detail=short lauf=5 s=0.817 requests=19 guard[exclusion-tags=1,exclusion-report=0,files-search=0] propfind=0 ausschnitte=- testdaten_im_buendel=ja degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}]
+WANDUHR szenario=A detail=short median=0.768 min=0.750 max=0.854 schwelle=0.88 urteil=innerhalb
+LAUF szenario=A detail=full lauf=warmup s=0.960 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22476', 'reason': '/wanduhr27-6171cc75-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=1 s=1.004 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22476', 'reason': '/wanduhr27-6171cc75-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=2 s=0.850 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22476', 'reason': '/wanduhr27-6171cc75-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=3 s=0.898 requests=22 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'calendar', 'reason': 'Nextcloud reported a server error (500) for the calendar list.'}, {'source': 'file:22476', 'reason': '/wanduhr27-6171cc75-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=4 s=0.890 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}, {'source': 'file:22476', 'reason': '/wanduhr27-6171cc75-Abnahme is a folder, not a file.'}]
+LAUF szenario=A detail=full lauf=5 s=0.948 requests=23 guard[exclusion-tags=1,exclusion-report=0,files-search=1] propfind=0 ausschnitte=file,file,file testdaten_im_buendel=ja degraded=[{'source': 'file:22476', 'reason': '/wanduhr27-6171cc75-Abnahme is a folder, not a file.'}]
+WANDUHR szenario=A detail=full median=0.898 min=0.850 max=1.004 schwelle=0.97 urteil=innerhalb
+# scenario B: tagged by occ tag:files:add: /wanduhr27-6171cc75-Abnahme/ and /wanduhr27-6171cc75-Abnahme.txt (tag created)
+LAUF szenario=B detail=short lauf=warmup s=0.826 requests=25 guard[exclusion-tags=1,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-comment', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-comment.'}]
+LAUF szenario=B detail=short lauf=1 s=0.799 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=2 s=0.813 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=3 s=0.819 requests=20 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=[{'source': 'mail', 'reason': 'Nextcloud did not find the mail accounts.'}]
+LAUF szenario=B detail=short lauf=4 s=2.807 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=short lauf=5 s=0.786 requests=21 guard[exclusion-tags=0,exclusion-report=1,files-search=1] propfind=0 ausschnitte=- testdaten_im_buendel=nein degraded=empty
+WANDUHR szenario=B detail=short median=0.813 min=0.786 max=2.807 schwelle=0.88 urteil=innerhalb
+LAUF szenario=B detail=full lauf=warmup s=0.898 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=1 s=0.957 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=2 s=0.937 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=3 s=0.915 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=empty
+LAUF szenario=B detail=full lauf=4 s=0.964 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'source': 'talk', 'reason': 'Nextcloud reported a server error (500) while reading the Talk conversations.'}]
+LAUF szenario=B detail=full lauf=5 s=0.916 requests=25 guard[exclusion-tags=0,exclusion-report=1,files-search=2] propfind=0 ausschnitte=file,file,note testdaten_im_buendel=nein degraded=[{'provider': 'search-deck-comment', 'reason': 'Nextcloud reported a server error (500) while reading the search results of the provider search-deck-comment.'}]
+WANDUHR szenario=B detail=full median=0.937 min=0.915 max=0.964 schwelle=0.97 urteil=innerhalb
+CLEANUP PROPFIND /wanduhr27-6171cc75-Abnahme: 404
+CLEANUP PROPFIND /wanduhr27-6171cc75-Abnahme.txt: 404
+CLEANUP tag kein-ki listed: 0
+REQUESTS cold total=23 calendar-dav=2 capabilities=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 navigation=1 search-providers=1 search-query=13 talk=1
+REQUESTS warm total=20 calendar-dav=2 exclusion-tags=1 mail-accounts=1 mail-mailboxes=1 search-providers=1 search-query=13 talk=1
+# ---------------------------------------------------------------------------
+# Anhang 1: Neumessung im ruhigen Fenster 28.09.2026, abwechselnd mit der Kontrolle
+# Messung = Code von main 656af9d; Kontrolle = git archive 43c5a9d in ein nicht committetes,
+# danach geloeschtes Verzeichnis, PYTHONPATH=<archiv>/src, nur der Wanduhr-Test per -k.
+# Messung 1 = Kopf dieser Datei (ganze Datei test_ctx_bundle.py, 10 passed).
+# Alle Laeufe mit PYTHONUTF8=1 und den nc35-Exporten NC_MCP_E2E_* (siehe Anhang 3).
+# --- kontrolle1: 27-09 prepare_context wall clock 2026-09-28 10:22:57 +0200
+WANDUHR szenario=A detail=short median=0.860 min=0.732 max=0.868 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.869 min=0.857 max=0.962 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.799 min=0.774 max=0.919 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=0.990 min=0.974 max=1.138 schwelle=0.97 urteil=ueberschritten
+# kontrolle1: B-full-LAUF-Zeilen mit 6 files-search=3
+# --- messung2: 27-10 prepare_context wall clock 2026-09-28 10:23:43 +0200
+WANDUHR szenario=A detail=short median=0.806 min=0.742 max=1.003 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.884 min=0.848 max=2.856 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.877 min=0.805 max=1.057 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=0.980 min=0.897 max=1.055 schwelle=0.97 urteil=ueberschritten
+# messung2: B-full-LAUF-Zeilen mit 6 files-search=2
+# --- kontrolle2: 27-09 prepare_context wall clock 2026-09-28 10:24:27 +0200
+WANDUHR szenario=A detail=short median=0.791 min=0.761 max=0.944 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.886 min=0.842 max=0.905 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.870 min=0.751 max=2.856 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=1.075 min=0.924 max=1.265 schwelle=0.97 urteil=ueberschritten
+# kontrolle2: B-full-LAUF-Zeilen mit 6 files-search=3
+# --- messung3: 27-10 prepare_context wall clock 2026-09-28 10:25:07 +0200
+WANDUHR szenario=A detail=short median=0.871 min=0.767 max=1.039 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=1.383 min=1.244 max=2.146 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=1.149 min=1.000 max=1.183 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=B detail=full median=1.351 min=1.246 max=1.560 schwelle=0.97 urteil=ueberschritten
+# messung3: B-full-LAUF-Zeilen mit 6 files-search=2
+# --- kontrolle3: 27-09 prepare_context wall clock 2026-09-28 10:26:14 +0200
+WANDUHR szenario=A detail=short median=1.138 min=1.013 max=1.256 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=A detail=full median=0.934 min=0.858 max=3.021 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=1.063 min=0.802 max=2.815 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=B detail=full median=1.048 min=0.914 max=1.145 schwelle=0.97 urteil=ueberschritten
+# kontrolle3: B-full-LAUF-Zeilen mit 6 files-search=3
+# --- messung4: 27-10 prepare_context wall clock 2026-09-28 10:27:02 +0200
+WANDUHR szenario=A detail=short median=0.855 min=0.735 max=0.953 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.897 min=0.871 max=1.093 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.780 min=0.751 max=0.881 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=1.060 min=0.936 max=1.148 schwelle=0.97 urteil=ueberschritten
+# messung4: B-full-LAUF-Zeilen mit 6 files-search=2
+# --- kontrolle4: 27-09 prepare_context wall clock 2026-09-28 10:27:48 +0200
+WANDUHR szenario=A detail=short median=0.866 min=0.828 max=0.939 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=1.023 min=0.872 max=1.210 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=0.824 min=0.785 max=0.824 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=B detail=full median=0.979 min=0.944 max=1.167 schwelle=0.97 urteil=ueberschritten
+# kontrolle4: B-full-LAUF-Zeilen mit 6 files-search=3
+# --- messung5: 27-10 prepare_context wall clock 2026-09-28 10:28:26 +0200
+WANDUHR szenario=A detail=short median=0.791 min=0.760 max=0.868 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.915 min=0.874 max=2.886 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=0.950 min=0.893 max=1.010 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=B detail=full median=1.360 min=1.251 max=1.813 schwelle=0.97 urteil=ueberschritten
+# messung5: B-full-LAUF-Zeilen mit 6 files-search=2
+# --- messung6: 27-10 prepare_context wall clock 2026-09-28 10:29:33 +0200
+WANDUHR szenario=A detail=short median=0.781 min=0.716 max=0.814 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=0.893 min=0.854 max=1.317 schwelle=0.97 urteil=innerhalb
+WANDUHR szenario=B detail=short median=1.058 min=0.821 max=1.153 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=B detail=full median=1.219 min=1.013 max=1.498 schwelle=0.97 urteil=ueberschritten
+# messung6: B-full-LAUF-Zeilen mit 6 files-search=2
+# --- kontrolle5: 27-09 prepare_context wall clock 2026-09-28 10:41:38 +0200
+WANDUHR szenario=A detail=short median=0.810 min=0.719 max=0.884 schwelle=0.88 urteil=innerhalb
+WANDUHR szenario=A detail=full median=1.080 min=0.904 max=1.178 schwelle=0.97 urteil=ueberschritten
+WANDUHR szenario=B detail=short median=0.934 min=0.846 max=1.094 schwelle=0.88 urteil=ueberschritten
+WANDUHR szenario=B detail=full median=1.215 min=1.027 max=1.256 schwelle=0.97 urteil=ueberschritten
+# kontrolle5: B-full-LAUF-Zeilen mit 6 files-search=3
+# ---------------------------------------------------------------------------
+# Anhang 2: Hostruhe (Diagnose, keine Messung des Connectors), curl gegen nc35, alice
+# vor Messung 1 (~10:15): status.php 0.016 bis 0.059 s; notes-Provider 0.560 bis 0.672 s
+#   (9 Proben, einmal 1.877 s als erster Aufruf); files-Provider 0.056 bis 0.111 s;
+#   Windows-Last 22 %, MsMpEng ohne nennenswerte CPU-Zeit.
+# nach Messung 3 (~10:26): status.php 0.016 bis 0.042 s; notes 0.604 bis 0.630 s; Last 12 %.
+# nach Messung 5 (~10:29): notes 0.548 bis 0.671 s.
+# Der Notes-Provider liegt damit am unteren Rand des Drift-Bands vom 27.09. (0.637 bis 1.059 s),
+# trotzdem springen einzelne Laeufe (Messung 3, 5, 6; Kontrolle 3, 5) um 0.2 bis 0.4 s.
+# ---------------------------------------------------------------------------
+# Anhang 3: Topologie-Falle des Kommandos oben
+# 'set -a && . ./.env.nc35' setzt NC_MCP_E2E_NEXTCLOUD nicht; topology.NC_CONTAINER faellt dann
+# auf nc-mcp-exapp-nc zurueck. Die Testdaten entstehen per WebDAV auf nc35, das occ tag:files:add
+# laeuft aber in nc-mcp-exapp-nc: 'occ tag:files:add 22470 kein-ki public failed: file 22470 not
+# found'. Mit export NC_MCP_E2E_COMPOSE_FILE=compose.nc35.yml NC_MCP_E2E_PROJECT=nc-mcp-nc35
+# NC_MCP_E2E_NEXTCLOUD=nc35-nc NC_MCP_E2E_HARP=nc35-harp NC_MCP_E2E_CADDY=nc35-caddy
+# NC_MCP_E2E_CONTAINERS=nc35-nc,nc_app_mcp_connector,nc35-harp,nc35-caddy,nc35-greenmail
+# (topology.py Docstring) laeuft der Harness. Ohne PYTHONUTF8=1 bricht zudem der Protokolltest
+# am Talk-Raumnamen mit U+2705 (cp1252-Konsole). Nach der Reihe: tag:list auf nc35 und
+# nc-mcp-exapp-nc leer, keine wanduhr27-Datei in der Suche.
