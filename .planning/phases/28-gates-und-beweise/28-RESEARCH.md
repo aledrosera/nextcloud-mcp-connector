@@ -460,7 +460,7 @@ Gegenprobe: an den echten Quelltext von `clients/systemtags.py` eine Funktion mi
 | A4 | Nextcloud prüft beim ersten Chunk (MKCOL/PUT mit `Destination`) nicht, ob der Zielordner existiert | B6 | Prüft es, ist das Paar gleich |
 | A5 | Nextcloud legt für alice im CI-Job exapp keinen Kalender und kein Adressbuch von selbst an | Pitfall 8 | nur Protokollinhalt, kein Risiko für das Gate |
 
-## Open Questions
+## Open Questions (RESOLVED: B1 bis B4 per D-28-14..17 in 28-CONTEXT.md; Frage 5 ExApp/HaRP-Kette bewusst nicht zusätzlich, Empfehlung der Research, kein Plan hängt daran)
 
 1. **B1 Tables-Link-Zellen: Fix in Phase 28 oder dokumentierte Grenze?**
    - What we know: Namensabfluss über eine gespeicherte Kopie, Tables-Quelle verifiziert, Connector reicht durch.

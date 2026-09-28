@@ -106,7 +106,9 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
  (completed 2026-09-27)
 
 - [x] **Phase 26: Guard-Kern** - Eine request-gebundene Prüfschicht mit drei Zuständen, einem Roundtrip je Antwort und Subtree-Präfixregel, ohne dass ein Werkzeug angefasst wird (completed 2026-09-27)
-- [x] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox (completed 2026-09-28)
+- [x] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox
+ (completed 2026-09-28)
+
 - [ ] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate
 - [ ] **Phase 29: Prüfkommando und Doku** - `occ mcp_connector:exclusion:check` meldet wirkungslose Konfigurationen, die dreisprachige Doku sagt das Gemessene samt ehrlicher Grenzen
 
@@ -227,6 +229,7 @@ Plans:
 **Wave 8** *(zweiter Lückenplan, blocked on Wave 7 completion)*
 
 - [x] 27-10-PLAN.md , Restlücke Wanduhr B full: Pfadprüfung der Notiz-Ausschnitte in derselben Sammel-SEARCH, byte-gleiche Antworten, Neumessung, Owner-Abnahme
+
 **Research flag**: Notes-Teil hängt vollständig an Phase 25; fällt "Notiz-Id = fileid" durch, braucht der Teil eine kurze eigene Recherche zur Notes-REST-API
 **Offene Punkte für die discuss-phase (nicht entschieden)**:
 
@@ -245,7 +248,35 @@ Plans:
   3. Für jeden Einzelzugriff ist die Antwort auf eine getaggte Id byte-gleich zur Antwort auf eine nicht existente Id, im Normalbetrieb und im Ausfallfall der Prüfung
   4. Das AST-Gate gegen destruktive Aufrufe trägt Nadeln für die systemtags-relations- und systemtags-Schreibpfade, jede mit Gegenprobe, die ohne die Nadel rot würde
 
-**Plans**: TBD
+**Plans**: 12 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 28-01-PLAN.md: Live-Fragen A1, A3/B5, A4/B6 gegen nc35 messen, Harness-Basis, Owner-Entscheid D-28-18..20 (Wave 1)
+- [ ] 28-02-PLAN.md: GATE-01 Klassifikations-Freeze 12/3/7 mit Probe files_update, Paarliste, Vergleichsbausteine (Wave 1)
+- [ ] 28-03-PLAN.md: EXCL-07 Nadeln und AST-Methodenprüfung auf die Tag-Schreibpfade (Wave 1)
+- [ ] 28-04-PLAN.md: Fixes D-28-15 (Talk im Ausfall) und D-28-17 (Reihenfolge fetch(file)/notes_read), Guard-Ausfallformen (Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 28-05-PLAN.md: Fix D-28-14 Tables-Link-Zellen in tables_browse und fetch(table) (Wave 2)
+- [ ] 28-06-PLAN.md: B5/B6 nach Owner-Entscheid D-28-19/20 (Wave 2)
+- [ ] 28-07-PLAN.md: Kanarien-Welt mit Aufbau- und Aufräumbeweis (Wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 28-08-PLAN.md: GATE-03 Unit-Paare Familie files (Wave 3)
+- [ ] 28-09-PLAN.md: GATE-03 Unit-Paare Familie apps inkl. Pin notes_create (Wave 3)
+- [ ] 28-10-PLAN.md: GATE-02 Kanarie über alle 22 Werkzeuge in vier Modi gegen nc35 (Wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 28-11-PLAN.md: GATE-03 Live-Paare gegen nc35 und CI-Schritt im Job exapp (Wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 28-12-PLAN.md: Gate-Lauf, Regression Phase 27, 28-LIVE-BEWEIS.md, Owner-Abnahme (Wave 5)
 
 ### Phase 29: Prüfkommando und Doku
 

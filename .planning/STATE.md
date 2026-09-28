@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: planning
+status: executing
 stopped_at: Phase 28 context gathered
-last_updated: "2026-09-28T09:42:07.749Z"
-last_activity: 2026-09-28 -- Phase 28 context gathered
+last_updated: "2026-09-28T10:46:10.518Z"
+last_activity: 2026-09-28 -- Phase 28 planning complete
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 17
+  total_plans: 29
   completed_plans: 17
-  percent: 60
+  percent: 59
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-09-26)
 
 Phase: 28
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-09-28 -- Phase 27 complete
+Status: Ready to execute
+Last activity: 2026-09-28 -- Phase 28 planning complete
 
 Progress: [██████░░░░] 60%
 
@@ -818,10 +818,10 @@ Items acknowledged and carried forward from previous milestone close:
 
 Last session: 2026-09-28T09:42:07.727Z
 Stopped at: Phase 28 context gathered
-Nächster Schritt: /gsd:plan-phase 28 (Gates und Beweise, 28-CONTEXT.md D-28-01..13)
+Nächster Schritt: /gsd:execute-phase 28 (12 Pläne, 5 Wellen; Owner-Checkpoints in 28-01 und 28-12)
 Resume file: .planning/phases/28-gates-und-beweise/28-CONTEXT.md
 
 ## Operator Next Steps
 
-- /gsd:plan-phase 28
+- /gsd:execute-phase 28
 - Push-Entscheid (Owner): danach SBX-01-CI-Schritt prüfen
