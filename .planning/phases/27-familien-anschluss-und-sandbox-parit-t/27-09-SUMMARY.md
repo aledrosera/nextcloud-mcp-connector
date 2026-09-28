@@ -52,6 +52,8 @@ Die Datei-Ausschnitte eines `prepare_context`-Bündels lösen ihre fileids jetzt
 
 **Status: CHECKPOINT OFFEN.** Task 3 (Owner-Abnahme) ist nicht erledigt; unter "## Abnahme" in 27-LIVE-BEWEIS.md steht "Owner-Entscheid zu 27-09: Ausstehend".
 
+**Nachtrag 27.09.2026:** Checkpoint erledigt, Owner-Entscheid "Zweiter Lückenplan" (27-LIVE-BEWEIS.md, "## Abnahme"), umgesetzt als 27-10.
+
 ## Was gebaut wurde
 
 **Task 1 (RED f13f9fc, GREEN 4c7d85f):**

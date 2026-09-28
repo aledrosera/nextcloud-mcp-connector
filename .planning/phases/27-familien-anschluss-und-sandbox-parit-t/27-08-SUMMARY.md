@@ -43,6 +43,8 @@ prepare_context ist gegen nc35 mit frischem Guard je Aufruf in zwei Szenarien ge
 
 **Status: CHECKPOINT OFFEN.** Task 3 (Owner-Abnahme) ist nicht erledigt; der Abschnitt "## Abnahme" in 27-LIVE-BEWEIS.md steht auf "Ausstehend".
 
+**Nachtrag 27.09.2026:** Checkpoint erledigt, Owner-Entscheid "Lückenplan" (27-LIVE-BEWEIS.md, "## Abnahme"), umgesetzt als 27-09.
+
 ## Was gebaut wurde
 
 **Task 1 (fcb69f9):** `fresh(clients)` im Modul, alle Tool-Aufrufe über die Fixtures `alice`/`counted` laufen mit eigenem ExclusionGuard. `RUNS = 5`. `leg_of(path, method)` kennt vor der calendar-dav-Regel `exclusion-tags`, `exclusion-report`, `files-search`, `files-read`. Neuer Test `test_the_wall_clock_against_the_phase_25_reference`: Testordner und Testdatei (Name mit "Abnahme") per WebDAV mit App-Passwort, Szenario A ohne kein-ki, Szenario B mit kein-ki per occ auf Datei und Ordner, je detail 1 Aufwärmlauf plus 5 Läufe, je Lauf eine LAUF-Zeile mit Guard-Kategorien, je Szenario/detail eine WANDUHR-Zeile; Schwelle wird nicht assertet, CALENDAR_BUDGET schon; Aufräumen im finally mit PROPFIND 404 und Tag-Liste 0 als Assert. Request-Kosten-Test neu verankert (ohne Tag: genau 1 Tag-Liste kalt und warm, 0 REPORT, 0 SEARCH).

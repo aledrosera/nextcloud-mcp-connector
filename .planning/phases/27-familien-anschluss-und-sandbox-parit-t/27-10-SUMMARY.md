@@ -49,6 +49,8 @@ Die Notiz-Ausschnitte eines `prepare_context`-Bündels mit Datei-Ausschnitt prü
 
 **Status: CHECKPOINT OFFEN.** Task 3 (Owner-Abnahme) ist nicht erledigt; unter "## Abnahme" in 27-LIVE-BEWEIS.md steht "Owner-Entscheid zu 27-10: Ausstehend".
 
+**Nachtrag 28.09.2026:** Checkpoint erledigt. Owner-Entscheid 27.09. "Neumessung ruhiges Fenster", Neumessung 28.09. gelaufen, Owner-Abnahme 28.09. "ok weiter" (Empfehlung a, Abnahme mit Begründung), wörtlich in 27-LIVE-BEWEIS.md, "## Abnahme".
+
 ## Was gebaut wurde
 
 **Task 1 (RED 0d204ab, GREEN e9e022f):**
