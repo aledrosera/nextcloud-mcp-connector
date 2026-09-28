@@ -64,9 +64,12 @@ def envelope(data: Any) -> dict[str, Any]:
 
 
 def link(name: str, fileid: str, provider: str = "files") -> str:
-    """One link cell as the app stores it: a JSON string, PHP-escaped slashes (D-28-18)."""
-    raw = json.dumps({"title": name, "value": f"{BASE}/f/{fileid}", "providerId": provider})
-    return raw.replace("/", "\\/")
+    """One link cell as the app stores it: a JSON string (D-28-18).
+
+    The PHP escaping of the slashes happens on the wire in :func:`mock_tables`, exactly as
+    measured in 28-01; the decoded cell carries plain slashes.
+    """
+    return json.dumps({"title": name, "value": f"{BASE}/f/{fileid}", "providerId": provider})
 
 
 def mock_tables(mock: respx.MockRouter, rows: list[list[Any]]) -> None:
@@ -179,6 +182,18 @@ async def test_a_tagged_file_link_is_withheld_and_names_nothing() -> None:
     assert answer["results"][0]["Aufgabe"] == "Baulos 3"
     assert_nothing_of_the_secret(answer)
     assert "degraded" not in answer
+
+
+@pytest.mark.anyio
+async def test_a_link_cell_with_escaped_slashes_inside_is_read_as_well() -> None:
+    escaped = link(SECRET_NAME, SECRET_ID).replace("/", "\\/")
+    answer, _ = await browse_rows(
+        [HEADER, ["a", escaped]],
+        lambda m: guard_routes.active(m, ("Docs/geheim.txt", SECRET_ID, False)),
+    )
+
+    assert answer["results"][0]["Verweis"] is None
+    assert_nothing_of_the_secret(answer)
 
 
 @pytest.mark.anyio
@@ -301,3 +316,50 @@ async def test_many_link_cells_cost_one_report() -> None:
     assert report.call_count == 1
     assert answer["results"][-1]["Verweis"] is None
     assert answer["count"] == 9
+
+
+# --- fetch(table:) ----------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_fetch_table_withholds_a_tagged_link_like_an_empty_cell() -> None:
+    tagged, _ = await fetch_table(
+        secret_rows(), lambda m: guard_routes.active(m, ("Docs/geheim.txt", SECRET_ID, False))
+    )
+    empty, _ = await fetch_table(empty_rows(), guard_routes.untagged)
+
+    assert_nothing_of_the_secret(tagged)
+    assert dump(tagged) == dump(empty)
+    assert "degraded" not in tagged["metadata"]
+
+
+@pytest.mark.anyio
+async def test_fetch_table_in_an_outage_empties_every_link_and_says_so() -> None:
+    rows = [HEADER, ["a", link(OPEN_NAME, OPEN_ID)], ["b", link(SECRET_NAME, SECRET_ID)]]
+    result, _ = await fetch_table(rows, guard_routes.unverifiable)
+
+    assert_nothing_of_the_secret(result)
+    assert OPEN_NAME not in result["text"]
+    assert result["metadata"]["degraded"] == withhold.EXCLUSION_UNAVAILABLE
+
+
+@pytest.mark.anyio
+async def test_fetch_table_without_a_link_asks_no_guard() -> None:
+    rows = [HEADER, ["Baulos 3", "offen"]]
+    result, (listing, report) = await fetch_table(rows, lambda m: guard_routes.active(m))
+
+    assert listing.call_count == 0
+    assert report.call_count == 0
+    assert "Baulos 3 | offen" in result["text"]
+    assert "degraded" not in result["metadata"]
+
+
+@pytest.mark.anyio
+async def test_a_row_of_nothing_but_a_withheld_link_still_counts_as_a_row() -> None:
+    rows = [["Verweis"], [link(SECRET_NAME, SECRET_ID)]]
+    result, _ = await fetch_table(
+        rows, lambda m: guard_routes.active(m, ("Docs/geheim.txt", SECRET_ID, False))
+    )
+
+    assert result["metadata"]["rows_shown"] == "1"
+    assert_nothing_of_the_secret(result)
