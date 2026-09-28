@@ -106,7 +106,7 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
  (completed 2026-09-27)
 
 - [x] **Phase 26: Guard-Kern** - Eine request-gebundene Prüfschicht mit drei Zuständen, einem Roundtrip je Antwort und Subtree-Präfixregel, ohne dass ein Werkzeug angefasst wird (completed 2026-09-27)
-- [ ] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox
+- [x] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox (completed 2026-09-28)
 - [ ] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate
 - [ ] **Phase 29: Prüfkommando und Doku** - `occ mcp_connector:exclusion:check` meldet wirkungslose Konfigurationen, die dreisprachige Doku sagt das Gemessene samt ehrlicher Grenzen
 
@@ -218,15 +218,15 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 27-08-PLAN.md , Wanduhr prepare_context gegen Schwelle 0,88/0,97 s, Request-Kosten, Findling-CI-Test, 27-LIVE-BEWEIS.md, Owner-Checkpoint
+- [x] 27-08-PLAN.md , Wanduhr prepare_context gegen Schwelle 0,88/0,97 s, Request-Kosten, Findling-CI-Test, 27-LIVE-BEWEIS.md, Owner-Checkpoint
 
 **Wave 7** *(Lückenplan, blocked on Wave 6 completion)*
 
-- [ ] 27-09-PLAN.md , Lücke Wanduhr B full: eine fileid-SEARCH je Bündel für die Ausschnitte, Lesen ohne zweiten PROPFIND, byte-gleiche Antworten, Neumessung, Owner-Abnahme
+- [x] 27-09-PLAN.md , Lücke Wanduhr B full: eine fileid-SEARCH je Bündel für die Ausschnitte, Lesen ohne zweiten PROPFIND, byte-gleiche Antworten, Neumessung, Owner-Abnahme
 
 **Wave 8** *(zweiter Lückenplan, blocked on Wave 7 completion)*
 
-- [ ] 27-10-PLAN.md , Restlücke Wanduhr B full: Pfadprüfung der Notiz-Ausschnitte in derselben Sammel-SEARCH, byte-gleiche Antworten, Neumessung, Owner-Abnahme
+- [x] 27-10-PLAN.md , Restlücke Wanduhr B full: Pfadprüfung der Notiz-Ausschnitte in derselben Sammel-SEARCH, byte-gleiche Antworten, Neumessung, Owner-Abnahme
 **Research flag**: Notes-Teil hängt vollständig an Phase 25; fällt "Notiz-Id = fileid" durch, braucht der Teil eine kurze eigene Recherche zur Notes-REST-API
 **Offene Punkte für die discuss-phase (nicht entschieden)**:
 
@@ -294,7 +294,7 @@ Plans:
 | 24. Audit-Anschluss und Nachweis | v1.6 | 9/9 | Complete    | 2026-09-24 |
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
-| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 7/8 | In Progress|  |
+| 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
 | 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 

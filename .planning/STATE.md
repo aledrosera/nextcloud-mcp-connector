@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: executing
-stopped_at: Phase 27 context gathered
-last_updated: "2026-09-27T09:33:04.361Z"
-last_activity: 2026-09-27 -- Phase 27 planning complete
+status: ready_to_plan
+stopped_at: Phase 27 complete (10/10, verification human_needed nur SBX-01-CI), ready to discuss Phase 28
+last_updated: 2026-09-28T09:13:28.323Z
+last_activity: 2026-09-28 -- Phase 27 complete (Wanduhr-Neumessung, Owner-Abnahme, Verifier)
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 15
-  completed_plans: 7
-  percent: 40
+  completed_phases: 3
+  total_plans: 17
+  completed_plans: 17
+  percent: 60
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-26)
 
 **Core value:** Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
-**Current focus:** Phase 27 — familien anschluss und sandbox parität
+**Current focus:** Phase 28: Gates und Beweise
 
 ## Current Position
 
-Phase: 27
+Phase: 28
 Plan: Not started
-Status: Ready to execute
-Last activity: 2026-09-27 -- Phase 27 planning complete
+Status: Ready to plan
+Last activity: 2026-09-28 -- Phase 27 complete
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 141
+- Total plans completed: 151
 - Average duration: 35 min
 - Total execution time: 15.2 hours
 
@@ -64,6 +64,7 @@ Progress: [██░░░░░░░░] 20%
 | 24 | 9 | - | - |
 | 25 | 5 | - | - |
 | 26 | 2 | - | - |
+| 27 | 10 | - | - |
 
 **Recent Trend:**
 
@@ -778,9 +779,9 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- v1.7 Messvorbedingung: Phase 25 misst vor jeder Designentscheidung; Notes-Anschluss (EXCL-05) hängt am Befund "Notiz-Id = fileid", bei negativem Befund dokumentiert vertagt statt geraten
-- v1.7 Versionsfenster: App-aus-Verhalten des REPORT ist nur auf NC 35 gemessen; NC 32 bis 34 und die AppAPI-Impersonation-Variante sind offen, bis Phase 25 sie misst
-- v1.7 offene discuss-Fragen (nicht entschieden): Ordner-Tag als Ausschlussliste und Admin-Schalter (Phase 26), Upload-Orakel und Zählen-vs-Schweigen je Familie (Phase 27)
+- v1.7 offen aus Phase 27: der CI-Schritt 'Findling hits run through sandbox and exclusion (SBX-01)' im Job exapp ist nie gelaufen (main über 170 Commits vor origin/main); beim nächsten Push muss er grün werden, ohne Skip (27-VERIFICATION human_needed)
+- v1.7 Merker für Phase 28: talk_send und notes_create sind im Klassifikations-Freeze betroffen; ChatGPT-search trägt kein degraded-Feld; Provider-cursors-Kanarientest (27-LIVE-BEWEIS.md, Merker für Phase 28)
+- v1.7 Harness nc35: test_ctx_bundle.py braucht neben .env.nc35 die NC_MCP_E2E_*-Exporte aus topology.py und PYTHONUTF8=1, sonst läuft occ im falschen Container (27-LIVE-BEWEIS.md, Neumessung 28.09.)
 - v1.7 Flächen-Nachbarschaft: files_update aus dem Community-PR muss beim Merge in den Klassifikations-Freeze (GATE-01) eingetragen werden
 - v1.5 Termin: der ISV-Call am 14.09. ist der harte Anker für Phase 17; die Fragenliste (OD-03) muss auch dann vorliegen, wenn OD-01 oder OD-02 ergebnislos bleiben, denn ein ungemessener Punkt ist selbst eine Frage für den Call
 - v1.5 offene Architekturfrage: Weg 0 hängt an einer einzigen ungemessenen Tatsache (trägt die serverseitige Token-Erneuerung von `integration_openproject` auch in openDesks OIDC-gebundenem Betrieb, oder fällt sie nach Ablauf des zwischengespeicherten Tokens auf 401); fällt sie, ist Weg 1 der Rückfall, nicht ein Ausweichen
@@ -815,11 +816,13 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-27T08:35:57.392Z
-Stopped at: Phase 27 context gathered
-Nächster Schritt: /gsd:discuss-phase 25 oder direkt /gsd:plan-phase 25 (Mess-Spike Tag-Abfrage, braucht Live-Zugriff auf NC 32 bis 35)
-Resume file: .planning/phases/27-familien-anschluss-und-sandbox-parit-t/27-CONTEXT.md
+Last session: 2026-09-28
+Stopped at: Phase 27 complete (Wanduhr per Owner-Abnahme 28.09., Verification human_needed nur SBX-01-CI)
+Nächster Schritt: /gsd:secure-phase 27, danach /gsd:discuss-phase 28 (Gates und Beweise)
+Resume file: .planning/phases/27-familien-anschluss-und-sandbox-parit-t/27-VERIFICATION.md
 
 ## Operator Next Steps
 
-- Phase 25 planen: /gsd:plan-phase 25
+- /gsd:secure-phase 27
+- /gsd:discuss-phase 28
+- Push-Entscheid (Owner): danach SBX-01-CI-Schritt prüfen
