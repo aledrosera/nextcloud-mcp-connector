@@ -27,7 +27,7 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 
 ### Sandbox-Paritaet (SBX)
 
-- [x] **SBX-01**: Findling-Treffer, die nur eine fileId und keinen Pfad tragen, laufen durch dieselbe Sandbox- (NC_MCP_FILES_ROOT) und Ausschlusspruefung wie Pfad-Treffer
+- [ ] **SBX-01**: Findling-Treffer, die nur eine fileId und keinen Pfad tragen, laufen durch dieselbe Sandbox- (NC_MCP_FILES_ROOT) und Ausschlusspruefung wie Pfad-Treffer
 - [x] **SBX-02**: Notes laufen durch Sandbox- und Ausschlusspruefung (heute umgehen sie die Sandbox vollstaendig)
 
 ### Gates und Beweise (GATE)
@@ -71,7 +71,7 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 | EXCL-05 | Phase 27 (Messbedingung aus Phase 25) | Complete |
 | EXCL-06 | Phase 27 | Complete |
 | EXCL-07 | Phase 28 | Pending |
-| SBX-01 | Phase 27 | Complete |
+| SBX-01 | Phase 27 | Pending (Code fertig und SECURED, CI-Schritt SBX-01 erst nach Push grün, ohne Skip) |
 | SBX-02 | Phase 27 | Complete |
 | GATE-01 | Phase 28 | Pending |
 | GATE-02 | Phase 28 | Pending |
