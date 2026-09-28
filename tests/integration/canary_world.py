@@ -540,6 +540,17 @@ class Harness:
             return f"unlesbar {short(response.text, 80)}"
         return "gelöscht" if deleted > 0 else "noch aktiv"
 
+    def card_listed(self, board_id: str, card_id: str) -> str:
+        """``entfernt`` when no stack of the board lists the card, else ``gelistet``."""
+        response = self.deck("GET", f"/boards/{board_id}/stacks")
+        if response.status_code != 200:
+            return f"stacks {response.status_code}"
+        for stack in response.json():
+            cards = stack.get("cards") or [] if isinstance(stack, dict) else []
+            if any(isinstance(c, dict) and str(c.get("id")) == card_id for c in cards):
+                return "gelistet"
+        return "entfernt"
+
     def board_state(self, board_id: str) -> str:
         """The board as the board list shows it: absent, soft deleted or still active."""
         response = self.deck("GET", "/boards")
@@ -842,10 +853,32 @@ def _add_tool_write(cleanup: Cleanup, harness: Harness, entry: str) -> None:
         )
     elif kind == "card":
         assert len(parts) == 3, f"a card needs board, stack and card: {entry}"
-        path = f"/boards/{parts[0]}/stacks/{parts[1]}/cards/{parts[2]}"
-        cleanup.add(
-            f"tool {entry}", lambda: harness.deck("DELETE", path), lambda: harness.deck_state(path)
-        )
+        board_id, card_id = parts[0], parts[2]
+        path = f"/boards/{board_id}/stacks/{parts[1]}/cards/{card_id}"
+        right_after: list[str] = []
+
+        def undo_card() -> object:
+            status = harness.deck("DELETE", path).status_code
+            right_after.append(f"DELETE {status} {harness.card_listed(board_id, card_id)}")
+            return None
+
+        def read_card() -> str:
+            # Measured on nc35: Deck answers GET on a deleted card with 403, and once the
+            # board is soft deleted too, it answers its stack listing with 403 as well. So
+            # the stack listing read right after the card's own DELETE is the proof, and the
+            # board state of now is its second half.
+            state = harness.deck_state(path)
+            if state in ("404", "gelöscht"):
+                return state
+            listed = harness.card_listed(board_id, card_id)
+            if listed == "entfernt":
+                return listed
+            board = harness.board_state(board_id)
+            if right_after == ["DELETE 200 entfernt"] and board in ("gelöscht", "entfernt"):
+                return "gelöscht"
+            return f"{state} karte danach {right_after} liste {listed} board {board}"
+
+        cleanup.add(f"tool {entry}", undo_card, read_card)
     elif kind == "row":
         row_id = parts[-1]
         cleanup.add(
