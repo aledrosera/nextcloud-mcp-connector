@@ -334,4 +334,6 @@ Owner-Entscheid 27.09.2026 zu 27-10 (wörtlich): "Neumessung ruhiges Fenster".
 
 Kein weiterer Code-Umbau. Die Wanduhr-Messung vom 27.09. nachmittags ist wegen Host-Drift (Nachbarläufe streuen bis 1,2 s, auch der alte Code lag in den Kontrollen weit über der Schwelle) nicht entscheidungsfähig. Die Messung wird in einem ruhigen Host-Fenster wiederholt, wieder abwechselnd mit der Kontrolle; der Entscheid fällt danach.
 
-Neumessung 28.09.2026 gelaufen (Abschnitt "Neumessung im ruhigen Fenster (28.09.)"). Owner-Entscheid dazu: offen.
+Neumessung 28.09.2026 gelaufen (Abschnitt "Neumessung im ruhigen Fenster (28.09.)"). Owner-Entscheid 28.09.2026 zur Neumessung (wörtlich): "ok weiter", als Antwort auf die Vorlage mit Empfehlung (a) "Abnahme mit Begründung".
+
+Die Wanduhr wird abgenommen. Begründung: Der Code nach 27-10 ist gegen die Kontrolle mit dem Code vor 27-10 nicht messbar langsamer (paarweise +0,053 / +0,095 / -0,081 s zugunsten beziehungsweise zulasten der Messung), die Kontrolle lag in allen fünf Läufen selbst über 0,97 s, Messung 1 im ruhigsten Fenster liegt in allen vier Zeilen innerhalb (B full 0,937 s), und die Streuung des Hosts zwischen Nachbarläufen (bis 0,4 s) übersteigt die Auflösung, die eine Schwelle mit 0,05 s Rauschreserve braucht. Die Schwellen bleiben unverändert dokumentiert; der Merker für Phase 29 (Referenz am selben Tag gegen die Kontrolle messen) gilt weiter. Request-Seite (files-search 3 auf 2) ist belegt. Phase 27 ist damit zur Verifikation frei.
