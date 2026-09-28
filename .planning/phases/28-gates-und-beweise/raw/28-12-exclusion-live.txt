@@ -1,0 +1,87 @@
+# 28-12 Regressionslauf der Phase-27-Live-Beweise gegen nc35 nach den Fixes von Phase 28
+# kommando: set -a && . ./.env.nc35 && set +a && export NC_MCP_E2E_COMPOSE_FILE=compose.nc35.yml NC_MCP_E2E_PROJECT=nc-mcp-nc35 NC_MCP_E2E_NEXTCLOUD=nc35-nc NC_MCP_E2E_HARP=nc35-harp NC_MCP_E2E_CADDY=nc35-caddy NC_MCP_E2E_CONTAINERS=nc35-nc,nc_app_mcp_connector,nc35-harp,nc35-caddy,nc35-greenmail && PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_exclusion_live.py -m integration -s
+# Worktree-Isolation: Env aus .env.nc35 per Python-Lader gesetzt (nicht kopiert), PYTHONPATH=<worktree>/src
+# Code: Basis 6fd4526 plus nur die Änderung CONTAINER = topology.NC_CONTAINER in test_exclusion_live.py (Container nc35-nc über NC_MCP_E2E_NEXTCLOUD); keine Erwartung umgestellt
+# Der Test schreibt nach raw/27-07-live.txt; dieser Abschnitt ist von dort kopiert, danach git checkout -- raw/27-07-live.txt (Datei ohne Diff)
+# Auszählung des Abschnitts: 57 Befundzeilen mit Urteil ja, 0 Befundzeilen mit Urteil nein
+
+## pytest-Ausgabe
+..........
+10 passed in 57.68s
+EXIT=0
+
+## Abschnitt aus raw/27-07-live.txt (Zeilen 175 bis 248)
+
+# 27-07 live run 2026-09-28 15:24:23 +0200
+# command: set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest tests/integration/test_exclusion_live.py -m integration -s
+# nextcloud=35.0.0 (status.php), user=alice
+# tree: /live27-49783e2b
+SC2 fetch vorher gelesen vor dem Taggen: ja (scope=untagged text='vorher inhaltwort49783e2b vorherwort49783e2b')
+# tagged by occ tag:files:add: geheim, Projekt/, vorher, note B, /Notes/Live27Geheim-49783e2b (tag created)
+SC1 files_list getaggte Datei und getaggter Ordner fehlen: ja (items=['offen-49783e2b.txt'])
+SC1 files_list getaggter Ordner wie fehlender Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b.' vs 'File not found: /live27-49783e2b/Fehlt.')
+SC1 files_search geheim ohne Treffer: ja (term=geheim-49783e2b.txt count=0)
+SC1 files_search a ohne Treffer: ja (term=a-49783e2b.txt count=0)
+SC1 files_search b ohne Treffer: ja (term=b-49783e2b.txt count=0)
+SC1 files_search scan ohne Treffer: ja (term=scan-49783e2b.pdf count=0)
+SC1 files_search projekt ohne Treffer: ja (term=Projekt-49783e2b count=0)
+SC1 files_search Gegenprobe offen gefunden: ja (items=['/live27-49783e2b/offen-49783e2b.txt'])
+SC1 files_search Laufkennung ohne getaggte Namen: ja (names=['Live27 offen A 49783e2b.md', 'Live27Offen-49783e2b', 'live27-49783e2b', 'live27-out-49783e2b.txt', 'offen-49783e2b.txt'])
+SC1 files_read geheim wie erfundener Pfad: ja ('File not found: /live27-49783e2b/geheim-49783e2b.txt.')
+SC1 files_download geheim wie erfundener Pfad: ja ('File not found: /live27-49783e2b/geheim-49783e2b.txt.')
+SC1 files_read a wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b/a-49783e2b.txt.')
+SC1 files_download a wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b/a-49783e2b.txt.')
+SC1 files_read b wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b/Unter/b-49783e2b.txt.')
+SC1 files_download b wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b/Unter/b-49783e2b.txt.')
+SC1 files_read scan wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b/scan-49783e2b.pdf.')
+SC1 files_download scan wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b/scan-49783e2b.pdf.')
+SC1 files_read projekt wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b.')
+SC1 files_download projekt wie erfundener Pfad: ja ('File not found: /live27-49783e2b/Projekt-49783e2b.')
+SC1 files_read Gegenprobe offen liefert Inhalt: ja (content='offen inhaltwort49783e2b sichtbar')
+SC1 files_upload Projekt/neu.txt wie fehlender Elternordner: ja ('The parent folder /live27-49783e2b/Projekt-49783e2b of /live27-49783e2b/Projekt-49783e2b/neu.txt does not exist.')
+SC1 files_upload geheim wie fehlender Elternordner: ja ('The parent folder /live27-49783e2b of /live27-49783e2b/geheim-49783e2b.txt does not exist.')
+SC1 PROPFIND Projekt/neu.txt nicht geschrieben: ja (status=404)
+SC1 PROPFIND geheim unverändert: ja (etag gleich=True)
+SC3 unified_search comments ausserhalb der Root verschwindet und zählt: ja (raw=2 urls=['http://127.0.0.1:8082/f/22725'] skipped=1)
+SC3 unified_search Gegenprobe comments ohne Root zeigt beide: ja (urls=['http://127.0.0.1:8082/f/22725', 'http://127.0.0.1:8082/f/22730'])
+SC3 notes_search Notizen ausserhalb der Root verschwinden und zählen: ja (count=0 skipped=3)
+SC3 notes_search nur die ungetaggte Notiz: ja (ids=['note:22733'])
+SC3 notes_read geheim_b wie unbekannte Id: ja ('Nextcloud did not find the note 22734.')
+SC3 notes_read geheim_g wie unbekannte Id: ja ('Nextcloud did not find the note 22736.')
+SC3 notes_read Gegenprobe offene Notiz lesbar: ja (title='Live27 offen A 49783e2b')
+SC3 notes_create getaggte Kategorie wie fehlender Elternordner, nichts geschrieben: ja ('The parent folder /Notes/Live27Geheim-49783e2b of /Notes/Live27Geheim-49783e2b/Live27 neu 49783e2b.md does not exist.' notes=66->66)
+SC2 unified_search Laufkennung ohne getaggten Treffer: ja (count=8 providers=['comments', 'files', 'notes'] leaks=[])
+SC2 unified_search geheim-Name ohne getaggten Treffer: ja (count=0 providers=[] leaks=[])
+SC2 unified_search Projekt-Name ohne getaggten Treffer: ja (count=0 providers=[] leaks=[])
+SC2 unified_search Gegenprobe offen gefunden: ja (count=8)
+SC2 chatgpt_search Laufkennung ohne getaggten Treffer: ja (count=8 leaks=[])
+SC2 chatgpt_search geheim-Name ohne getaggten Treffer: ja (count=0 leaks=[])
+SC2 fetch vor dem Taggen gelesene fileid danach wie unbekannte Id: ja (vorher=45 Zeichen, danach 'This account has no file with the id 22727.')
+SC2 unified_search systemtags-Provider nennt keine getaggte Datei: ja (roh=6 roh_mit_attributes=5 antwort=1 ohne_fileId=1 leaks=[])
+SC2 prepare_context weder Treffer noch Ausschnitt noch Digest-Name getaggt: ja (treffer=8 ausschnitte=2 degraded=['file:22732'])
+SC4 talk_browse messages zeigt die getaggte Freigabe nur als {file}: ja (platzhalter_id=215 name_im_text=False)
+SC4 talk_browse conversations last_message ohne den Namen: ja (last_message='{file}')
+SC4 fetch message ohne den Namen: ja (text='From: alice\n{file}')
+SC4 talk_browse Gegenprobe offene Freigabe zeigt den Namen: ja (offen_im_text=True)
+SC4 talk_browse Datei-Raum fehlt in conversations: ja (roh_in_liste=True antwort=False)
+SC4 talk_browse Datei-Raum messages wie erfundenes Token: ja ("The token '<T>' is not in the conversation list of this account.")
+CLEANUP SC4 shares left: 0, file conversation still listed: False
+SC5 files_list leer mit genau einem degraded-Eintrag: ja (items=0 degraded=[{'source': 'exclusion', 'reason': 'The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld.'}])
+SC5 files_read offen und erfundener Pfad identisch uniform: ja ('The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld.')
+SC5 files_upload uniformer Fehler, nichts geschrieben: ja ('The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld.' PROPFIND=404)
+SC5 unified_search keine dateitragenden Treffer, ein exclusion-degraded: ja (treffer=0 datei=0 degraded=['exclusion'])
+SC5 notes_search leer mit genau einem degraded-Eintrag: ja (count=0 degraded=[{'source': 'exclusion', 'reason': 'The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld.'}])
+SC5 talk_browse alle Dateien roh als {file}, ein degraded-Eintrag: ja (degraded=[{'source': 'exclusion', 'reason': 'The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld.'}])
+SC5 fetch file offen uniformer Fehler: ja ('The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld.')
+SC5 prepare_context genau ein degraded-Eintrag EXCLUSION_UNAVAILABLE: ja (exclusion=1 degraded=['exclusion'])
+# SC5 injected REPORT 500 answered 9 times
+SC5 alle Werkzeuge Schweigen im Erfolgsfall: ja (14 Antworten ohne Zähler/Hinweis, laut={})
+A1 paths_of_fileids n=1: median=51.0 max=75.1 (ms, 5 runs after 1 warm-up)
+A1 paths_of_fileids n=25: median=44.8 max=47.8 (ms, 5 runs after 1 warm-up)
+A1 paths_of_fileids n=50: median=46.0 max=50.7 (ms, 5 runs after 1 warm-up)
+CLEANUP PROPFIND root: 404
+CLEANUP PROPFIND out: 404
+CLEANUP PROPFIND offen_path: 404
+CLEANUP PROPFIND geheim_path: 404
+CLEANUP notes left: 0
+CLEANUP tag kein-ki listed: 0
