@@ -89,6 +89,9 @@ typeCheckingMode = "standard"
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
+# The same helper directories pytest puts on the import path (`pythonpath` above), so a
+# test in tests/unit can import `result_shapes` from tests/contract for the type checker too.
+extraPaths = ["tests/integration", "tests/unit", "tests/contract"]
 
 [tool.ruff.lint.isort]
 # Without this, `mcp_connector` is grouped with the third-party `mcp` package,
