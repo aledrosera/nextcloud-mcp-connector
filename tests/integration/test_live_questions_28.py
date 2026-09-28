@@ -200,10 +200,13 @@ async def test_a1_tables_link_cell_wire_form(world: World, monkeypatch: pytest.M
     except ValueError:
         rows = []
     wire_cell = rows[1][0] if isinstance(rows, list) and len(rows) > 1 and rows[1] else None
+    # PHP escapes every slash in its JSON (``http:\/\/...\/f\/22515``), so the raw text is
+    # compared with the escape undone; the decoded cell is the same string without it.
+    wire = raw.replace("\\/", "/")
     log(
         f"BEFUND A1 zellform={_cell_form(wire_cell)} "
-        f"title_im_draht={'ja' if name in raw else 'nein'} "
-        f"fileid_im_draht={'ja' if f'/f/{fileid}' in raw else 'nein'} "
+        f"title_im_draht={'ja' if name in wire else 'nein'} "
+        f"fileid_im_draht={'ja' if f'/f/{fileid}' in wire else 'nein'} "
         f"marker_in_tables_browse={'ja' if world.marker in browsed else 'nein'}"
     )
 
