@@ -10,7 +10,8 @@ with tags. Two kinds of help live here:
     behaviour without any ``kein-ki`` tag, and that is exactly what it gives them.
 *   :func:`untagged`, :func:`active` and :func:`unverifiable` mock the real requests for
     one of the three states, so the ``*_exclusion`` test modules of the family plans prove
-    the wiring against the real guard in one line.
+    the wiring against the real guard in one line. :func:`stale` (412 on every REPORT) and
+    :func:`timeout` are two more ways into ``unverifiable``, for the outage pairs of phase 28.
 
 Why a module and not ``conftest.py``: ``tests/conftest.py`` imports nothing from
 ``mcp_connector`` on purpose, and a fixture there would reach every test layer. This module
@@ -106,6 +107,24 @@ def unverifiable(mock: respx.MockRouter) -> tuple[respx.Route, respx.Route]:
     """Mock a listing with ``kein-ki`` and a failing REPORT: the guard answers ``unverifiable``."""
     listing = mock.route(method="PROPFIND", url=TAGS).mock(return_value=listed(tag_list(KEIN_KI)))
     report = mock.route(method="REPORT", url=HOME).mock(return_value=httpx.Response(500))
+    return listing, report
+
+
+def stale(mock: respx.MockRouter) -> tuple[respx.Route, respx.Route]:
+    """Mock a REPORT that answers 412 every time: the guard answers ``unverifiable``.
+
+    The automaton lists the tags anew after the first 412 and asks once more; the second
+    412 right after a fresh listing is ``stale_twice``. Both routes are read twice.
+    """
+    listing = mock.route(method="PROPFIND", url=TAGS).mock(return_value=listed(tag_list(KEIN_KI)))
+    report = mock.route(method="REPORT", url=HOME).mock(return_value=httpx.Response(412))
+    return listing, report
+
+
+def timeout(mock: respx.MockRouter) -> tuple[respx.Route, respx.Route]:
+    """Mock a REPORT that times out: the guard answers ``unverifiable`` with ``timeout``."""
+    listing = mock.route(method="PROPFIND", url=TAGS).mock(return_value=listed(tag_list(KEIN_KI)))
+    report = mock.route(method="REPORT", url=HOME).mock(side_effect=httpx.ReadTimeout)
     return listing, report
 
 
