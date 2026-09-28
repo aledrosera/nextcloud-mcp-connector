@@ -266,9 +266,9 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 28-08-PLAN.md: GATE-03 Unit-Paare Familie files (Wave 3)
-- [ ] 28-09-PLAN.md: GATE-03 Unit-Paare Familie apps inkl. Pin notes_create (Wave 3)
-- [ ] 28-10-PLAN.md: GATE-02 Kanarie über alle 22 Werkzeuge in vier Modi gegen nc35 (Wave 3)
+- [x] 28-08-PLAN.md: GATE-03 Unit-Paare Familie files (Wave 3)
+- [x] 28-09-PLAN.md: GATE-03 Unit-Paare Familie apps inkl. Pin notes_create (Wave 3)
+- [x] 28-10-PLAN.md: GATE-02 Kanarie über alle 22 Werkzeuge in vier Modi gegen nc35 (Wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -326,7 +326,7 @@ Plans:
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
-| 28. Gates und Beweise | v1.7 | 7/12 | In Progress|  |
+| 28. Gates und Beweise | v1.7 | 10/12 | In Progress|  |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
 ## Coverage v1.7
