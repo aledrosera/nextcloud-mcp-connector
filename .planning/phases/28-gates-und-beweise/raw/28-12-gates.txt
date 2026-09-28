@@ -1,0 +1,321 @@
+# 28-12 Gate-Lauf
+# Datum: 2026-09-28 15:27:50 +0200
+# git HEAD: 6fd4526bab8a6d281b0dfce0c662686c2128e9a3
+# Arbeitsbaum: HEAD plus die Task-1-Änderung an tests/integration/test_exclusion_live.py (CONTAINER = topology.NC_CONTAINER), git status:
+#    M .planning/phases/28-gates-und-beweise/raw/28-10-canary.txt
+#    M tests/integration/test_exclusion_live.py
+#   ?? .planning/phases/28-gates-und-beweise/raw/28-12-exclusion-live.txt
+# (28-10-canary.txt war nur geändert, weil zur selben Zeit der erste gemeinsame Integrationslauf sein Protokoll anhängte; die Datei ist danach per git checkout -- zurückgesetzt)
+# PYTHONPATH=<worktree>/src, venv des Haupt-Checkouts (Worktree-Isolation: Binaries der venv statt uv run)
+
+## Gate 1: pytest tests/unit tests/contract
+# addopts in pyproject.toml enthält bereits -q; ein zweites -q (-qq) unterdrückt die Zählzeile, deshalb ohne zusätzliches -q
+$ .venv/Scripts/python.exe -m pytest tests/unit tests/contract
+........................................................................ [ 99%]
+..........................................                               [100%]
+5049 passed, 33 skipped in 275.86s (0:04:35)
+EXIT=0
+
+## Gate 2: ruff check .
+$ .venv/Scripts/ruff.exe check .
+All checks passed!
+EXIT=0
+
+## Gate 3: ruff format --check .
+$ .venv/Scripts/ruff.exe format --check .
+311 files already formatted
+EXIT=0
+
+## Gate 4: pyright (PYRIGHT_PYTHON_FORCE_VERSION=latest)
+$ PYRIGHT_PYTHON_FORCE_VERSION=latest pyright --pythonpath .venv/Scripts/python.exe
+venv .venv subdirectory not found in venv path c:\Users\Student\nextcloud-mcp-connector\.claude\worktrees\agent-a675ff0b4b93493b4.
+0 errors, 0 warnings, 0 informations
+EXIT=0
+
+## Gate 5: vulture src scripts vulture_whitelist.py
+$ vulture src scripts vulture_whitelist.py
+EXIT=0
+
+## Gate 6: scripts/check_tool_budget.py (Referenz 16412 Bytes vom 2026-09-20)
+$ python scripts/check_tool_budget.py
+tools/list: 17233 bytes, 22 tools, budget 18000
+  mail_browse: 1376 bytes
+  calendar_create_event: 1351 bytes
+  files_upload: 1304 bytes
+  calendar_list_events: 951 bytes
+  search: 924 bytes
+EXIT=0
+
+## Beleg GATE-01 und EXCL-07: Testnamen
+$ .venv/Scripts/python.exe -m pytest tests/contract/test_tool_classes.py tests/contract/test_no_destructive_calls.py -rA
+PASSED tests/contract/test_tool_classes.py::test_every_registered_tool_has_exactly_one_class_and_a_reason
+PASSED tests/contract/test_tool_classes.py::test_a_probe_tool_without_entry_turns_the_freeze_red
+PASSED tests/contract/test_tool_classes.py::test_an_empty_reason_turns_the_freeze_red
+PASSED tests/contract/test_tool_classes.py::test_a_tool_in_two_classes_turns_the_freeze_red
+PASSED tests/contract/test_tool_classes.py::test_a_pair_case_of_an_unaffected_tool_turns_the_freeze_red
+PASSED tests/contract/test_tool_classes.py::test_readers_are_read_only_and_writers_are_not
+PASSED tests/contract/test_tool_classes.py::test_the_three_classes_add_up_to_the_frozen_surface
+PASSED tests/contract/test_no_destructive_calls.py::test_the_production_code_contains_no_destructive_request
+PASSED tests/contract/test_no_destructive_calls.py::test_the_gate_would_notice_a_destructive_call_in_real_code
+PASSED tests/contract/test_no_destructive_calls.py::test_the_sql_exemption_covers_sql_and_nothing_else
+PASSED tests/contract/test_no_destructive_calls.py::test_the_app_password_exemption_covers_one_call_form_and_nothing_else
+PASSED tests/contract/test_no_destructive_calls.py::test_the_config_exemption_covers_one_call_form_and_nothing_else
+PASSED tests/contract/test_no_destructive_calls.py::test_each_tables_needle_trips_on_its_route_and_leaves_the_real_module_alone[/columns/-    await ocs.ocs_post(client, creds, f"{V2_PREFIX}/columns/{cid}", body)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_tables_needle_trips_on_its_route_and_leaves_the_real_module_alone[/rows/-    response = await client.get(api_url(creds, f"/tables/{table}/rows/{row_id}"))]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_tables_needle_trips_on_its_route_and_leaves_the_real_module_alone[/scheme-    url = ocs.ocs_url(creds, f"{V2_PREFIX}/tables/{table}/scheme")]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_tables_needle_trips_on_its_route_and_leaves_the_real_module_alone[/share-    url = ocs.ocs_url(creds, f"{V2_PREFIX}/{NODE_COLLECTION_TABLES}/{t}/share")]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_tables_needle_trips_on_its_route_and_leaves_the_real_module_alone[/transfer-    url = ocs.ocs_url(creds, f"{V2_PREFIX}/tables/{table}/transfer")]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_three_routes_the_tables_client_really_builds_stay_allowed
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/archive-    await ocs.ocs_post(client, creds, f"{ROOM_PREFIX}/{room}/archive", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/attachment-    url = ocs.ocs_url(creds, f"{CHAT_PREFIX}/{room}/{m}/attachment")]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/favorite-    await ocs.ocs_post(client, creds, f"{ROOM_PREFIX}/{room}/favorite", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/notify-    await ocs.ocs_post(client, creds, f"{CHAT_PREFIX}/{room}/notify", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/participants-    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/participants")]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/pin-    await ocs.ocs_post(client, creds, f"{CHAT_PREFIX}/{room}/{m}/pin", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/read-    await ocs.ocs_post(client, creds, f"{CHAT_PREFIX}/{room}/read", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/reminder-    await ocs.ocs_post(client, creds, f"{CHAT_PREFIX}/{room}/{m}/reminder", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/schedule-    await ocs.ocs_post(client, creds, f"{CHAT_PREFIX}/{room}/schedule", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_talk_needle_trips_on_its_route_and_leaves_the_real_module_alone[/summarize-    await ocs.ocs_post(client, creds, f"{CHAT_PREFIX}/{room}/summarize", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_every_talk_needle_of_this_phase_has_a_counter_proof
+PASSED tests/contract/test_no_destructive_calls.py::test_the_three_routes_the_talk_client_really_builds_stay_allowed
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/accounts-    await ocs.ocs_post(client, creds, f"/apps/mail/api/accounts/{a}", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/drafts-    await ocs.ocs_post(client, creds, f"/apps/mail/api/drafts/{draft}", body)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/mailboxes-    await ocs.ocs_post(client, creds, f"/apps/mail/api/mailboxes/{m}", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/messages-    await ocs.ocs_post(client, creds, f"/apps/mail/api/messages/{m}", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/outbox-    await ocs.ocs_post(client, creds, f"/apps/mail/api/outbox/{m}", body)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/tags-    await ocs.ocs_post(client, creds, f"/apps/mail/api/tags/{tag}", body)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/thread-    await ocs.ocs_post(client, creds, f"/apps/mail/api/thread/{t}/move", b)]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/api/trustedsenders-    url = ocs.ocs_url(creds, f"/apps/mail/api/trustedsenders/{s}")]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_mail_needle_trips_on_its_route_and_leaves_the_real_module_alone[/message/send-    await ocs.ocs_post(client, creds, "/apps/mail/message/send", body)]
+PASSED tests/contract/test_no_destructive_calls.py::test_every_mail_needle_of_this_phase_has_a_counter_proof
+PASSED tests/contract/test_no_destructive_calls.py::test_the_four_routes_the_mail_client_really_builds_stay_allowed
+PASSED tests/contract/test_no_destructive_calls.py::test_the_mail_modules_are_read_only_in_their_source[nextcloud/clients/mail.py]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_mail_modules_are_read_only_in_their_source[tools/mail.py]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_systemtags_needle_trips_on_its_route_and_leaves_the_real_module_alone[/apps/files/api/v1/files-    await client.post(f"{creds.base_url}/index.php/apps/files/api/v1/files{path}", json={"tags": tags})]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_systemtags_needle_trips_on_its_route_and_leaves_the_real_module_alone[systemtags-relations-    await client.put(f"{creds.base_url}/remote.php/dav/systemtags-relations/files/{fileid}/{tag_id}")]
+PASSED tests/contract/test_no_destructive_calls.py::test_each_systemtags_needle_trips_on_its_route_and_leaves_the_real_module_alone[tag:files-    occ("tag:files:add", target, "kein-ki", "public")]
+PASSED tests/contract/test_no_destructive_calls.py::test_every_systemtags_needle_of_this_phase_has_a_counter_proof
+PASSED tests/contract/test_no_destructive_calls.py::test_legacy_file_tag_writes_are_caught_by_the_global_proppatch_needle[    await client.request("PROPPATCH", url, content=b"<oc:tags>kein-ki</oc:tags>")]
+PASSED tests/contract/test_no_destructive_calls.py::test_legacy_file_tag_writes_are_caught_by_the_global_proppatch_needle[    await client.request("PROPPATCH", url, content=b"<oc:favorite>1</oc:favorite>")]
+PASSED tests/contract/test_no_destructive_calls.py::test_no_module_writes_on_systemtags
+PASSED tests/contract/test_no_destructive_calls.py::test_the_systemtags_check_would_notice_a_multiline_write_in_real_code[POST on TAGS_PATH]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_systemtags_check_would_notice_a_multiline_write_in_real_code[PROPPATCH on TAGS_PATH]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_systemtags_check_would_notice_a_multiline_write_in_real_code[delete on a tag]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_systemtags_check_would_notice_a_multiline_write_in_real_code[put on a relation]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_systemtags_client_only_reads[    await client.put(home_url(creds), content=b"")\n]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_systemtags_client_only_reads[    await client.request("POST", home_url(creds))\n]
+PASSED tests/contract/test_no_destructive_calls.py::test_the_two_forms_the_systemtags_client_really_builds_stay_allowed
+PASSED tests/contract/test_no_destructive_calls.py::test_the_tables_read_exemption_covers_two_call_forms_and_nothing_else
+PASSED tests/contract/test_no_destructive_calls.py::test_no_module_level_mutable_state_outside_the_three_documented_caches
+PASSED tests/contract/test_no_destructive_calls.py::test_the_three_allowed_caches_still_exist_where_they_are_claimed_to_be
+PASSED tests/contract/test_no_destructive_calls.py::test_no_tool_stops_to_ask_the_user_or_resolves_a_reference
+61 passed in 4.22s
+EXIT=0
+
+## Beleg GATE-03 Unit: Paartests je Familie
+$ .venv/Scripts/python.exe -m pytest tests/unit/test_pair_equality_files.py
+39 passed in 4.47s
+EXIT=0
+$ .venv/Scripts/python.exe -m pytest tests/unit/test_pair_equality_apps.py
+40 passed in 2.70s
+EXIT=0
+$ .venv/Scripts/python.exe -m pytest tests/unit/test_pair_equality_files.py tests/unit/test_pair_equality_apps.py --collect-only (Testnamen)
+tests/unit/test_pair_equality_files.py::test_files_read_answers_a_tagged_path_like_a_missing_one[active]
+tests/unit/test_pair_equality_files.py::test_files_read_answers_a_tagged_path_like_a_missing_one[stale_once]
+tests/unit/test_pair_equality_files.py::test_files_read_answers_a_tagged_path_like_a_missing_one[stale_twice]
+tests/unit/test_pair_equality_files.py::test_files_read_answers_a_tagged_path_like_a_missing_one[timeout]
+tests/unit/test_pair_equality_files.py::test_files_read_answers_a_tagged_path_like_a_missing_one[server_error]
+tests/unit/test_pair_equality_files.py::test_files_download_answers_a_tagged_path_like_a_missing_one[active]
+tests/unit/test_pair_equality_files.py::test_files_download_answers_a_tagged_path_like_a_missing_one[stale_once]
+tests/unit/test_pair_equality_files.py::test_files_download_answers_a_tagged_path_like_a_missing_one[stale_twice]
+tests/unit/test_pair_equality_files.py::test_files_download_answers_a_tagged_path_like_a_missing_one[timeout]
+tests/unit/test_pair_equality_files.py::test_files_download_answers_a_tagged_path_like_a_missing_one[server_error]
+tests/unit/test_pair_equality_files.py::test_files_list_answers_a_tagged_folder_like_an_invented_one[active]
+tests/unit/test_pair_equality_files.py::test_files_list_answers_a_tagged_folder_like_an_invented_one[stale_once]
+tests/unit/test_pair_equality_files.py::test_files_list_answers_a_tagged_folder_like_an_invented_one[stale_twice]
+tests/unit/test_pair_equality_files.py::test_files_list_answers_a_tagged_folder_like_an_invented_one[timeout]
+tests/unit/test_pair_equality_files.py::test_files_list_answers_a_tagged_folder_like_an_invented_one[server_error]
+tests/unit/test_pair_equality_files.py::test_fetch_file_answers_a_tagged_id_like_an_unknown_one[active]
+tests/unit/test_pair_equality_files.py::test_fetch_file_answers_a_tagged_id_like_an_unknown_one[stale_once]
+tests/unit/test_pair_equality_files.py::test_fetch_file_answers_a_tagged_id_like_an_unknown_one[stale_twice]
+tests/unit/test_pair_equality_files.py::test_fetch_file_answers_a_tagged_id_like_an_unknown_one[timeout]
+tests/unit/test_pair_equality_files.py::test_fetch_file_answers_a_tagged_id_like_an_unknown_one[server_error]
+tests/unit/test_pair_equality_files.py::test_fetch_file_answers_a_failing_lookup_alike[500]
+tests/unit/test_pair_equality_files.py::test_fetch_file_answers_a_failing_lookup_alike[503]
+tests/unit/test_pair_equality_files.py::test_files_search_answers_a_tagged_folder_like_an_invented_one[active]
+tests/unit/test_pair_equality_files.py::test_files_search_answers_a_tagged_folder_like_an_invented_one[stale_once]
+tests/unit/test_pair_equality_files.py::test_files_search_answers_a_tagged_folder_like_an_invented_one[stale_twice]
+tests/unit/test_pair_equality_files.py::test_files_search_answers_a_tagged_folder_like_an_invented_one[timeout]
+tests/unit/test_pair_equality_files.py::test_files_search_answers_a_tagged_folder_like_an_invented_one[server_error]
+tests/unit/test_pair_equality_files.py::test_files_upload_text_into_a_tagged_target_answers_like_an_invented_folder[active]
+tests/unit/test_pair_equality_files.py::test_files_upload_text_into_a_tagged_target_answers_like_an_invented_folder[stale_once]
+tests/unit/test_pair_equality_files.py::test_files_upload_text_into_a_tagged_target_answers_like_an_invented_folder[stale_twice]
+tests/unit/test_pair_equality_files.py::test_files_upload_text_into_a_tagged_target_answers_like_an_invented_folder[timeout]
+tests/unit/test_pair_equality_files.py::test_files_upload_text_into_a_tagged_target_answers_like_an_invented_folder[server_error]
+tests/unit/test_pair_equality_files.py::test_files_upload_first_binary_chunk_answers_like_an_invented_folder[active]
+tests/unit/test_pair_equality_files.py::test_files_upload_first_binary_chunk_answers_like_an_invented_folder[stale_once]
+tests/unit/test_pair_equality_files.py::test_files_upload_first_binary_chunk_answers_like_an_invented_folder[stale_twice]
+tests/unit/test_pair_equality_files.py::test_files_upload_first_binary_chunk_answers_like_an_invented_folder[timeout]
+tests/unit/test_pair_equality_files.py::test_files_upload_first_binary_chunk_answers_like_an_invented_folder[server_error]
+tests/unit/test_pair_equality_files.py::test_the_files_family_covers_exactly_its_pair_cases
+tests/unit/test_pair_equality_files.py::test_time_is_not_part_of_the_comparison
+tests/unit/test_pair_equality_apps.py::test_notes_read_answers_a_tagged_note_like_an_invented_id[active]
+tests/unit/test_pair_equality_apps.py::test_notes_read_answers_a_tagged_note_like_an_invented_id[stale_once]
+tests/unit/test_pair_equality_apps.py::test_notes_read_answers_a_tagged_note_like_an_invented_id[stale_twice]
+tests/unit/test_pair_equality_apps.py::test_notes_read_answers_a_tagged_note_like_an_invented_id[timeout]
+tests/unit/test_pair_equality_apps.py::test_notes_read_answers_a_tagged_note_like_an_invented_id[server_error]
+tests/unit/test_pair_equality_apps.py::test_fetch_note_answers_a_tagged_note_like_an_invented_id[active]
+tests/unit/test_pair_equality_apps.py::test_fetch_note_answers_a_tagged_note_like_an_invented_id[stale_once]
+tests/unit/test_pair_equality_apps.py::test_fetch_note_answers_a_tagged_note_like_an_invented_id[stale_twice]
+tests/unit/test_pair_equality_apps.py::test_fetch_note_answers_a_tagged_note_like_an_invented_id[timeout]
+tests/unit/test_pair_equality_apps.py::test_fetch_note_answers_a_tagged_note_like_an_invented_id[server_error]
+tests/unit/test_pair_equality_apps.py::test_note_reads_answer_a_failing_notes_app_alike[500-fetch]
+tests/unit/test_pair_equality_apps.py::test_note_reads_answer_a_failing_notes_app_alike[500-notes_read]
+tests/unit/test_pair_equality_apps.py::test_note_reads_answer_a_failing_notes_app_alike[503-fetch]
+tests/unit/test_pair_equality_apps.py::test_note_reads_answer_a_failing_notes_app_alike[503-notes_read]
+tests/unit/test_pair_equality_apps.py::test_talk_browse_answers_a_tagged_file_conversation_like_an_invented_token[active]
+tests/unit/test_pair_equality_apps.py::test_talk_browse_answers_a_tagged_file_conversation_like_an_invented_token[stale_once]
+tests/unit/test_pair_equality_apps.py::test_talk_browse_answers_a_tagged_file_conversation_like_an_invented_token[stale_twice]
+tests/unit/test_pair_equality_apps.py::test_talk_browse_answers_a_tagged_file_conversation_like_an_invented_token[timeout]
+tests/unit/test_pair_equality_apps.py::test_talk_browse_answers_a_tagged_file_conversation_like_an_invented_token[server_error]
+tests/unit/test_pair_equality_apps.py::test_talk_send_answers_a_tagged_file_conversation_like_an_invented_token[active]
+tests/unit/test_pair_equality_apps.py::test_talk_send_answers_a_tagged_file_conversation_like_an_invented_token[stale_once]
+tests/unit/test_pair_equality_apps.py::test_talk_send_answers_a_tagged_file_conversation_like_an_invented_token[stale_twice]
+tests/unit/test_pair_equality_apps.py::test_talk_send_answers_a_tagged_file_conversation_like_an_invented_token[timeout]
+tests/unit/test_pair_equality_apps.py::test_talk_send_answers_a_tagged_file_conversation_like_an_invented_token[server_error]
+tests/unit/test_pair_equality_apps.py::test_fetch_message_answers_a_tagged_file_conversation_like_an_invented_token[active]
+tests/unit/test_pair_equality_apps.py::test_fetch_message_answers_a_tagged_file_conversation_like_an_invented_token[stale_once]
+tests/unit/test_pair_equality_apps.py::test_fetch_message_answers_a_tagged_file_conversation_like_an_invented_token[stale_twice]
+tests/unit/test_pair_equality_apps.py::test_fetch_message_answers_a_tagged_file_conversation_like_an_invented_token[timeout]
+tests/unit/test_pair_equality_apps.py::test_fetch_message_answers_a_tagged_file_conversation_like_an_invented_token[server_error]
+tests/unit/test_pair_equality_apps.py::test_fetch_table_answers_a_tagged_link_like_an_empty_cell[active]
+tests/unit/test_pair_equality_apps.py::test_fetch_table_answers_a_tagged_link_like_an_empty_cell[stale_once]
+tests/unit/test_pair_equality_apps.py::test_fetch_table_answers_a_tagged_link_like_an_untagged_one_in_an_outage[stale_twice]
+tests/unit/test_pair_equality_apps.py::test_fetch_table_answers_a_tagged_link_like_an_untagged_one_in_an_outage[timeout]
+tests/unit/test_pair_equality_apps.py::test_fetch_table_answers_a_tagged_link_like_an_untagged_one_in_an_outage[server_error]
+tests/unit/test_pair_equality_apps.py::test_notes_create_is_a_named_residual_oracle[active]
+tests/unit/test_pair_equality_apps.py::test_notes_create_is_a_named_residual_oracle[stale_once]
+tests/unit/test_pair_equality_apps.py::test_notes_create_refuses_a_tagged_and_an_invented_category_alike_in_an_outage[stale_twice]
+tests/unit/test_pair_equality_apps.py::test_notes_create_refuses_a_tagged_and_an_invented_category_alike_in_an_outage[timeout]
+tests/unit/test_pair_equality_apps.py::test_notes_create_refuses_a_tagged_and_an_invented_category_alike_in_an_outage[server_error]
+tests/unit/test_pair_equality_apps.py::test_the_apps_family_covers_exactly_its_pair_cases
+
+## Beleg Fixes: Unit-Tests der Fixdateien
+$ .venv/Scripts/python.exe -m pytest tests/unit/test_tables_exclusion.py tests/unit/test_search_exclusion.py tests/unit/test_talk_exclusion.py tests/unit/test_fetch_exclusion.py tests/unit/test_notes_exclusion.py tests/unit/test_files_exclusion.py tests/unit/test_files_upload_exclusion.py tests/unit/test_fetch_message_exclusion.py
+184 passed in 7.26s
+EXIT=0
+
+## Budget zu Beginn von Phase 28 (Stand 372db35, git archive in ein nicht committetes Verzeichnis)
+tools/list: 17233 bytes, 22 tools, budget 18000
+  mail_browse: 1376 bytes
+  calendar_create_event: 1351 bytes
+  files_upload: 1304 bytes
+  calendar_list_events: 951 bytes
+  search: 924 bytes
+EXIT=0
+
+## Beleg GATE-01: Aufteilung der Klassen aus tests/contract/tool_classes.py
+$ python -c 'import tool_classes as t; ...' (sys.path tests/contract, src)
+FILE_READERS 12 ['fetch', 'files_download', 'files_list', 'files_read', 'files_search', 'notes_read', 'notes_search', 'prepare_context', 'search', 'tables_browse', 'talk_browse', 'unified_search']
+FILE_WRITERS 3 ['files_upload', 'notes_create', 'talk_send']
+UNAFFECTED 7 ['calendar_create_event', 'calendar_list_events', 'contacts_search', 'deck_browse', 'deck_create_card', 'mail_browse', 'tables_create_row']
+PAIR_CASES 14
+NAMED_EXCEPTIONS [('notes_create', 'category')]
+
+## Instanz
+$ docker exec -u www-data nc35-nc php occ status --output=json
+{"installed":true,"version":"35.0.0.10","versionstring":"35.0.0","edition":"","maintenance":false,"needsDbUpgrade":false,"productname":"Nextcloud","extendedSupport":false}
+$ docker exec -u www-data nc35-nc php occ app:list --output=json (Auszug enabled)
+{'spreed': '25.0.0', 'notes': '6.1.0', 'tables': '2.3.1', 'deck': '1.19.0', 'mail': '5.12.0', 'app_api': '35.0.0', 'systemtags': '2.0.0-dev.0'}
+
+## Gemeinsamer Lauf der Phase-28-Integrationsdateien gegen nc35 (Plan 28-12, Schritt 3)
+$ <Env-Vorspann nc35> .venv/Scripts/python.exe -m pytest tests/integration/test_canary.py tests/integration/test_pair_equality_live.py tests/integration/test_canary_world.py tests/integration/test_live_questions_28.py -m integration
+# (ohne zusätzliches -q: addopts enthält -q, -qq unterdrückt die Zählzeile; ein erster Lauf
+# mit -q endete mit 14 Punkten und Exit 0, aber ohne Zählzeile, und wurde wiederholt)
+..............                                                           [100%]
+14 passed in 210.60s (0:03:30)
+EXIT=0
+
+# Die Tests hängen ihre Protokolle an raw/28-01, 28-07, 28-10 und 28-11 an. Die Kernzeilen
+# dieses Laufs stehen unten; danach wurden die vier Dateien per git checkout -- auf den
+# Stand ihrer Pläne zurückgesetzt.
+### Kernzeilen aus raw/28-01-live-questions.txt (ab Zeile 53, 40 Zeilen)
+# 28-01 live run 2026-09-28 15:34:49 +0200
+BEFUND A1 zellform=json-string title_im_draht=ja fileid_im_draht=ja marker_in_tables_browse=nein
+BEFUND B5 gleich
+BEFUND B6-klein gleich
+BEFUND B6 gleich
+BEFUND B6-text gleich
+# Befundzeilen mit Urteil nein in diesem Abschnitt: 0
+# Zeilen mit 'ungleich' in diesem Abschnitt: 0
+### Kernzeilen aus raw/28-07-world.txt (ab Zeile 91, 45 Zeilen)
+# 28-07 world run 2026-09-28 15:34:36 +0200
+ZUSAMMENFASSUNG 28-07 cleanup: 18 Zeilen, 18 gelesen ok
+# Befundzeilen mit Urteil nein in diesem Abschnitt: 0
+# Zeilen mit 'ungleich' in diesem Abschnitt: 0
+### Kernzeilen aus raw/28-10-canary.txt (ab Zeile 510, 509 Zeilen)
+# 28-10 canary normal 2026-09-28 15:31:26 +0200 head=6fd4526 container=nc35-nc user=alice
+KANARIE normal geprüft 22 von 22
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 3 Werkzeug-Einträge
+# 28-10 canary ausfall-500 2026-09-28 15:31:54 +0200 head=6fd4526 container=nc35-nc user=alice
+KANARIE ausfall-500 geprüft 22 von 22
+AUSFALL 500 report-route call_count=24
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 3 Werkzeug-Einträge
+# 28-10 canary ausfall-412 2026-09-28 15:32:20 +0200 head=6fd4526 container=nc35-nc user=alice
+KANARIE ausfall-412 geprüft 22 von 22
+AUSFALL 412 report-route call_count=48
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 3 Werkzeug-Einträge
+# 28-10 canary ausfall-timeout 2026-09-28 15:32:49 +0200 head=6fd4526 container=nc35-nc user=alice
+KANARIE ausfall-timeout geprüft 22 von 22
+AUSFALL timeout report-route call_count=24
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 3 Werkzeug-Einträge
+AUSFALL 500 nicht-prüfbar-antworten=23
+AUSFALL 412 nicht-prüfbar-antworten=23
+AUSFALL timeout nicht-prüfbar-antworten=23
+# Befundzeilen mit Urteil nein in diesem Abschnitt: 0
+# Zeilen mit 'ungleich' in diesem Abschnitt: 0
+### Kernzeilen aus raw/28-11-pairs-live.txt (ab Zeile 278, 277 Zeilen)
+# 28-11 pairs normal 2026-09-28 15:33:19 +0200 head=6fd4526 container=nc35-nc user=alice
+PAARE normal verglichen 13 von 14 (ausnahmen 1)
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+# 28-11 pairs 500 2026-09-28 15:33:43 +0200 head=6fd4526 container=nc35-nc user=alice
+AUSFALL 500 report-route call_count=28
+PAARE 500 verglichen 14 von 14 (ausnahmen 0)
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+# 28-11 pairs 412 2026-09-28 15:33:59 +0200 head=6fd4526 container=nc35-nc user=alice
+AUSFALL 412 report-route call_count=56
+PAARE 412 verglichen 14 von 14 (ausnahmen 0)
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+# 28-11 pairs timeout 2026-09-28 15:34:13 +0200 head=6fd4526 container=nc35-nc user=alice
+AUSFALL timeout report-route call_count=28
+PAARE timeout verglichen 14 von 14 (ausnahmen 0)
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+# 28-11 pairs ausnahmen 2026-09-28 15:34:25 +0200 head=6fd4526 container=nc35-nc user=alice
+AUSNAHME notes_create category: getaggt=is_error Error executing tool notes_create: The parent folder /Notes/kanarie28x996e93a5-kat of /Notes/kanarie28x996e93a5-kat/kanarie28x996e93a5-neu.md does not exist. Hint: Create the folder in Nex... erfunden=erfolg id=note:22970 title=kanarie28x996e93a5-neu
+ZUSAMMENFASSUNG cleanup: 15 Zeilen, 15 gelesen ok, 1 Werkzeug-Einträge
+# Befundzeilen mit Urteil nein in diesem Abschnitt: 0
+# Zeilen mit 'ungleich' in diesem Abschnitt: 0
+
+## Aufräumen nach den Läufen von 28-12 (nc35, gelesen)
+# test_exclusion_live.py und test_live_questions_28.py löschen ihren Baum per WebDAV; die Einträge landen im
+# Papierkorb (Verhalten dieser Harnesses seit 27-07 bzw. 28-01, nicht geändert). Die Einträge der Läufe von 28-12
+# wurden per WebDAV aus dem Papierkorb gelöscht und zurückgelesen:
+PURGE Live27 geheim B 49783e2b.md.d1790601918: DELETE 204, danach PROPFIND 404
+PURGE Live27 geheim G 49783e2b.md.d1790601918: DELETE 204, danach PROPFIND 404
+PURGE Live27 offen A 49783e2b.md.d1790601918: DELETE 204, danach PROPFIND 404
+PURGE Live27Geheim-49783e2b.d1790601919: DELETE 204, danach PROPFIND 404
+PURGE Live27Offen-49783e2b.d1790601918: DELETE 204, danach PROPFIND 404
+PURGE kanarie28x51e51fb0.d1790602253: DELETE 204, danach PROPFIND 404
+PURGE kanarie28xf48b050d.d1790602494: DELETE 204, danach PROPFIND 404
+PURGE live27-49783e2b.d1790601919: DELETE 204, danach PROPFIND 404
+PURGE live27-out-49783e2b.txt.d1790601919: DELETE 204, danach PROPFIND 404
+$ docker exec -u www-data nc35-nc php occ tag:list --output=json
+[]
+$ ls data/alice/files | grep -ciE 'kanarie|live27'
+0
+$ ls data/alice/files_trashbin/files | grep -cE '49783e2b|51e51fb0|f48b050d'
+0
+$ ls data/alice/uploads | wc -l
+0
+# Ältere Papierkorb-Einträge früherer Pläne (live27-* vom 27.09., kanarie28x6736161f und kanarie28xd8a60d39 aus 28-01)
+# liegen weiter im Papierkorb von alice; sie stammen nicht aus 28-12 und wurden nicht angefasst.

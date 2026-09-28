@@ -45,6 +45,7 @@ import httpx
 import pytest
 import respx
 from lxml import etree
+from topology import NC_CONTAINER
 
 from mcp_connector import config, ids
 from mcp_connector.config import normalize_base_url
@@ -78,7 +79,9 @@ COMMAND = (
     "set -a && . ./.env.nc35 && set +a && .venv/Scripts/python.exe -m pytest "
     "tests/integration/test_exclusion_live.py -m integration -s"
 )
-CONTAINER = "nc35-nc"
+# The Nextcloud container comes from the topology (NC_MCP_E2E_NEXTCLOUD), so occ never runs
+# in the wrong instance (28-12, harness trap from 27-10).
+CONTAINER = NC_CONTAINER
 TAG = exclusion_core.EXCLUDE_TAG
 ENV_NAMES = (
     "NC_MCP_URL",
