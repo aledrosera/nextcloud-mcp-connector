@@ -4,8 +4,8 @@ milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
 status: executing
 stopped_at: Phase 28 context gathered
-last_updated: "2026-09-28T10:46:10.518Z"
-last_activity: 2026-09-28 -- Phase 28 planning complete
+last_updated: "2026-09-28T11:36:09.117Z"
+last_activity: 2026-09-28 -- Phase 28 execution started
 progress:
   total_phases: 5
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-26)
 
 **Core value:** Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
-**Current focus:** Phase 28: Gates und Beweise
+**Current focus:** Phase 28 — Gates und Beweise
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-09-28 -- Phase 28 planning complete
+Phase: 28 (Gates und Beweise) — EXECUTING
+Plan: 1 of 12
+Status: Executing Phase 28
+Last activity: 2026-09-28 -- Phase 28 execution started
 
 Progress: [██████░░░░] 60%
 
