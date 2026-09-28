@@ -34,8 +34,10 @@ from guard_routes import BASE, USER
 from mcp import Client
 from mcp.types import CallToolResult
 from result_shapes import normalised
+from tool_classes import NAMED_EXCEPTIONS, PAIR_CASES
 
 from mcp_connector.nextcloud import capabilities
+from mcp_connector.nextcloud.clients import dav
 from mcp_connector.server import mcp
 from mcp_connector.tools import withhold
 
@@ -394,3 +396,205 @@ async def test_fetch_message_answers_a_tagged_file_conversation_like_an_invented
     tagged, unknown = await talk_pair("fetch_message", mode)
 
     assert_talk_pair(tagged, unknown, mode)
+
+
+# --- tables --------------------------------------------------------------------------------
+
+V2_BASE = f"{BASE}/ocs/v2.php/apps/tables/api/2"
+V1_BASE = f"{BASE}/index.php/apps/tables/api/1"
+TABLE_ID = "table:7"
+TABLES_INSTALLED = {"enabled": True, "version": "2.2.2", "apiVersions": ["1.0", "2.0"]}
+TABLE = {"id": 7, "title": "Verweise", "rowsCount": 1, "columnsCount": 2, "isShared": False}
+HEADER = ["Aufgabe", "Verweis"]
+LINKED_SECRET = ("geheim-mk2122.txt", "901")
+LINKED_OPEN = ("offen.txt", "902")
+LINK_NODE: Node = ("Docs/geheim-mk2122.txt", LINKED_SECRET[1], False)
+
+
+def link(name: str, fileid: str) -> str:
+    """A Tables link cell as the app stores it: a JSON string (D-28-18, measured in 28-01)."""
+    return json.dumps({"title": name, "value": f"{BASE}/f/{fileid}", "providerId": "files"})
+
+
+def table_world(cell: str | None) -> World:
+    """One table with one row whose link cell is ``cell`` (``None`` is an empty cell)."""
+
+    def world(mock: respx.MockRouter) -> None:
+        mock.get(CAPABILITIES_URL).mock(
+            return_value=httpx.Response(
+                200, json=envelope({"capabilities": {"core": {}, "tables": TABLES_INSTALLED}})
+            )
+        )
+        mock.get(f"{V2_BASE}/tables/7").mock(return_value=httpx.Response(200, json=envelope(TABLE)))
+        # PHP's json_encode escapes every slash, so the wire carries an escaped one (28-01).
+        wire = json.dumps([HEADER, ["Baulos 3", cell]]).replace("/", "\\/")
+        mock.get(f"{V1_BASE}/tables/7/rows/simple").mock(
+            return_value=httpx.Response(
+                200, content=wire.encode(), headers={"Content-Type": "application/json"}
+            )
+        )
+
+    return world
+
+
+async def table_pair(
+    mode: str, other: str | None, other_forms: tuple[str, ...]
+) -> tuple[Side, Side]:
+    """fetch(table:7) with a link to the tagged file against the same table with ``other``.
+
+    The table id is requested on both sides; the name and the file id of the link target are
+    added as forms, so only an echo of them would be replaced and the rest must be equal.
+    """
+    tagged = await side(
+        "fetch",
+        {"id": TABLE_ID},
+        (TABLE_ID, *LINKED_SECRET),
+        mode,
+        (LINK_NODE,),
+        table_world(link(*LINKED_SECRET)),
+    )
+    unknown = await side(
+        "fetch", {"id": TABLE_ID}, (TABLE_ID, *other_forms), mode, (LINK_NODE,), table_world(other)
+    )
+    return tagged, unknown
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", ANSWERED_MODES)
+async def test_fetch_table_answers_a_tagged_link_like_an_empty_cell(mode: str) -> None:
+    """D-28-14: with the check answered, a tagged link cell reads like an empty one.
+
+    The empty side asks no guard at all (no link, no question); the guard is armed anyway,
+    so both sides run against the same mocked instance.
+    """
+    tagged, empty = await table_pair(mode, None, ())
+
+    assert tagged.result.is_error is not True
+    assert LINKED_SECRET[0] not in raw(tagged.result)
+    assert withhold.EXCLUSION_UNAVAILABLE not in raw(tagged.result)
+    assert_alike(tagged, empty)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", OUTAGE_MODES)
+async def test_fetch_table_answers_a_tagged_link_like_an_untagged_one_in_an_outage(
+    mode: str,
+) -> None:
+    """D-28-14/D-28-18: in an outage every file link is withheld and metadata says degraded."""
+    tagged, untagged = await table_pair(mode, link(*LINKED_OPEN), LINKED_OPEN)
+
+    assert tagged.result.is_error is not True
+    assert LINKED_SECRET[0] not in raw(tagged.result)
+    assert LINKED_OPEN[0] not in raw(untagged.result)
+    for answer in (tagged, untagged):
+        structured = answer.result.structured_content or {}
+        assert structured["metadata"]["degraded"] == withhold.EXCLUSION_UNAVAILABLE
+    assert_alike(tagged, untagged)
+
+
+# --- notes_create: the named exception (D-28-16) -------------------------------------------
+
+TAGGED_CATEGORY = "Geheim"
+INVENTED_CATEGORY = "Erfunden"
+CATEGORY_NODE: Node = ("Notes/Geheim", "932", True)
+
+
+def create_world(mock: respx.MockRouter) -> respx.Route:
+    """The Notes app with its settings; returns the POST route of a new note."""
+    mock_notes_app(mock)
+    mock.get(SETTINGS_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "notesPath": "Notes",
+                "fileSuffix": ".md",
+                "noteMode": "rich",
+                "showHidden": False,
+                "loadRecentOnStartUp": True,
+            },
+        )
+    )
+    created = {
+        "id": 960,
+        "title": "Plan",
+        "content": "x\n",
+        "category": INVENTED_CATEGORY,
+        "favorite": False,
+        "modified": 1789584914,
+    }
+    return mock.post(NOTES_BASE).mock(return_value=httpx.Response(200, json=created))
+
+
+def create_args(category: str) -> dict[str, Any]:
+    return {"title": "Plan", "content": "x\n", "category": category}
+
+
+async def create_pair(mode: str) -> tuple[Side, Side]:
+    tagged = await side(
+        "notes_create",
+        create_args(TAGGED_CATEGORY),
+        (TAGGED_CATEGORY,),
+        mode,
+        (CATEGORY_NODE,),
+        create_world,
+    )
+    invented = await side(
+        "notes_create",
+        create_args(INVENTED_CATEGORY),
+        (INVENTED_CATEGORY,),
+        mode,
+        (CATEGORY_NODE,),
+        create_world,
+    )
+    return tagged, invented
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", ANSWERED_MODES)
+async def test_notes_create_is_a_named_residual_oracle(mode: str) -> None:
+    """Accepted residual oracle, documented in phase 29 like T-27-16 (D-28-16).
+
+    The Notes app creates a category that does not exist, and the guard refuses a tagged
+    one with the sentence of an upload into a missing folder. The two answers differ, and
+    this test pins exactly that difference instead of pretending they were a pair.
+    """
+    assert ("notes_create", "category") in NAMED_EXCEPTIONS
+
+    tagged, invented = await create_pair(mode)
+
+    candidate = f"/Notes/{TAGGED_CATEGORY}/Plan.md"
+    assert tagged.result.is_error is True
+    assert str(dav.parent_missing(candidate)) in raw(tagged.result)
+    assert tagged.routes.call_count == 0, "a tagged category must never be written into"
+
+    assert invented.result.is_error is not True
+    assert invented.routes.call_count == 1
+    assert "note:960" in raw(invented.result)
+
+    assert tagged.text != invented.text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", OUTAGE_MODES)
+async def test_notes_create_refuses_a_tagged_and_an_invented_category_alike_in_an_outage(
+    mode: str,
+) -> None:
+    """Outside the named exception notes_create is an ordinary pair: one refusal, no POST."""
+    tagged, invented = await create_pair(mode)
+
+    assert tagged.result.is_error is True
+    assert withhold.EXCLUSION_UNAVAILABLE in raw(tagged.result)
+    assert tagged.routes.call_count == 0
+    assert invented.routes.call_count == 0
+    assert_alike(tagged, invented)
+
+
+# --- coverage ------------------------------------------------------------------------------
+
+
+def test_the_apps_family_covers_exactly_its_pair_cases() -> None:
+    """No pair case of the family is skipped silently; the one named case is D-28-16."""
+    apps = {case for case, family in PAIR_CASES.items() if family == "apps"}
+    assert apps == COVERED
+    named = {case for case in NAMED_EXCEPTIONS if PAIR_CASES.get(case) == "apps"}
+    assert named == {("notes_create", "category")}
