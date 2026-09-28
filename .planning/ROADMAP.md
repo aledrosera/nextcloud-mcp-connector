@@ -253,10 +253,10 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 28-01-PLAN.md: Live-Fragen A1, A3/B5, A4/B6 gegen nc35 messen, Harness-Basis, Owner-Entscheid D-28-18..20 (Wave 1)
-- [ ] 28-02-PLAN.md: GATE-01 Klassifikations-Freeze 12/3/7 mit Probe files_update, Paarliste, Vergleichsbausteine (Wave 1)
-- [ ] 28-03-PLAN.md: EXCL-07 Nadeln und AST-Methodenprüfung auf die Tag-Schreibpfade (Wave 1)
-- [ ] 28-04-PLAN.md: Fixes D-28-15 (Talk im Ausfall) und D-28-17 (Reihenfolge fetch(file)/notes_read), Guard-Ausfallformen (Wave 1)
+- [x] 28-01-PLAN.md: Live-Fragen A1, A3/B5, A4/B6 gegen nc35 messen, Harness-Basis, Owner-Entscheid D-28-18..20 (Wave 1)
+- [x] 28-02-PLAN.md: GATE-01 Klassifikations-Freeze 12/3/7 mit Probe files_update, Paarliste, Vergleichsbausteine (Wave 1)
+- [x] 28-03-PLAN.md: EXCL-07 Nadeln und AST-Methodenprüfung auf die Tag-Schreibpfade (Wave 1)
+- [x] 28-04-PLAN.md: Fixes D-28-15 (Talk im Ausfall) und D-28-17 (Reihenfolge fetch(file)/notes_read), Guard-Ausfallformen (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -326,7 +326,7 @@ Plans:
 | 25. Mess-Spike Tag-Abfrage | v1.7 | 5/5 | Complete    | 2026-09-27 |
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
-| 28. Gates und Beweise | v1.7 | 0/TBD | Not started | - |
+| 28. Gates und Beweise | v1.7 | 4/12 | In Progress|  |
 | 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
 
 ## Coverage v1.7
