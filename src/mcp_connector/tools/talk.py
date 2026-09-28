@@ -541,14 +541,14 @@ async def _conversations(clients: NcClients, limit: int) -> dict[str, Any]:
     screen = await file_screen(
         clients,
         [room.get("lastMessage") for room in listed],
-        room_fileids=[fileid for room in listed if (fileid := _room_fileid(room))],
+        room_fileids=[fileid for room in listed if (fileid := room_fileid(room))],
     )
     # A withheld file conversation leaves before the cut, like a put-aside one: its name is the
     # file name, and ``total`` must not count what the list does not show (D-27-03).
     entries = [
         _conversation(clients.creds, room, screen)
         for room in listed
-        if not ((fileid := _room_fileid(room)) and screen.hides_room(fileid))
+        if not ((fileid := room_fileid(room)) and screen.hides_room(fileid))
     ]
     # No cursor on this level, and that is a decision rather than an omission. The app does
     # not paginate this list, so a handle could only fetch the whole list again and cut it
@@ -849,7 +849,7 @@ async def one_room(clients: NcClients, token: str, *, include_last_message: bool
     for room in rooms:
         if str(room.get("token") or "").strip() != token:
             continue
-        fileid = _room_fileid(room)
+        fileid = room_fileid(room)
         if fileid:
             screen = await file_screen(clients, (), room_fileids=[fileid])
             if screen.unavailable:
@@ -871,7 +871,7 @@ def _unknown_token(token: str) -> ToolError:
     )
 
 
-def _room_fileid(room: dict[str, Any]) -> str | None:
+def room_fileid(room: dict[str, Any]) -> str | None:
     """The file id of a file conversation, or ``None`` for every other conversation.
 
     Measured on nc35 (NC 35.0.0, spreed 25.0.0, raw/27-05-file-conversation-probe.txt): a
@@ -880,6 +880,9 @@ def _room_fileid(room: dict[str, Any]) -> str | None:
     (``NAME_IST_DATEINAME=ja``). A file conversation whose ``objectId`` is not ASCII digits
     gets the id ``"-"``, which no file carries: it resolves to nothing and is withheld
     whenever anything is tagged (fail-closed), and shown only when nothing is.
+
+    Public because ``tools/search.py`` decides the ``talk-conversations`` hits of the unified
+    search with the same rule (D-28-21): one truth about which conversation names a file.
     """
     if str(room.get("objectType") or "") != "file":
         return None

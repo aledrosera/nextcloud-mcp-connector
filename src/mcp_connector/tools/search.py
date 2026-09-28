@@ -45,7 +45,9 @@ from .. import provider_map
 from ..errors import ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav, ocs
+from ..nextcloud.clients import talk as talk_client
 from ..nextcloud.exclusion import TagScope
+from . import talk as talk_tools
 from . import withhold
 
 DEFAULT_LIMIT = 25
@@ -88,6 +90,15 @@ _UNKNOWN_PROVIDER_REASON = "This Nextcloud has no search provider with that id."
 #: not file-bearing in every state. Should a later spreed start to match file names, the
 #: probe says so and these hits have to be withheld in ``active`` and ``unverifiable``.
 _FILE_SHARE_PROVIDERS = ("talk-message", "talk-message-current")
+
+#: The Talk conversation provider. Its hit is a conversation, and the conversation Talk opens
+#: for a file carries the file name as its name: the canary of plan 28-10 found the tagged
+#: file name in ``unified_search``, ``prepare_context`` and ``search`` through it, in the
+#: normal state and in the outage (``raw/28-10-befund-diagnose.txt``, nc35). Its hits are
+#: therefore decided against the conversation list like ``talk_browse`` does (D-28-21).
+_CONVERSATIONS_PROVIDER = "talk-conversations"
+
+_ROOM_LIST_REASON = "The conversation list could not be read, so conversation hits are withheld."
 
 
 async def unified_search(
@@ -155,6 +166,8 @@ async def unified_search(
         cursor = outcome.get("cursor")
         if cursor is not None and cursor != "":
             cursors[provider_id] = cursor
+
+    withheld = await _screen_conversations(clients, screened, scope, degraded) or withheld
 
     paths, lookup_failed = await _resolve(
         clients, {fid for _, part in screened for fid in part.pending}
@@ -312,6 +325,72 @@ def _screen(clients: NcClients, provider_id: str, entries: list[Any], scope: Tag
             screened.pending.add(ref.fileid)
         screened.kept.append((entry, ref))
     return screened
+
+
+def _conversation_token(entry: dict[str, Any]) -> str | None:
+    """The token of one ``talk-conversations`` hit, read from its ``/call/<token>`` link."""
+    try:
+        segments = httpx.URL(str(entry.get("resourceUrl") or "")).path.split("/")
+    except (httpx.InvalidURL, ValueError):
+        return None
+    for index, segment in enumerate(segments[:-1]):
+        if segment == "call" and segments[index + 1]:
+            return segments[index + 1]
+    return None
+
+
+async def _screen_conversations(
+    clients: NcClients,
+    screened: list[tuple[str, _Screened]],
+    scope: TagScope,
+    degraded: list[dict[str, str]],
+) -> bool:
+    """Drop the file conversations the tag hides; ``True`` means the check could not answer.
+
+    The same rule as ``talk_browse`` (D-28-21, ``talk.room_fileid``): a conversation whose
+    ``objectType`` is ``file`` stands for that file. A tagged one leaves silently (D-27-04);
+    when the check cannot be answered, every file conversation is held back and the caller
+    names that once in ``degraded``. A conversation without a file stays. A hit whose token
+    is not in the list of this account resolves to the id ``"-"``, which no file carries, and
+    is withheld whenever anything is tagged (fail-closed).
+
+    The list is read only when there are such hits and something is tagged, so every other
+    search costs no request more. The guard answers from the scope of this call: no second
+    REPORT. A list that cannot be read withholds the conversation hits under their provider.
+    """
+    parts = [part for provider_id, part in screened if provider_id == _CONVERSATIONS_PROVIDER]
+    if scope.state == "untagged" or not any(part.kept for part in parts):
+        return False
+    try:
+        rooms = await talk_client.get_rooms(
+            clients.client, clients.creds, include_last_message=False
+        )
+    except (ToolError, httpx.HTTPError):
+        for part in parts:
+            part.kept.clear()
+        degraded.append({"provider": _CONVERSATIONS_PROVIDER, "reason": _ROOM_LIST_REASON})
+        return False
+
+    by_token = {
+        str(room.get("token") or ""): talk_tools.room_fileid(room)
+        for room in rooms
+        if isinstance(room, dict)
+    }
+    fileid_of = {
+        id(entry): by_token.get(_conversation_token(entry) or "", "-")
+        for part in parts
+        for entry, _ in part.kept
+    }
+    screen = await talk_tools.file_screen(
+        clients, (), room_fileids=[fileid for fileid in fileid_of.values() if fileid]
+    )
+    for part in parts:
+        part.kept[:] = [
+            (entry, ref)
+            for entry, ref in part.kept
+            if not ((fileid := fileid_of[id(entry)]) and screen.hides_room(fileid))
+        ]
+    return screen.unavailable
 
 
 async def _resolve(clients: NcClients, fileids: set[str]) -> tuple[dict[str, str], bool]:

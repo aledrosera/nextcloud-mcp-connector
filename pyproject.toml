@@ -89,8 +89,8 @@ typeCheckingMode = "standard"
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
-# The same helper directories pytest puts on the import path (`pythonpath` above), so a
-# test in tests/unit can import `result_shapes` from tests/contract for the type checker too.
+# The same helper directories pytest puts on the import path (`pythonpath` above), so the
+# type checker resolves `result_shapes` from tests/contract in unit and integration tests too.
 extraPaths = ["tests/integration", "tests/unit", "tests/contract"]
 
 [tool.ruff.lint.isort]
