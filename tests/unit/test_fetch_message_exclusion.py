@@ -185,10 +185,32 @@ async def test_fetch_in_a_tagged_file_conversation_answers_like_an_unknown_token
     guard_routes.reset()
     with respx.mock(assert_all_called=False) as mock:
         mock_talk(mock, [room()], [chat(MESSAGE_ID, "Hi")], FILE_TOKEN)
+        guard_routes.untagged(mock)
         with pytest.raises(ToolError) as unknown:
             await chatgpt.fetch(fresh(), f"message:{FILE_TOKEN}:{MESSAGE_ID}")
 
     assert refusal(tagged.value) == refusal(unknown.value)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("outage", ["unverifiable", "stale", "timeout"])
+async def test_fetch_with_an_invented_token_in_an_outage_is_the_unit_refusal(outage: str) -> None:
+    """D-28-15: an outage answers a file conversation and an invented token alike."""
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], [chat(MESSAGE_ID, "Hi")], FILE_TOKEN)
+        getattr(guard_routes, outage)(mock)
+        with pytest.raises(ToolError) as file_conversation:
+            await chatgpt.fetch(fresh(), f"message:{FILE_TOKEN}:{MESSAGE_ID}")
+
+    guard_routes.reset()
+    with respx.mock(assert_all_called=False) as mock:
+        mock_talk(mock, [file_room(), room()], [chat(MESSAGE_ID, "Hi")], FILE_TOKEN)
+        getattr(guard_routes, outage)(mock)
+        with pytest.raises(ToolError) as invented:
+            await chatgpt.fetch(fresh(), f"message:nosuch99:{MESSAGE_ID}")
+
+    assert refusal(invented.value) == refusal(withhold.unavailable_error())
+    assert refusal(invented.value) == refusal(file_conversation.value)
 
 
 @pytest.mark.anyio

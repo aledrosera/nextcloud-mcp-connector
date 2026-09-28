@@ -300,11 +300,14 @@ async def _fetch_file(
     """Turn a file id back into a path, then read that path with the ordinary reader.
 
     A file id known from before the tag answers like an unknown one (EXCL-03, success
-    criterion 2). The guard and the lookup run side by side, and the guard decides first:
-    a tagged id is refused before any path is looked at, a path below a tagged folder right
-    after the lookup, both with :func:`_no_file`, the very error of an id that belongs to no
-    file. When the check cannot be answered, every id gets ``withhold.unavailable_error()``,
-    so the refusal itself tells nothing about the id. ``files_tools.read`` asks the same
+    criterion 2). The guard and the lookup run side by side, and the answers are read in the
+    order of ``files._visible_stat``: an error of the guard, then ``unverifiable``, then an
+    error of the lookup, then the tag (D-28-17), because a failing lookup must answer a
+    tagged id and an unknown one alike. A tagged id is refused before any path is looked at,
+    a path below a tagged folder right after the lookup, both with :func:`_no_file`, the
+    very error of an id that belongs to no file. When the check cannot be answered, every
+    id gets ``withhold.unavailable_error()``, so the refusal itself tells nothing about the
+    id. ``files_tools.read`` asks the same
     guard of the same ``clients`` afterwards and gets the fast path, not a second REPORT.
 
     ``MAX_TEXT_BYTES`` is read here and not bound as a default in the signature, so the
@@ -331,10 +334,10 @@ async def _fetch_file(
         raise scope
     if scope.state == "unverifiable":
         raise withhold.unavailable_error()
-    if scope.excludes(fileid=fileid):
-        raise _no_file(fileid)
     if isinstance(entry, BaseException):
         raise entry
+    if scope.excludes(fileid=fileid):
+        raise _no_file(fileid)
     if entry is None:
         raise _no_file(fileid)
     path = str(entry["path"])

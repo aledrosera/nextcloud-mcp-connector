@@ -837,9 +837,11 @@ async def one_room(clients: NcClients, token: str, *, include_last_message: bool
 
     A file conversation of a file the ``kein-ki`` guard withholds is refused with exactly that
     sentence (:func:`_unknown_token`), so ``talk_browse``, ``talk_send`` and ``fetch`` cannot
-    tell it apart from a token that never existed. While the check cannot be answered, a file
-    conversation is refused with :func:`withhold.unavailable_error`. Every other conversation
-    costs no guard request here.
+    tell it apart from a token that never existed. While the check cannot be answered, every
+    token that is not a visible ordinary conversation, a file conversation or one that never
+    existed, is refused with :func:`withhold.unavailable_error`, so the outage tells nothing
+    about the token (D-28-15). The guard is asked on that error path only; a visible ordinary
+    conversation still costs no guard request.
     """
     rooms = await talk_client.get_rooms(
         clients.client, clients.creds, include_last_message=include_last_message
@@ -855,6 +857,9 @@ async def one_room(clients: NcClients, token: str, *, include_last_message: bool
             if screen.hides_room(fileid):
                 raise _unknown_token(token)
         return room
+    scope = await clients.exclusion.scope(clients)
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
     raise _unknown_token(token)
 
 

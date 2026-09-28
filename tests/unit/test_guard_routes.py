@@ -79,6 +79,31 @@ async def test_unverifiable_mocks_a_failing_report(clients: NcClients) -> None:
 
 
 @pytest.mark.anyio
+async def test_stale_mocks_a_report_that_goes_stale_twice(clients: NcClients) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        listing, report = guard_routes.stale(mock)
+
+        scope = await clients.exclusion.scope(clients)
+
+    assert scope.state == "unverifiable"
+    assert scope.reason == "stale_twice"
+    assert listing.call_count == 2
+    assert report.call_count == 2
+
+
+@pytest.mark.anyio
+async def test_timeout_mocks_a_report_that_times_out(clients: NcClients) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        _listing, report = guard_routes.timeout(mock)
+
+        scope = await clients.exclusion.scope(clients)
+
+    assert scope.state == "unverifiable"
+    assert scope.reason == "timeout"
+    assert report.call_count >= 1
+
+
+@pytest.mark.anyio
 async def test_patch_untagged_costs_no_request(
     clients: NcClients, monkeypatch: pytest.MonkeyPatch
 ) -> None:

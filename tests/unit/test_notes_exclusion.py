@@ -349,6 +349,63 @@ async def test_read_unverifiable_answers_every_id_the_same(
     assert triple(excinfo.value) == triple(withhold.unavailable_error())
 
 
+def _fresh_clients() -> NcClients:
+    return NcClients(
+        client=httpx.AsyncClient(follow_redirects=False),
+        creds=Credentials(BASE, USER, SECRET),
+    )
+
+
+async def _read_with_note_status(note_id: str, status: int) -> tuple[str, str, str]:
+    """notes_read with 933 tagged and the Notes GET of ``note_id`` answering ``status``."""
+    guard_routes.reset()
+    capabilities.clear_cache()
+    with respx.mock(assert_all_called=False) as mock:
+        mock_capabilities(mock)
+        guard_routes.active(mock, ("Notes/Offen/geheim.md", "933", False))
+        if status == 404:
+            mock_note_404(mock, note_id, "Note not found")
+        else:
+            mock.get(f"{NOTES_BASE}/{note_id}").mock(return_value=httpx.Response(status))
+        with pytest.raises(ToolError) as excinfo:
+            await notes_tools.read(_fresh_clients(), note_id=f"note:{note_id}")
+    return triple(excinfo.value)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("status", [500, 503])
+async def test_read_a_failing_notes_get_answers_a_tagged_and_an_unknown_id_alike(
+    status: int,
+) -> None:
+    """D-28-17: the error of the Notes GET answers before the tag, like files._visible_stat."""
+    tagged = await _read_with_note_status("933", status)
+    invented = await _read_with_note_status("999", status)
+
+    assert tagged == tuple(part.replace("999", "933") for part in invented)
+    assert tagged != triple(notes_tools._note_not_found("933"))
+
+
+@pytest.mark.anyio
+async def test_read_a_notes_404_of_a_tagged_id_stays_note_not_found() -> None:
+    tagged = await _read_with_note_status("933", 404)
+    invented = await _read_with_note_status("999", 404)
+
+    assert tagged == triple(notes_tools._note_not_found("933"))
+    assert invented == triple(notes_tools._note_not_found("999"))
+
+
+@pytest.mark.anyio
+async def test_read_unverifiable_answers_before_a_failing_notes_get(clients: NcClients) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_capabilities(mock)
+        guard_routes.unverifiable(mock)
+        mock.get(f"{NOTES_BASE}/933").mock(return_value=httpx.Response(500))
+        with pytest.raises(ToolError) as excinfo:
+            await notes_tools.read(clients, note_id="note:933")
+
+    assert triple(excinfo.value) == triple(withhold.unavailable_error())
+
+
 @pytest.mark.anyio
 async def test_read_untagged_at_root_is_unchanged(clients: NcClients) -> None:
     with respx.mock(assert_all_called=False) as mock:
