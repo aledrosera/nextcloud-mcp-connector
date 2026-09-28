@@ -126,6 +126,17 @@ jobs:
         run: |
           set -a && . ./.env.exapp && set +a
           uv run pytest tests/integration/test_findling_sandbox.py -m integration
+      - name: Canary and pair proofs of the kein-ki exclusion (GATE-02, GATE-03)
+        # Every tool of the registry is called against a canary tagged kein-ki, in the normal
+        # state and in three forced outages of the tag REPORT, and no answer may carry its
+        # marker; every pair case answers a tagged target byte for byte like a missing one.
+        # Only this job has an instance with all the apps the canary world needs; locally
+        # the same files run against nc35 with the NC_MCP_E2E_* exports of topology.py.
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          set -a && . ./.env.exapp && set +a
+          uv run pytest tests/integration/test_canary.py tests/integration/test_pair_equality_live.py -m integration -s
       - name: The OAuth connection over the full chain (AUTH-02, AUTH-03, SC 4, SC 5)
         # The five checks that prove phase 3: a token from the flow serves a tool call over
         # the chain, it survives a restart of the container, two accounts stay two, a
