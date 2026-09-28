@@ -89,6 +89,9 @@ typeCheckingMode = "standard"
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
+# The same helper import path pytest gets from `pythonpath` above: the canary in
+# tests/integration imports result_shapes from tests/contract.
+extraPaths = ["tests/integration", "tests/unit", "tests/contract"]
 
 [tool.ruff.lint.isort]
 # Without this, `mcp_connector` is grouped with the third-party `mcp` package,
