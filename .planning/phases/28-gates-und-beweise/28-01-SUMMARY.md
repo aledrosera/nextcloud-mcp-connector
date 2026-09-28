@@ -3,7 +3,7 @@ phase: 28-gates-und-beweise
 plan: 01
 subsystem: tests/integration (Live-Harness, Messung)
 tags: [gate-02, gate-03, live, nc35, tables, files_search, files_upload]
-status: checkpoint-open
+status: complete
 requires: []
 provides:
   - tests/integration/canary_world.py (Harness-Basis für 28-07, 28-10, 28-11)
@@ -17,18 +17,22 @@ key-files:
     - tests/integration/canary_world.py
     - tests/integration/test_live_questions_28.py
     - .planning/phases/28-gates-und-beweise/raw/28-01-live-questions.txt
-  modified: []
+  modified:
+    - .planning/phases/28-gates-und-beweise/28-CONTEXT.md
 decisions:
+  - "D-28-18 (A1): wie gemessen, 28-05 filtert den JSON-String mit providerId files, fileid aus /f/<id>, getaggt wie null, Ausfall fail-closed"
+  - "D-28-19 (B5): Fix in 28-06, getaggter Ordner antwortet vorab mit dav.not_found(search_scope)"
+  - "D-28-20 (B6): kein Befund, nur Paartest; Staging-Rest uploads/<user>/nc-mcp-<sha256> als Aufräum-Merker für Backlog/Phase 29"
   - "B6-Messung mit 5 MiB statt 16 Bytes: die 16-Byte-Probe des Plans endet in der Größenprüfung vor dem Guard (B6-klein protokolliert)"
   - "Upload-Ordner über dav.uploads_url (nc-mcp-<sha256>) gelesen, nicht über den wörtlichen Pfad uploads/<user>/<upload_id> des Plans (beide protokolliert)"
 metrics:
   duration: ca. 25 min
-  completed: 2026-09-28 (Tasks 1-2; Task 3 offen)
+  completed: 2026-09-28
 ---
 
 # Phase 28 Plan 01: Live-Fragen A1, B5, B6 gemessen Summary
 
-Harness-Basis `canary_world.py` plus drei Messtests gegen nc35 (3 passed, Aufräumen gelesen): A1 Link-Zelle ist ein JSON-String mit Dateiname und `/f/<fileid>`, B5 ungleich (Existenz-Orakel für getaggte Ordner), B6 und B6-text gleich. **Task 3 (Owner-Entscheid D-28-18..20) ist OFFEN.**
+Harness-Basis `canary_world.py` plus drei Messtests gegen nc35 (3 passed, Aufräumen gelesen): A1 Link-Zelle ist ein JSON-String mit Dateiname und `/f/<fileid>`, B5 ungleich (Existenz-Orakel für getaggte Ordner), B6 und B6-text gleich. Owner-Entscheide D-28-18..20 stehen in 28-CONTEXT.md.
 
 ## Tasks
 
@@ -36,7 +40,7 @@ Harness-Basis `canary_world.py` plus drei Messtests gegen nc35 (3 passed, Aufrä
 | ---- | ---- | ------ | ------ |
 | 1 | Harness-Basis canary_world.py und drei Messtests | c2df823, Fix 8e64c7a | erledigt |
 | 2 | Messung gegen nc35, Rohprotokoll + ZUSAMMENFASSUNG | 84f5d2d | erledigt |
-| 3 | Owner-Entscheid A1-Form, B5, B6 (checkpoint:decision) | - | OFFEN, wartet auf Owner |
+| 3 | Owner-Entscheid A1-Form, B5, B6 (checkpoint:decision) | siehe docs(28-01) | erledigt, D-28-18..20 eingetragen |
 
 ## Messlauf
 
@@ -76,9 +80,12 @@ Harness-Basis `canary_world.py` plus drei Messtests gegen nc35 (3 passed, Aufrä
 **4. [Kleinigkeit] Tagging über fileid statt `<user>/files<pfad>`**
 - `occ tag:files:add` mit fileid ist die in 27-07 gemessene Form; `tag(fileid)` in canary_world.
 
-## Offener Checkpoint (Task 3)
+## Checkpoint (Task 3): geschlossen
 
-Owner entscheidet je Punkt: A1 (`a1-wie-gemessen`), B5 (`b5-fix` oder `b5-ausnahme`), B6 (`kein-befund`, da gleich; Nebenbefund Staging-Rest optional). Danach trägt ein Folgeagent D-28-18, D-28-19, D-28-20 mit Owner-Wortlaut und Datum in 28-CONTEXT.md ein (Commit docs(28-01)).
+Owner-Entscheid vom 28.09.2026, wörtlich in 28-CONTEXT.md unter "Nachentscheide nach der Messung 28-01":
+- **D-28-18 (A1):** "Wie gemessen (Empfohlen)": 28-05 filtert genau die gemessene Form; getaggt wie null, Ausfall fail-closed, andere providerIds unberührt.
+- **D-28-19 (B5):** "Fixen (Empfohlen)": getaggter Ordner antwortet vorab mit dav.not_found(search_scope); Umsetzung in 28-06.
+- **D-28-20 (B6):** "Kein Befund, Staging als Merker (Empfohlen)": nur Paartest; Staging-Rest als Aufräum-Merker für Backlog/Phase 29.
 
 ## Known Stubs
 
