@@ -454,6 +454,12 @@ Prérequis :
 				<access_level>PUBLIC</access_level>
 				<headers_to_exclude>["AUTHORIZATION-APP-API","EX-APP-ID","EX-APP-VERSION","AA-VERSION","X-ORIGIN-IP"]</headers_to_exclude>
 			</route>
+			<route>
+				<url>^/dl/[A-Za-z0-9_-]{20,128}$</url>
+				<verb>GET,HEAD</verb>
+				<access_level>PUBLIC</access_level>
+				<headers_to_exclude>["AUTHORIZATION-APP-API","EX-APP-ID","EX-APP-VERSION","AA-VERSION","X-ORIGIN-IP"]</headers_to_exclude>
+			</route>
 		</routes>
 		<!--
 		  - The ten variables an administrator may set, and the only way to set them: the

@@ -313,22 +313,9 @@ download_ttl_minutes
 
 # --- The store API of the ticket store, task 2 of docs/olivia/plan.md -------------------
 # downloads/store.py was built in task 2, because its schema, its constants and its
-# transactions only make sense together, and its callers arrive in later tasks: task 4 (the
-# /dl route handler) and task 5 (the link issuer) will call the public methods issue, claim,
-# peek, finish and release, plus the ticket_store factory. They are driven directly by
-# tests/unit/test_olivia_ticket_store.py and will leave this list with the task that calls
-# them, exactly as every parked store below does.
+# transactions only make sense together. Task 4 (the /dl route handler) now calls claim,
+# peek, finish, release and the ticket_store factory, so those leave this list. issue is
+# still parked here: only task 5 (the link issuer) calls it from src/; it is driven
+# directly by tests/unit/test_olivia_ticket_store.py and tests/unit/test_olivia_download_
+# route.py until then.
 _.issue
-_.claim
-_.peek
-_.finish
-_.release
-ticket_store
-
-# --- The DAV streaming function of task 3 of docs/olivia/plan.md -----------------------
-# open_download: the whole-file streaming GET handler parked here, because the streamed
-# download function was built and tested one task before its caller exists: task 4 (the
-# /dl route handler) is the one that calls it to stream a file to the download client.
-# It is driven directly by tests/unit/test_olivia_dav_stream.py and will leave this list
-# with the task that calls it, exactly as the ticket store functions above do.
-open_download

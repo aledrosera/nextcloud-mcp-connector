@@ -8,7 +8,7 @@ Threats covered here, in the order of the plan:
 
 * **T-19-20** the handler reached from outside: ``x-origin-ip`` is 404, a request without the
   AppAPI headers is 401, neither says which of the two refused it, and the path appears in no
-  route of ``appinfo/info.xml``, of which there are still thirteen.
+  route of ``appinfo/info.xml``, of which there are now fourteen.
 * **T-19-21** the answer saying more than it may: no parameter value, no address, no path and
   no message of an error, in either shape.
 * **T-19-22** a name from a stranger faking a line: an account with a line break in it does not
@@ -358,14 +358,14 @@ def test_a_read_with_a_wrong_app_secret_is_401(live: Deployment) -> None:
 def test_the_handler_path_is_declared_in_no_route_of_the_manifest() -> None:
     """T-19-20: a declared route would publish the content of the log to the internet.
 
-    The manifest still carries exactly the thirteen routes of phase 5, none of them matches
+    The manifest still carries exactly the fourteen routes of the olivia fork, none of them matches
     this path in any spelling, and the absence is the access control itself: HaRP blocks a path
     that is declared nowhere, the PHP proxy does not.
     """
     root = etree.parse(str(MANIFEST), hardened_parser()).getroot()
     urls = [(element.text or "").strip() for element in root.iter("url")]
 
-    assert len(urls) == 13, urls
+    assert len(urls) == 14, urls
     bare = audit_read.AUDIT_READ_PATH.strip("/")
     for url in urls:
         assert bare not in url, f"{url} would make the read reachable from the internet"

@@ -255,13 +255,13 @@ def test_the_positive_list_of_the_option_is_the_one_of_the_purge() -> None:
 def test_the_handler_path_is_declared_in_no_route_of_the_manifest() -> None:
     """T-18-07: a declared route would publish the list of everybody who used this app.
 
-    The manifest still carries exactly the thirteen routes of phase 5, and none of them
+    The manifest still carries exactly the fourteen routes of the olivia fork, and none of them
     matches this path in any spelling.
     """
     root = etree.parse(str(MANIFEST), hardened_parser()).getroot()
     urls = [(element.text or "").strip() for element in root.iter("url")]
 
-    assert len(urls) == 13, urls
+    assert len(urls) == 14, urls
     bare = audit_verify.AUDIT_VERIFY_PATH.strip("/")
     for url in urls:
         assert bare not in url, f"{url} would make the check reachable from the internet"
