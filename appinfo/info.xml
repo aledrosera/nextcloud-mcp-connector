@@ -180,16 +180,17 @@ Prérequis :
 			  - the registry API for 0.1.0 on 2026-08-19 and again for every release by the
 			  - runbook in docs/store-submission.md.
 			  -
-			  - The tag follows the version, and that is not a convention: AppAPI pulls exactly
-			  - the tag named here, so the version element above, this tag and the git tag
-			  - have to be the same string. The release workflow refuses a tag push whose tag
-			  - disagrees with the version element, and tests/unit/test_exapp_env_setup.py
-			  - refuses a manifest whose image tag disagrees with it.
+			  - Upstream the tag follows the version. In the olivia fork it does not: the version
+			  - element stays the upstream number, which AppAPI validates, and the image tag
+			  - carries the fork counter (0.3.2-olivia.N), because AppAPI pulls exactly the tag
+			  - named here. The fork's release workflow refuses a tag push whose tag, without
+			  - the leading v, disagrees with this image tag, and tests/unit/test_exapp_env_setup.py
+			  - accepts exactly that one deviation from the version element.
 			  -
-			  - Do not write the name of the version element with its angle brackets into a
-			  - comment here: scripts/build_store_release.sh and .github/workflows/release.yml
-			  - both read the version with a grep for that opening tag, and a comment that
-			  - repeats it makes both of them read the comment instead.
+			  - Do not write the names of the version or image tag elements with their angle
+			  - brackets into a comment here: scripts/build_store_release.sh and
+			  - .github/workflows/release.yml read them with a grep for the opening tag, and a
+			  - comment that repeats one makes them read the comment instead.
 			-->
 			<registry>ghcr.io</registry>
 			<image>street1983nk/mcp_connector</image>
