@@ -9,6 +9,19 @@ All notable changes to this app are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-29
+
+### Fixed
+
+- A checkbox unticked in the admin settings now stays off. AppAPI stores an unticked
+  checkbox as an empty string, and the app read that as "not set", so after the next start
+  (for example a disable and enable) the default came back. That hit the three switches that
+  ship on: self registration of clients, client ID metadata documents and sending Talk
+  messages. An administrator who closed one of them in the form had it open again without
+  any sign of it. A checkbox nobody touched still leaves the decision to the deploy variable
+  and the default in code
+  ([#10](https://github.com/street1983nk/nextcloud-mcp-connector/issues/10)).
+
 ## [0.3.1] - 2026-09-29
 
 ### Fixed
@@ -839,6 +852,7 @@ First release, submitted to the Nextcloud App Store.
   never sees more than that user sees in the web interface.
 - A privacy and data flow description, see [docs/privacy.md](docs/privacy.md).
 
+[0.3.2]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.2.0...v0.2.1
