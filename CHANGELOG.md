@@ -9,6 +9,16 @@ All notable changes to this app are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The "This link has expired" page now also says to open the link in the browser where you
+  are signed in to Nextcloud. The page answers every refused authorization decision, and the
+  most common one that is no expiry is an assistant app that shows the consent screen in its
+  own window while the sign-in happened in another browser
+  ([#11](https://github.com/street1983nk/nextcloud-mcp-connector/issues/11)).
+
 ## [0.3.2] - 2026-09-29
 
 ### Fixed
@@ -852,6 +862,7 @@ First release, submitted to the Nextcloud App Store.
   never sees more than that user sees in the web interface.
 - A privacy and data flow description, see [docs/privacy.md](docs/privacy.md).
 
+[Unreleased]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.2...HEAD
 [0.3.2]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.2.1...v0.3.0

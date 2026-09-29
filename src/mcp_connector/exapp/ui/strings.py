@@ -564,9 +564,14 @@ ERROR_REGISTRATION_OFF_BODY = (
 
 ERROR_EXPIRED_TITLE = "This link has expired"
 
+#: The second sentence is issue #11: the same page answers every refused decision, and the
+#: most common one that is no expiry at all is an app that shows the consent screen in its
+#: own window while the Nextcloud sign-in happened in another browser. The sentence is the
+#: same for every refusal, so it names no check and tells an attacker in that seat nothing.
 ERROR_EXPIRED_BODY = (
     "Authorization links are valid for a few minutes and can be used once. Start the "
-    "connection again in your assistant app."
+    "connection again in your assistant app. If it stops here again, open the link in the "
+    "browser where you are signed in to Nextcloud."
 )
 
 ERROR_TIMEOUT_TITLE = "Sign in timed out"
