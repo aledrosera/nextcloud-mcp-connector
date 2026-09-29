@@ -283,9 +283,17 @@ async def admin_values(
     reader of the difference is ``entry_exapp.main``, which tells the administrator which of
     the two she is looking at instead of claiming the field is empty (05-14, line B).
 
-    Only keys with a value that survives validation appear in the overlay. A blank value
-    counts as unset and is refused by nobody, which is what makes the precedence rule work:
-    the deploy environment wins whenever the administrator left a field empty.
+    Only keys with a value that survives validation appear in the overlay. A blank text
+    value counts as unset and is refused by nobody, which is what makes the precedence rule
+    work: the deploy environment wins whenever the administrator left a field empty.
+
+    A blank switch is the exception, and it is off. AppAPI stores every admin value with
+    ``(string)$value`` (``ExAppConfigService::setAppConfigValue``), so a checkbox the
+    administrator unticks in the form arrives as ``""`` and never as ``"false"``; a checkbox
+    nobody touched has no row at all and stays absent. Reading the blank as unset put the
+    default of the three switches that ship on (self registration, client documents, the
+    Talk channel) back into force on the next start, which is issue #10: the administrator
+    closed a door in the form and the app opened it again.
 
     Validation is per key, so a typo in one field is never an outage of the other five, and
     the refusals are per key for the same reason.
@@ -299,7 +307,11 @@ async def admin_values(
     refused: set[str] = set()
     for key in CONFIG_KEYS:
         raw = values.get(key)
-        if raw is None or not raw.strip():
+        if raw is None:
+            continue
+        if not raw.strip():
+            if key in SWITCH_KEYS:
+                overlay[KEY_TO_ENV[key]] = SWITCH_OFF
             continue
         usable = _usable_value(key, raw)
         if usable is None:

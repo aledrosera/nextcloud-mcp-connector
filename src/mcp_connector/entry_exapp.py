@@ -90,7 +90,15 @@ def build_exapp_app(env: Mapping[str, str] | None = None) -> Starlette:
     this mode the wrapper is not optional, so a missing wrap is an error and not a
     warning: it would leave the whole JSON-RPC preamble unauthenticated (CR-01).
     """
-    config.files_root(env)
+    # One line either way, because the deploy daemon drops an undeclared variable without a
+    # word (issue #12): the log is where an administrator sees which binding took effect.
+    root = config.files_root(env)
+    if root == "/":
+        logger.info(
+            "the file tools see the whole files area (%s is not set)", config.ENV_FILES_ROOT
+        )
+    else:
+        logger.info("the file tools are bound to %s (%s)", root, config.ENV_FILES_ROOT)
     security = TransportSecuritySettings(
         allowed_hosts=config.allowed_hosts(env),
         enable_dns_rebinding_protection=config.dns_rebinding_protection(env),

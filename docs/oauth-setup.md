@@ -153,9 +153,14 @@ declarative settings value under that id, and the app reads the same keys back o
 ExApp configuration channel.
 
 **Precedence: the value stored in Nextcloud wins, then the `NC_MCP_*` variable of the deploy
-environment, then the default in code.** A field left empty, or filled with something this
-app cannot use, is not a value at all: the variable and then the default keep working, and
-the reason is written into the container log without repeating what was entered. An address
+environment, then the default in code.** A text field left empty, or a field filled with
+something this app cannot use, is not a value at all: the variable and then the default keep
+working, and the reason is written into the container log without repeating what was
+entered. A checkbox is different: once it has been unticked in the form it is off, whatever
+the variable or the default says, and a checkbox nobody ever touched leaves the decision to
+the variable and the default. AppAPI stores an unticked checkbox as an empty string, and
+before 0.3.2 this app read that as "not set", so the three switches that ship on came back
+on after the next start (issue #10). An address
 with a fragment, with credentials in it, without a scheme or with an impossible port is
 refused for that reason, because it would become the `issuer` of the metadata document.
 

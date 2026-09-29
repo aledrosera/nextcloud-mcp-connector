@@ -644,6 +644,17 @@ def test_every_error_page_names_the_problem_and_the_next_step(
     assert icons.CROSS in body(response)
 
 
+def test_the_expired_page_points_to_the_browser_that_holds_the_session() -> None:
+    """Issue #11: the page answers every refused consent decision, and the most common one
+    that is no expiry is a consent screen shown in another window than the sign-in. The
+    sentence is static, so it tells nobody which check refused."""
+    response, _ = errors.error_page("E3", env=ENV, client=BENIGN_NAME, seconds=30)
+
+    assert "open the link in the browser where you are signed in to Nextcloud" in (
+        parse(response).text
+    )
+
+
 @pytest.mark.parametrize(("code", "status", "title", "next_step"), ERROR_PAGES)
 def test_every_error_page_carries_the_security_headers_of_the_shell(
     code: str, status: int, title: str, next_step: str

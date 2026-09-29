@@ -113,7 +113,7 @@ Prérequis :
 - Nextcloud 32 à 35 avec l'application AppAPI ; fonctionne comme External App
 - Ou sans AppAPI, depuis la 0.2.0 : exploité à côté de votre Nextcloud, le consentement étant confirmé par votre connexion OIDC ; guide : docs/standalone-oauth.md dans le code source
 - n8n parle MCP nativement depuis la 1.119.0 ; guide : docs/n8n-setup.md dans le code source]]></description>
-	<version>0.3.0</version>
+	<version>0.3.2</version>
 	<licence>agpl</licence>
 	<author mail="admin@infranode.dev">street1983nk</author>
 	<namespace>McpConnector</namespace>
@@ -193,7 +193,7 @@ Prérequis :
 			-->
 			<registry>ghcr.io</registry>
 			<image>street1983nk/mcp_connector</image>
-			<image-tag>0.3.0</image-tag>
+			<image-tag>0.3.2</image-tag>
 		</docker-install>
 		<!--
 		  - Exactly thirteen routes, and they are the whole external attack surface of this app.
@@ -456,7 +456,7 @@ Prérequis :
 			</route>
 		</routes>
 		<!--
-		  - The six variables an administrator may set, and the only way to set them: the
+		  - The ten variables an administrator may set, and the only way to set them: the
 		  - deploy daemon injects a variable into the container if, and only if, the
 		  - manifest declares it here (AppAPI ExAppService::getAppInfo, measured in plan
 		  - 03-08). Without the declaration, the "env" option of `occ app_api:app:register`
@@ -496,6 +496,12 @@ Prérequis :
 		  - daemon injects a variable only if it is declared here and drops an undeclared one
 		  - without a word. A limit this app describes in public and nobody can set would be
 		  - half a promise.
+		  -
+		  - NC_MCP_FILES_ROOT joins them with 0.3.1 (issue #12). It came with 0.3.0 and was
+		  - documented for every mode, but without this declaration an ExApp installation
+		  - never saw it: the register command accepted it, the container ran without it,
+		  - and the file tools kept the whole files area. No default here either, the code
+		  - defaults to /, and the start of the app logs which binding took effect.
 		-->
 		<environment-variables>
 			<variable>
@@ -522,6 +528,10 @@ Prérequis :
 				<name>NC_MCP_TALK_SEND</name>
 				<display-name>Let assistants send Talk messages</display-name>
 				<description>The outgoing Talk channel of this app. On unless set to off. With it off no assistant can send a Talk message through this connector, whatever an account is allowed to do in Talk itself; reading conversations and their history is not affected.</description>			</variable>
+			<variable>
+				<name>NC_MCP_FILES_ROOT</name>
+				<display-name>Directory the file tools are bound to</display-name>
+				<description>A Nextcloud path such as /Documents/AI, the same for every account of this installation. Unset means the whole files area. When set, the file tools and the file results of search treat this directory as / and cannot reach its parent folders; Notes, Mail, Talk, calendars and the other tools keep their own permissions. A path with a parent reference, a backslash or without a leading slash stops the app at start.</description>			</variable>
 			<variable>
 				<name>NC_MCP_AUDIT_LOG</name>
 				<display-name>Keep a record of tool calls</display-name>
