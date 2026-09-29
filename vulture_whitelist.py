@@ -315,11 +315,7 @@ _._decode_payload
 # (the link issuer, downloads/issue.py) called it, so it left the list too.
 
 # --- The link issuer of the olivia fork, task 6 of docs/olivia/plan.md ------------------
-# Empty on purpose apart from one name, and that is the rule of this file at work rather
-# than an omission. Task 6 built downloads.issue.issue_link and TicketOwner, because the
-# path from a resolved caller identity to a single-use download link was written and tested
-# one task before its callers exist: files_download (task 7) and fetch (task 8) are the
-# tools that call it from src/. Until then it is driven directly by
-# tests/unit/test_olivia_issue_link.py and leaves this list with the task that calls it,
-# exactly as every parked name above it does.
-issue_link
+# downloads.issue.issue_link and TicketOwner were built in task 6, one task before their
+# first caller existed. Task 7 (files_download, server/reg_files.py) now calls issue_link,
+# so the name left this list with the task that calls it, exactly as every parked name
+# above it does.

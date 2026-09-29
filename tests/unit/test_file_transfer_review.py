@@ -161,19 +161,21 @@ async def test_impossible_uploads_are_rejected_before_network(kwargs: dict) -> N
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("binary", [False, True])
-async def test_empty_files_never_trigger_unbounded_get(
-    binary: bool, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_empty_files_never_trigger_unbounded_get(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The binary case moved with the download path itself (fork olivia, task 7):
+    ``files.download`` is gone, and its successor ``downloads.issue.issue_link`` never
+    issues a GET at all (it stats and mints a ticket), so it cannot trigger an unbounded
+    one either. Only the text read path still has a GET to guard here.
+    """
+
     async def empty_stat(*args, **kwargs):
         return {"is_collection": False, "size": 0, "content_type": "text/plain"}
 
     monkeypatch.setattr(dav, "stat", empty_stat)
     async with httpx.AsyncClient() as client:
         with respx.mock as mock:
-            operation = files.download if binary else files.read
-            result = await operation(NcClients(client, CREDS), "/empty.txt")
-            assert result["content"] == (b"" if binary else "")
+            result = await files.read(NcClients(client, CREDS), "/empty.txt")
+            assert result["content"] == ""
             assert result["truncated"] is False
             assert not mock.calls
 

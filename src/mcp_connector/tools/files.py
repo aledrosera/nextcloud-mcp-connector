@@ -5,9 +5,9 @@ the path guard runs before any request, ``files_read`` refuses binary content in
 shipping base64, and the size cap turns a large read into a marked slice with a
 ``next_offset`` instead of a multi-megabyte answer.
 
-The binary download path has a per-response size ceiling and a continuation offset. It
-returns an MCP embedded resource instead of putting base64 into a text answer, so a capable
-client can save or forward the file without feeding its bytes to the model.
+Binary downloads do not go through this module (fork olivia): ``files_download`` issues a
+single-use download link via :mod:`mcp_connector.downloads.issue` instead, so the model never
+sees the bytes and a text-and-image-only client can still fetch the file.
 
 The two list tools add another guard: every answer that had to stop early says so with
 ``truncated`` and hands out a cursor handle, so a folder with ten thousand entries costs
@@ -29,11 +29,6 @@ from ..nextcloud.clients import dav
 
 DEFAULT_MAX_BYTES = 512 * 1024
 HARD_MAX_BYTES = 2 * 1024 * 1024
-
-#: A download is carried inline as an MCP embedded resource. Bound each response, rather
-#: than the total file: callers continue at ``next_offset`` until the whole file is local.
-DEFAULT_DOWNLOAD_BYTES = 8 * 1024 * 1024
-HARD_DOWNLOAD_BYTES = 8 * 1024 * 1024
 
 #: Nextcloud's v2 chunk endpoint accepts chunks from 5 MiB through 5 GiB, except for the
 #: final chunk. Keep each MCP request bounded while allowing a file to span up to 10,000 parts.
@@ -294,78 +289,6 @@ async def read(
     }
     if result["truncated"]:
         result["next_offset"] = offset + used
-    return result
-
-
-async def download(
-    clients: NcClients,
-    path: str,
-    offset: int = 0,
-    max_bytes: int = DEFAULT_DOWNLOAD_BYTES,
-) -> dict[str, Any]:
-    """Read one binary slice for an MCP embedded resource.
-
-    Unlike :func:`read`, this path accepts every MIME type and never decodes the body. A
-    caller can therefore assemble a file of any total size while each response stays
-    bounded by :data:`HARD_DOWNLOAD_BYTES`.
-    """
-    if offset < 0:
-        raise ToolError(
-            message=f"offset must not be negative (got {offset}).",
-            hint="Start at offset 0 and follow next_offset until truncated is false.",
-        )
-    if max_bytes < 1 or max_bytes > HARD_DOWNLOAD_BYTES:
-        raise ToolError(
-            message=f"max_bytes must be between 1 and {HARD_DOWNLOAD_BYTES} bytes.",
-            hint="Use the default chunk size or choose a smaller positive value.",
-        )
-
-    target = dav.safe_path(path)
-    info = await dav.stat(clients.client, clients.creds, target)
-
-    if info["is_collection"]:
-        raise ToolError(
-            message=f"{target} is a folder, not a file.",
-            hint="Use files_list to choose a file inside the folder.",
-        )
-
-    size = info["size"]
-    if offset > 0 and offset >= size:
-        raise ToolError(
-            message=f"offset {offset} is at or past the end of {target} ({size} bytes).",
-            hint="Use the next_offset from the previous chunk, or stop when truncated is false.",
-        )
-
-    if size == 0:
-        data = b""
-    else:
-        requested = min(max_bytes, size - offset)
-        data = await dav.get_range(
-            clients.client,
-            clients.creds,
-            target,
-            offset=offset,
-            limit=requested,
-        )
-        data = data[:requested]
-
-    if size > offset and not data:
-        raise ToolError(
-            message=f"Nextcloud returned an empty chunk before the end of {target}.",
-            hint="Retry from the same offset. If it repeats, download the file in Nextcloud.",
-        )
-
-    result: dict[str, Any] = {
-        "path": target,
-        "size": size,
-        "content_type": info["content_type"] or "application/octet-stream",
-        "offset": offset,
-        "bytes": len(data),
-        "truncated": offset + len(data) < size,
-        "content": data,
-    }
-    if result["truncated"]:
-        result["next_offset"] = offset + len(data)
     return result
 
 

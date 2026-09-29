@@ -102,7 +102,7 @@ async def test_files_read_is_exposed_with_honest_annotations() -> None:
 
 
 @pytest.mark.anyio
-async def test_files_download_is_an_embedded_resource_read() -> None:
+async def test_files_download_returns_a_single_use_download_link() -> None:
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
@@ -111,12 +111,12 @@ async def test_files_download_is_an_embedded_resource_read() -> None:
     assert annotations is not None
     assert annotations.read_only_hint is True
     assert annotations.open_world_hint is False
-    assert tool.output_schema is None, "binary content is an embedded resource, not JSON"
-    assert set(tool.input_schema.get("properties", {})) == {"path", "offset", "chunk_bytes"}
+    assert tool.output_schema is None, "structured_output=False (schema diet)"
+    assert set(tool.input_schema.get("properties", {})) == {"path"}
     assert set(tool.input_schema.get("required", [])) == {"path"}
     description = tool.description or ""
-    assert "next_offset" in description
-    assert "any-size" in description
+    assert "download_url" in description
+    assert "code execution" in description
 
 
 @pytest.mark.anyio
