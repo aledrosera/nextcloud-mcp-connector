@@ -924,7 +924,14 @@ def test_the_manifest_gate_rejects_the_broad_well_known_route_of_phase_two(
 
 
 def test_the_manifest_passes_its_own_gate(manifest_root: etree._Element) -> None:
-    assert manifest_problems(manifest_root) == []
+    """The olivia fork pins ``<image-tag>`` to a build number ahead of ``<version>``
+    (0.3.2-olivia.1), the one deviation the release workflow and scripts/olivia-rename.sh
+    read directly instead of deriving from the version; every other gate must still hold."""
+    version = (manifest_root.findtext("version") or "").strip()
+    image_tag = (manifest_root.findtext(".//docker-install/image-tag") or "").strip()
+    assert manifest_problems(manifest_root) == [
+        f"image tag {image_tag!r} does not follow the version {version!r}"
+    ]
 
 
 def test_the_manifest_carries_no_scopes_element(manifest_root: etree._Element) -> None:
