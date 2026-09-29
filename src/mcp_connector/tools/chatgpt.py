@@ -55,6 +55,8 @@ of all to try it: anybody may write one.
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
+
 from .. import ids, provider_map
 from ..deps import TicketOwner
 from ..downloads import issue
@@ -103,6 +105,10 @@ FINAL_TRUNCATION = marks.FINAL_TRUNCATION
 #: smaller half of this decision. The larger half is that every cut is marked and that the
 #: marking says something true (threat T-10-32).
 MAX_MAIL_BYTES = 32 * 1024
+
+#: Ceiling for the description of one fetched event, in bytes of the UTF-8 encoding. A calendar
+#: description is supplementary content and is cut at a smaller limit than a mail.
+MAX_EVENT_DESCRIPTION_BYTES = 8 * 1024
 
 #: The window the context route of Talk is asked for, in messages. One is the smallest window
 #: that is guaranteed to carry the wanted message: spreed lifts the history half to
@@ -402,7 +408,14 @@ async def _resolve_card(clients: NcClients, card_id: str) -> tuple[str, str, dic
 
 async def _fetch_event(clients: NcClients, calendar_uri: str, object_name: str) -> dict[str, Any]:
     """Read one calendar object and render it as the few lines that describe an event."""
-    refs = await caldav.discover_calendars(clients.client, clients.creds)
+    try:
+        refs = await caldav.discover_calendars(clients.client, clients.creds)
+    except ToolError:
+        # Calendar lookup is cosmetic; missing it does not affect reading the event itself.
+        refs = []
+    except (TimeoutError, httpx.TimeoutException, httpx.RequestError):
+        # Same as above; network issues during discovery do not block the fetch.
+        refs = []
     display = next(
         (ref.display_name for ref in refs if ref.uri == calendar_uri and ref.display_name),
         calendar_uri,
@@ -427,22 +440,37 @@ async def _fetch_event(clients: NcClients, calendar_uri: str, object_name: str) 
         f"All day: {'yes' if event['all_day'] else 'no'}",
         f"Calendar: {event['calendar']}",
     ]
+    description_truncated = False
     metadata = {"kind": "event", "calendar": calendar_uri, "start": start, "end": end}
     if event.get("location"):
         lines.append(f"Location: {event['location']}")
         metadata["location"] = str(event["location"])
     if event.get("description"):
-        lines.append(f"Description: {event['description']}")
+        description = str(event["description"])
+        blob = description.encode("utf-8")
+        if len(blob) > MAX_EVENT_DESCRIPTION_BYTES:
+            # Truncate description at the byte limit, decode tolerantly to avoid broken UTF-8.
+            description = blob[:MAX_EVENT_DESCRIPTION_BYTES].decode("utf-8", errors="ignore")
+            description_truncated = True
+        lines.append(f"Description: {description}")
     if event.get("uid"):
         metadata["uid"] = str(event["uid"])
     if len(events) > 1:
         # One object, several instances: the series was not expanded for a direct GET.
         metadata["instances"] = str(len(events))
 
+    # The order is the order of the mail branch: the description's own copy of the marker is
+    # removed before this server appends one of its own, so a cut description that forged the
+    # marker would claim to be cut twice, and an uncut one would carry a marker it did not write.
+    text = marks.without_marks("\n".join(lines))
+    if description_truncated:
+        text = f"{text}\n\n{FINAL_TRUNCATION}"
+        metadata["truncated"] = "true"
+
     return {
         "id": ids.encode_event(calendar_uri, object_name),
         "title": str(event["summary"]),
-        "text": marks.without_marks("\n".join(lines)),
+        "text": text,
         "url": f"{clients.creds.base_url}{CALENDAR_WEB_PREFIX}/{start[:10]}",
         "metadata": metadata,
     }
