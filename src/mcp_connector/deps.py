@@ -58,20 +58,28 @@ from mcp.types import INVALID_REQUEST
 
 from . import config
 from .config import ExAppSettings, load_stdio_credentials
+from .errors import ToolError
 from .exapp.auth import AppApiRejected, appapi_user, verify_appapi_headers
 from .nextcloud import NcClients
 from .nextcloud.credentials import MODE_APPAPI, MODE_BASIC, Credentials
 from .nextcloud.http import shared_client
-from .oauth.verifier import CREDENTIAL_IMPERSONATE, OAUTH_STATE_ATTR, OAuthIdentity
+from .oauth.verifier import (
+    CREDENTIAL_APP_PASSWORD,
+    CREDENTIAL_IMPERSONATE,
+    OAUTH_STATE_ATTR,
+    OAuthIdentity,
+)
 
 __all__ = [
     "Caller",
     "MCPError",
     "StaticBearerVerifier",
+    "TicketOwner",
     "build_auth",
     "resolve_caller",
     "resolve_clients",
     "resolve_credentials",
+    "resolve_ticket_owner",
 ]
 
 #: Client id reported for the single deployment identity of the static bearer mode.
@@ -346,6 +354,46 @@ def _credentials_from_oauth(
         secret=identity.app_password,
         mode=MODE_BASIC,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class TicketOwner:
+    """Who a download link acts for: the OAuth connection when there is one (fork olivia)."""
+
+    auth_id: str | None
+    nc_user: str
+
+
+def resolve_ticket_owner(ctx: Any) -> TicketOwner:
+    """Who a download link issued for this tool call acts for (fork olivia).
+
+    Same two sources as :func:`resolve_credentials`, read the same way: an OAuth identity
+    left in the request state by the transport boundary wins, and the AppAPI impersonation
+    header is the fallback. The route that later rebuilds credentials from the ticket
+    (``downloads/route.py``) keys the OAuth branch by the authorization id the OAuth store
+    itself uses (``oauth/store.py::load_authorization``), so that id, and never the token or
+    the app password, is what travels into the ticket.
+
+    An impersonation identity and a plain AppAPI header end up the same: neither has a
+    connection a route could later rebuild credentials from by id, so both carry
+    ``auth_id=None`` and the route impersonates the Nextcloud user by name instead
+    (``_credentials`` in ``downloads/route.py``). Basic credentials of the HTTP passthrough
+    mode are refused outright: that deployment has neither an authorization id nor an
+    AppAPI identity to impersonate later, so no link this server issued could ever be
+    honoured again.
+    """
+    identity = _oauth_identity(ctx)
+    if identity is not None:
+        if identity.credential == CREDENTIAL_APP_PASSWORD and identity.auth_id:
+            return TicketOwner(auth_id=identity.auth_id, nc_user=identity.nc_user)
+        return TicketOwner(auth_id=None, nc_user=identity.nc_user)
+    creds = resolve_credentials(ctx)
+    if creds.mode != MODE_APPAPI:
+        raise ToolError(
+            message="Download links need this server to run as a Nextcloud ExApp.",
+            hint="Use files_read for text files in this deployment.",
+        )
+    return TicketOwner(auth_id=None, nc_user=creds.user)
 
 
 def _no_user_context() -> MCPError:

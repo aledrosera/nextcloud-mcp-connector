@@ -302,20 +302,24 @@ _._decode_payload
 # it would. A whitelist entry that is no longer needed is a switched off check.
 
 # --- The download link lifetime of the olivia fork, task 1 of docs/olivia/plan.md -------
-# Empty on purpose apart from one name, and that is the rule of this file at work rather
-# than an omission. Task 1 parked config.download_ttl_minutes here, because the bound and
-# the admin form field were built and tested one task before their caller exists: the route
-# that issues a download link (docs/olivia/plan.md, task 4) is the one that multiplies its
-# answer by 60 into a ticket TTL. It is driven directly by
-# tests/unit/test_olivia_download_config.py and leaves this list with the task that calls
-# it, exactly as every parked name above it does.
-download_ttl_minutes
+# Empty on purpose, and that is the rule of this file at work rather than an omission. Task 1
+# parked config.download_ttl_minutes here, because the bound and the admin form field were
+# built and tested one task before their caller existed. Task 6 (downloads/issue.py) now
+# multiplies its answer by 60 into a ticket TTL, so the name left the list with the task
+# that calls it, exactly as every parked name above it does.
 
 # --- The store API of the ticket store, task 2 of docs/olivia/plan.md -------------------
 # downloads/store.py was built in task 2, because its schema, its constants and its
-# transactions only make sense together. Task 4 (the /dl route handler) now calls claim,
-# peek, finish, release and the ticket_store factory, so those leave this list. issue is
-# still parked here: only task 5 (the link issuer) calls it from src/; it is driven
-# directly by tests/unit/test_olivia_ticket_store.py and tests/unit/test_olivia_download_
-# route.py until then.
-_.issue
+# transactions only make sense together. Task 4 (the /dl route handler) called claim, peek,
+# finish, release and the ticket_store factory. issue was still parked here until task 6
+# (the link issuer, downloads/issue.py) called it, so it left the list too.
+
+# --- The link issuer of the olivia fork, task 6 of docs/olivia/plan.md ------------------
+# Empty on purpose apart from one name, and that is the rule of this file at work rather
+# than an omission. Task 6 built downloads.issue.issue_link and TicketOwner, because the
+# path from a resolved caller identity to a single-use download link was written and tested
+# one task before its callers exist: files_download (task 7) and fetch (task 8) are the
+# tools that call it from src/. Until then it is driven directly by
+# tests/unit/test_olivia_issue_link.py and leaves this list with the task that calls it,
+# exactly as every parked name above it does.
+issue_link

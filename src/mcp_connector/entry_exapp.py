@@ -819,6 +819,21 @@ def main() -> None:
         logger.error("%s %s", other.message, other.hint)
         raise SystemExit(2) from None
 
+    # Fork olivia: two more keys travel back into the process environment here, next to
+    # NC_MCP_TALK_SEND above. `downloads.issue.issue_link` is called from a tool, which has
+    # `ctx` and `os.environ` in its hand and no `resolved` mapping, exactly the reasoning of
+    # the TALK_SEND write above. The download link this call issues has to use the very same
+    # public URL the OAuth metadata routes above were just built with, and the same TTL an
+    # administrator configured, so this write sits here on purpose: after every fallback above
+    # that can pop or re-derive `ENV_PUBLIC_URL` in `resolved` (the `IssuerRefused` branch),
+    # never before it. This deliberately widens the single exception documented above by two
+    # keys; it does not open a third one for anything else.
+    for key in (config.ENV_DOWNLOAD_TTL_MINUTES, config.ENV_PUBLIC_URL):
+        if key in resolved:
+            os.environ[key] = resolved[key]
+        else:
+            os.environ.pop(key, None)
+
     redact_download_tokens()
 
     if (resolved.get(config.ENV_HP_SHARED_KEY) or "").strip():

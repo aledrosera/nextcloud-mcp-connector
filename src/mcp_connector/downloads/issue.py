@@ -1,0 +1,65 @@
+"""Turn a file path into a single-use download link for the calling connection."""
+
+import sqlite3
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
+
+from .. import config
+from ..deps import TicketOwner
+from ..errors import ToolError
+from ..nextcloud import NcClients
+from ..nextcloud.clients import dav
+from .store import TicketStore, ticket_store
+
+HOW_TO = (
+    "Download it from your code execution environment (curl -L or requests); web_fetch cannot "
+    "open this link. It works for one completed download and expires at expires_at."
+)
+
+
+async def issue_link(
+    clients: NcClients,
+    owner: TicketOwner,
+    path: str,
+    *,
+    env: Mapping[str, str] | None = None,
+    tickets: TicketStore | None = None,
+    now: float | None = None,
+) -> dict[str, Any]:
+    target = dav.safe_path(path)
+    info = await dav.stat(clients.client, clients.creds, target)
+    if info["is_collection"]:
+        raise ToolError(
+            message=f"{target} is a folder, not a file.",
+            hint="Use files_list to choose a file inside the folder.",
+        )
+    name = target.rsplit("/", 1)[-1] or target
+    content_type = info["content_type"] or "application/octet-stream"
+    store = tickets if tickets is not None else ticket_store(env)
+    try:
+        token, expires = await store.issue(
+            auth_id=owner.auth_id,
+            nc_user=owner.nc_user,
+            path=target,
+            name=name,
+            content_type=content_type,
+            size=info["size"],
+            ttl_seconds=config.download_ttl_minutes(env) * 60,
+            now=now,
+        )
+    except (OSError, sqlite3.Error) as exc:
+        raise ToolError(
+            message="The download link could not be created.",
+            hint="Retry in a moment; if it repeats, check the storage of this app.",
+        ) from exc
+    return {
+        "path": target,
+        "name": name,
+        "size": info["size"],
+        "content_type": content_type,
+        "download_url": f"{config.public_url(env).rstrip('/')}/dl/{token}",
+        "expires_at": datetime.fromtimestamp(expires, UTC).isoformat(),
+        "single_use": True,
+        "how_to": HOW_TO,
+    }

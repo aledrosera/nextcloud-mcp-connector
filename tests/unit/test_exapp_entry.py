@@ -1149,6 +1149,18 @@ def deployed(
     monkeypatch.setenv(config.ENV_TALK_SEND, "")
     monkeypatch.delenv(config.ENV_TALK_SEND)
 
+    # Fork olivia: ``main`` now writes ``NC_MCP_DOWNLOAD_TTL_MINUTES`` and
+    # ``NC_MCP_PUBLIC_URL`` back into ``os.environ`` too, same reason as the TALK_SEND
+    # priming right above. ``NC_MCP_PUBLIC_URL`` is already deleted further up, but with
+    # ``raising=False``: when the key is not set at all before this test, that call records
+    # nothing to undo (``MonkeyPatch.delitem`` only appends an undo entry when the key
+    # existed), so a raw write ``main`` performs later would survive this test's teardown
+    # and leak into the next one. The ``setenv("")`` first, exactly as for TALK_SEND, is
+    # what forces monkeypatch to record the unset state regardless.
+    for name in (config.ENV_DOWNLOAD_TTL_MINUTES, config.ENV_PUBLIC_URL):
+        monkeypatch.setenv(name, "")
+        monkeypatch.delenv(name)
+
     for name, value in (env or {}).items():
         monkeypatch.setenv(name, value)
 
@@ -1816,24 +1828,84 @@ def test_a_stored_talk_switch_wins_over_the_deploy_variable(
     assert config.talk_send_enabled() is False
 
 
-def test_the_entry_point_writes_exactly_one_key_into_the_process_environment() -> None:
-    """The exception of D-20 stays one exception, and it keeps its reasoning.
+# --- the two keys of fork olivia: a download link is issued from a tool, which has only
+# ``os.environ`` in its hand, exactly the TALK-04 reasoning above -----------------------------
 
-    Constructive rather than documented: a second write, or a write of the whole overlay,
-    fails here, and so does a refactor that keeps the line but drops the comment block that
-    explains why it contradicts the comment above it (A7).
+
+def test_a_stored_download_ttl_reaches_the_process_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, admin_config: AdminConfig
+) -> None:
+    """The form value an administrator typed is what ``config.download_ttl_minutes`` reads."""
+    admin_config.values["download_ttl_minutes"] = "7"
+
+    start(monkeypatch, tmp_path)
+
+    assert os.environ[config.ENV_DOWNLOAD_TTL_MINUTES] == "7"
+    assert config.download_ttl_minutes() == 7
+
+
+def test_a_deploy_variable_ttl_reaches_the_process_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No admin value stored: the deploy variable is what ends up resolved, and exported."""
+    start(monkeypatch, tmp_path, env={config.ENV_DOWNLOAD_TTL_MINUTES: "42"})
+
+    assert os.environ[config.ENV_DOWNLOAD_TTL_MINUTES] == "42"
+    assert config.download_ttl_minutes() == 42
+
+
+def test_the_resolved_public_url_reaches_the_process_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, admin_config: AdminConfig
+) -> None:
+    """A tool that builds a download link must see the exact address the metadata routes use."""
+    admin_config.values["public_url"] = ADMIN_URL
+
+    start(monkeypatch, tmp_path)
+
+    assert os.environ[config.ENV_PUBLIC_URL] == ADMIN_URL
+    assert config.public_url() == ADMIN_URL
+
+
+def test_a_key_absent_from_the_resolved_mapping_is_removed_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Neither key survives a start whose resolved mapping carries neither of them: an
+    installation that configured no public address and no download TTL anywhere, deploy
+    variable or admin form, gains neither variable, symmetric to the TALK_SEND case above."""
+    start(monkeypatch, tmp_path)
+
+    assert config.ENV_DOWNLOAD_TTL_MINUTES not in os.environ
+    assert config.ENV_PUBLIC_URL not in os.environ
+    assert config.download_ttl_minutes() == config.DOWNLOAD_TTL_MINUTES
+    assert config.public_url() == config.DEFAULT_PUBLIC_URL
+
+
+def test_the_entry_point_writes_exactly_one_key_into_the_process_environment() -> None:
+    """The exception of D-20 stays a named, bounded set, and each write keeps its reasoning.
+
+    Constructive rather than documented: a third write, or a write of the whole overlay,
+    fails here, and so does a refactor that keeps a line but drops the comment block that
+    explains why it contradicts the comment above it (A7). Fork olivia widened the original
+    single exception (``NC_MCP_TALK_SEND``) to two writes: the loop assignment below carries
+    both ``NC_MCP_DOWNLOAD_TTL_MINUTES`` and ``NC_MCP_PUBLIC_URL`` back into the process
+    environment with one literal ``os.environ[key] = ...`` line, so the source still shows
+    exactly two write sites even though three keys travel.
     """
     source = Path(entry_exapp.__file__).read_text(encoding="utf-8")
     writes = re.findall(r"os\.environ\[[^\]]+\]\s*=", source)
 
-    assert writes == ["os.environ[config.ENV_TALK_SEND] ="]
+    assert writes == ["os.environ[config.ENV_TALK_SEND] =", "os.environ[key] ="]
 
     lines = source.splitlines()
-    index = next(
+    indices = [
         number for number, line in enumerate(lines) if re.search(r"os\.environ\[[^\]]+\]\s*=", line)
-    )
-    reasoning = [line for line in lines[max(0, index - 14) : index] if line.strip().startswith("#")]
-    assert len(reasoning) >= 4
+    ]
+    assert len(indices) == 2
+    for index in indices:
+        reasoning = [
+            line for line in lines[max(0, index - 14) : index] if line.strip().startswith("#")
+        ]
+        assert len(reasoning) >= 4
 
 
 def test_the_write_happens_before_the_application_is_built() -> None:
