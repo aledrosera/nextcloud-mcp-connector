@@ -450,12 +450,12 @@ async def test_a_refused_value_is_named_as_refused_and_not_as_absent() -> None:
 @pytest.mark.anyio
 @respx.mock
 async def test_a_field_nobody_filled_in_is_refused_by_nobody() -> None:
-    """A blank value is not a typo: the deploy environment simply keeps this key."""
+    """A blank value is not a typo: nothing is refused, whatever the field."""
     answer({"public_url": "   ", "oauth_dcr": ""})
 
     values = await config_values.admin_values(env=ENV)
 
-    assert values.overlay == {}
+    assert values.overlay == {registry.ENV_DCR: config_values.SWITCH_OFF}
     assert values.refused == frozenset()
 
 
@@ -814,11 +814,52 @@ async def test_an_unknown_switch_value_is_dropped_and_logged(
 @pytest.mark.anyio
 @respx.mock
 @pytest.mark.parametrize("blank", ["", "   ", "\t\n"])
-async def test_a_blank_value_is_not_set_and_lets_the_env_win(blank: str) -> None:
+async def test_a_blank_text_value_is_not_set_and_lets_the_env_win(blank: str) -> None:
     """The precedence rule needs this: admin value, then ``NC_MCP_*``, then the default."""
-    answer({"public_url": blank, "oauth_dcr": blank, "oauth_allowed_clients": blank})
+    answer({"public_url": blank, "oauth_allowed_clients": blank})
 
     assert await config_values.admin_overlay(env=ENV) == {}
+
+
+@pytest.mark.anyio
+@respx.mock
+@pytest.mark.parametrize("key", sorted(config_values.SWITCH_KEYS))
+async def test_an_unticked_checkbox_is_off_and_not_unset(key: str) -> None:
+    """Issue #10: AppAPI stores an unticked checkbox as ``""`` (``(string)false``).
+
+    Read as unset, the three switches that ship on came back on after the next start, so
+    this holds every switch, not only those three: the blank means off whatever the default.
+    """
+    answer({key: ""})
+
+    assert await config_values.admin_overlay(env=ENV) == {
+        config_values.KEY_TO_ENV[key]: config_values.SWITCH_OFF
+    }
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_an_unticked_checkbox_wins_over_the_deploy_environment() -> None:
+    """The admin form comes first in the precedence rule, and the blank is its answer."""
+    answer({"oauth_dcr": "", "talk_send": ""})
+
+    overlay = await config_values.admin_overlay(env={**ENV, registry.ENV_DCR: "on"})
+
+    assert overlay == {
+        registry.ENV_DCR: config_values.SWITCH_OFF,
+        config.ENV_TALK_SEND: config_values.SWITCH_OFF,
+    }
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_a_checkbox_nobody_touched_stays_absent() -> None:
+    """No row is no answer: the default in code keeps deciding, as before."""
+    answer({"public_url": ADMIN_URL})
+
+    overlay = await config_values.admin_overlay(env=ENV)
+
+    assert set(overlay) == {config.ENV_PUBLIC_URL}
 
 
 @pytest.mark.anyio
