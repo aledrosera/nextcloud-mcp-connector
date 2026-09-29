@@ -96,8 +96,9 @@ FINAL_TRUNCATION = marks.FINAL_TRUNCATION
 #: Ceiling for the text of one fetched mail, in bytes of the UTF-8 encoding. Measured in plan
 #: 10-01 against Mail 5.11.1 on a live instance: an ordinary 45 KB newsletter arrives as 48811
 #: bytes of HTML and becomes 25582 bytes of text after the conversion, so a ceiling of 16 KiB
-#: would have cut the normal case. It is deliberately not :data:`MAX_TEXT_BYTES`, because 512
-#: KiB of one mail is a context write-off, and just as deliberately not the preview cap of
+#: would have cut the normal case. It is deliberately not :data:`MAX_TEXT_BYTES` (64 KiB in the
+#: olivia fork, 512 KiB upstream), which is sized for files and not for one mail, and just as
+#: deliberately not the preview cap of
 #: ``mail_browse``, because 400 bytes is half a sentence and not a letter. The number is the
 #: smaller half of this decision. The larger half is that every cut is marked and that the
 #: marking says something true (threat T-10-32).
