@@ -56,6 +56,9 @@ ENV_AUDIT_LOG = "NC_MCP_AUDIT_LOG"
 ENV_AUDIT_RETENTION_DAYS = "NC_MCP_AUDIT_RETENTION_DAYS"
 ENV_AUDIT_MAX_BYTES = "NC_MCP_AUDIT_MAX_BYTES"
 
+#: The lifetime of a download link of ``files_download`` and ``fetch`` (fork olivia).
+ENV_DOWNLOAD_TTL_MINUTES = "NC_MCP_DOWNLOAD_TTL_MINUTES"
+
 # The AppAPI deploy environment. The names come from AppAPI, see the module docstring.
 ENV_APP_ID = "APP_ID"
 ENV_APP_SECRET = "APP_SECRET"  # noqa: S105 - the env var name, not a secret
@@ -186,6 +189,14 @@ AUDIT_RETENTION_FLOOR = 180
 #: every row away again the moment it was written, which looks exactly like a log that does
 #: not work, so anything below one megabyte keeps the default instead.
 AUDIT_SIZE_LIMIT_FLOOR = 1_000_000
+
+#: How long a download link of ``files_download`` and ``fetch`` stays valid (fork olivia).
+DOWNLOAD_TTL_MINUTES = 10
+
+#: The bounds of :data:`ENV_DOWNLOAD_TTL_MINUTES`, 1 to 60 minutes. A link outside that
+#: window falls back to the default rather than staying unbounded on one side.
+DOWNLOAD_TTL_FLOOR = 1
+DOWNLOAD_TTL_CEILING = 60
 
 #: Where the OAuth store goes when this process was not started by the AppAPI deploy
 #: daemon, which is the ``--manual`` development mode and nothing else. Relative to the
@@ -727,6 +738,21 @@ def audit_retention_days(env: Mapping[str, str] | None = None) -> int:
 def audit_size_limit(env: Mapping[str, str] | None = None) -> int:
     """How large the audit file may grow, at least :data:`AUDIT_SIZE_LIMIT_FLOOR` bytes."""
     return _bounded_number(env, ENV_AUDIT_MAX_BYTES, AUDIT_SIZE_LIMIT_BYTES, AUDIT_SIZE_LIMIT_FLOOR)
+
+
+def download_ttl_minutes(env: Mapping[str, str] | None = None) -> int:
+    """Minutes a download link lives; out of range values fall back to the default."""
+    value = _bounded_number(env, ENV_DOWNLOAD_TTL_MINUTES, DOWNLOAD_TTL_MINUTES, DOWNLOAD_TTL_FLOOR)
+    if value > DOWNLOAD_TTL_CEILING:
+        logger.warning(
+            "%s is above the highest value this server accepts (%s), so the default of "
+            "%s stays in force.",
+            ENV_DOWNLOAD_TTL_MINUTES,
+            DOWNLOAD_TTL_CEILING,
+            DOWNLOAD_TTL_MINUTES,
+        )
+        return DOWNLOAD_TTL_MINUTES
+    return value
 
 
 def _bounded_number(env: Mapping[str, str] | None, name: str, default: int, floor: int) -> int:

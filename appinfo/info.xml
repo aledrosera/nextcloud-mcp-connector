@@ -541,6 +541,10 @@ Prérequis :
 				<display-name>How long a recorded call is kept</display-name>
 				<description>The number of days an entry is kept before it is swept away. 180 days unless set otherwise, and 180 is also the smallest value this app accepts: a smaller one is refused and the default stays in force. Keeping longer is allowed.</description>			</variable>
 			<variable>
+				<name>NC_MCP_DOWNLOAD_TTL_MINUTES</name>
+				<display-name>Download link lifetime (minutes)</display-name>
+				<description>How long a download link of files_download and fetch stays valid, from 1 to 60 minutes (default 10). A link also ends after its first completed download.</description>			</variable>
+			<variable>
 				<name>NC_MCP_AUDIT_MAX_BYTES</name>
 				<display-name>Largest size of the record</display-name>
 				<description>The upper bound of the file the record is kept in, in bytes. 100000000, which is 100 MB, unless set otherwise, and a value below 1000000 is refused so that a mistyped size cannot sweep away every entry the moment it is written. When the bound is reached, the oldest entries make way for the new ones.</description>			</variable>

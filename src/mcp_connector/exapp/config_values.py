@@ -115,6 +115,9 @@ PUBLIC_URL_KEY = "public_url"
 #: independent of all four OAuth values, and putting it between them would tear that grouping
 #: apart. ``audit_log`` is last and joined in phase 18; it is about none of the six above,
 #: because it is about this app watching itself rather than about who may reach it.
+#: ``download_ttl_minutes`` joined in the olivia fork, task 1: how long a download link of
+#: ``files_download`` and ``fetch`` stays valid. Last, because it is unrelated to the six
+#: values above it.
 CONFIG_KEYS: tuple[str, ...] = (
     PUBLIC_URL_KEY,
     "oauth_dcr",
@@ -123,6 +126,7 @@ CONFIG_KEYS: tuple[str, ...] = (
     "oauth_allowed_clients",
     "talk_send",
     "audit_log",
+    "download_ttl_minutes",
 )
 
 #: The variable each key stands for. The overlay speaks the language of the deploy
@@ -135,6 +139,7 @@ KEY_TO_ENV: Mapping[str, str] = {
     "oauth_allowed_clients": registry.ENV_ALLOWED_CLIENTS,
     "talk_send": config.ENV_TALK_SEND,
     "audit_log": config.ENV_AUDIT_LOG,
+    "download_ttl_minutes": config.ENV_DOWNLOAD_TTL_MINUTES,
 }
 
 #: The keys that carry a checkbox, named once so the validation cannot drift from the form.

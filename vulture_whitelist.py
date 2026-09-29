@@ -300,3 +300,13 @@ _._decode_payload
 # one outgoing key set request a run pays, and limit_sentence is what a green run does not
 # mean. All three left the list with the plan that reads them, exactly as the entry announced
 # it would. A whitelist entry that is no longer needed is a switched off check.
+
+# --- The download link lifetime of the olivia fork, task 1 of docs/olivia/plan.md -------
+# Empty on purpose apart from one name, and that is the rule of this file at work rather
+# than an omission. Task 1 parked config.download_ttl_minutes here, because the bound and
+# the admin form field were built and tested one task before their caller exists: the route
+# that issues a download link (docs/olivia/plan.md, task 4) is the one that multiplies its
+# answer by 60 into a ticket TTL. It is driven directly by
+# tests/unit/test_olivia_download_config.py and leaves this list with the task that calls
+# it, exactly as every parked name above it does.
+download_ttl_minutes

@@ -109,6 +109,7 @@ def form_scheme(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         allowed_field,
         talk_send_field,
         audit_log_field,
+        download_ttl_field,
     ) = CONFIG_KEYS
     return {
         "id": ADMIN_FORM_ID,
@@ -186,6 +187,14 @@ def form_scheme(env: Mapping[str, str] | None = None) -> dict[str, Any]:
                 # is what ``config.audit_log_enabled`` answers for an unset value, and an
                 # installation that never opens this form records nothing at all.
                 "default": False,
+            },
+            {
+                "id": download_ttl_field,
+                "title": strings.ADMIN_FIELD_DOWNLOAD_TTL_LABEL,
+                "description": strings.ADMIN_FIELD_DOWNLOAD_TTL_DESCRIPTION,
+                "type": "number",
+                "placeholder": str(config.DOWNLOAD_TTL_MINUTES),
+                "default": "",
             },
         ],
     }

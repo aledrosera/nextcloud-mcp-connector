@@ -2402,6 +2402,7 @@ def test_every_variable_the_code_reads_is_declared_in_the_manifest(
         config.ENV_AUDIT_LOG,
         config.ENV_AUDIT_RETENTION_DAYS,
         config.ENV_AUDIT_MAX_BYTES,
+        config.ENV_DOWNLOAD_TTL_MINUTES,
     }
 
 

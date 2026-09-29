@@ -92,6 +92,7 @@ def test_the_seven_keys_are_the_field_ids_of_the_admin_form() -> None:
         "oauth_allowed_clients",
         "talk_send",
         "audit_log",
+        "download_ttl_minutes",
     )
 
 
@@ -105,6 +106,7 @@ def test_every_key_maps_to_the_variable_the_existing_code_already_reads() -> Non
         "oauth_allowed_clients": registry.ENV_ALLOWED_CLIENTS,
         "talk_send": config.ENV_TALK_SEND,
         "audit_log": config.ENV_AUDIT_LOG,
+        "download_ttl_minutes": config.ENV_DOWNLOAD_TTL_MINUTES,
     }
     assert set(config_values.KEY_TO_ENV) == set(config_values.CONFIG_KEYS)
 
@@ -157,6 +159,7 @@ async def test_one_request_asks_for_all_seven_keys() -> None:
             "oauth_allowed_clients",
             "talk_send",
             "audit_log",
+            "download_ttl_minutes",
         ]
     }
     assert values == {"public_url": ADMIN_URL}

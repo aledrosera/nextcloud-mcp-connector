@@ -162,6 +162,7 @@ async def test_the_seven_fields_are_the_seven_config_keys_in_order() -> None:
         "oauth_allowed_clients",
         "talk_send",
         "audit_log",
+        "download_ttl_minutes",
     ]
     assert tuple(field["id"] for field in fields) == config_values.CONFIG_KEYS
     assert [field["type"] for field in fields] == [
@@ -172,6 +173,7 @@ async def test_the_seven_fields_are_the_seven_config_keys_in_order() -> None:
         "text",
         "checkbox",
         "checkbox",
+        "number",
     ]
 
 
@@ -326,7 +328,7 @@ async def test_the_audit_log_field_is_a_checkbox_that_ships_off() -> None:
     await admin_settings.register_admin_form(env=ENV)
 
     fields = json.loads(route.calls.last.request.content)["formScheme"]["fields"]
-    audit_log = fields[-1]
+    audit_log = next(field for field in fields if field["id"] == "audit_log")
     assert audit_log["id"] == "audit_log"
     assert audit_log["type"] == "checkbox"
     assert audit_log["default"] is False
@@ -429,7 +431,7 @@ async def test_no_field_of_the_form_offers_a_level_of_recording() -> None:
     await admin_settings.register_admin_form(env=ENV)
 
     fields = json.loads(route.calls.last.request.content)["formScheme"]["fields"]
-    assert len(fields) == 7, "every field of the form is walked, not a subset of it"
+    assert len(fields) == 8, "every field of the form is walked, not a subset of it"
     for field in fields:
         assert LEVEL_WORD.search(json.dumps(field).lower()) is None, (
             f"{field['id']} offers a level of recording this app cannot deliver"

@@ -44,6 +44,8 @@ __all__ = [
     "ADMIN_FIELD_CIMD_LABEL",
     "ADMIN_FIELD_DCR_DESCRIPTION",
     "ADMIN_FIELD_DCR_LABEL",
+    "ADMIN_FIELD_DOWNLOAD_TTL_DESCRIPTION",
+    "ADMIN_FIELD_DOWNLOAD_TTL_LABEL",
     "ADMIN_FIELD_PUBLIC_URL_DESCRIPTION",
     "ADMIN_FIELD_PUBLIC_URL_LABEL",
     "ADMIN_FIELD_TALK_SEND_DESCRIPTION",
@@ -746,6 +748,17 @@ ADMIN_FIELD_TALK_SEND_DESCRIPTION = (
     "With this off, no assistant can send a Talk message through this connector, whatever an "
     "account is allowed to do in Talk itself. Reading is not affected: conversations and their "
     "history stay readable. A change takes effect after you disable and enable this app again."
+)
+
+#: The form half of ``NC_MCP_DOWNLOAD_TTL_MINUTES`` (olivia task 1): how long a link handed
+#: out by ``files_download`` or ``fetch`` stays valid. Empty keeps the deploy variable or the
+#: default in code, exactly the precedence every other value of this form already follows.
+ADMIN_FIELD_DOWNLOAD_TTL_LABEL = "Download link lifetime (minutes)"
+
+ADMIN_FIELD_DOWNLOAD_TTL_DESCRIPTION = (
+    "How long a link from files_download or fetch stays valid, from 1 to 60 minutes. A link "
+    "also ends after its first completed download. Empty keeps the deploy variable or 10. A "
+    "change takes effect after you disable and enable this app again."
 )
 
 ADMIN_FIELD_AUDIT_LOG_LABEL = "Keep a record of tool calls"
