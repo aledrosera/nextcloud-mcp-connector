@@ -248,7 +248,7 @@ async def read(
     if not _is_text(content_type):
         raise ToolError(
             message=f"{target} is {content_type} and not text.",
-            hint="Use files_download to retrieve binary files in chunks.",
+            hint="Use files_download to get a download link, then fetch it from code execution.",
         )
 
     size = info["size"]
