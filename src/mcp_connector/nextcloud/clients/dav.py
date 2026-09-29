@@ -237,6 +237,15 @@ async def open_download(client: httpx.AsyncClient, creds: Credentials, path: str
         "GET", files_url(creds, target), headers={"Accept-Encoding": "identity"}
     )
     response = await client.send(request, auth=creds.auth(), stream=True)
+    # A rejected app password behind a download link is the same as a revoked connection
+    # from the link's point of view (the caller learns only that the link is finished).
+    if response.status_code == 401:
+        await response.aclose()
+        raise ToolError(
+            message="Nextcloud rejected the credentials of this link.",
+            hint="Ask for a new link.",
+            reason=REASON_PERMISSION_DENIED,
+        )
     try:
         _check(response, target)
     except BaseException:

@@ -3,6 +3,8 @@
 Every refusal is the same 404, so a caller learns nothing about which tokens exist. The
 credentials are rebuilt at download time from the connection that issued the link, so a
 connection ended in Nextcloud (or an account paused on the connections page) ends its links too.
+HEAD only checks the ticket and the link, never the file itself; a file that has since
+disappeared in Nextcloud only surfaces on GET.
 """
 
 import logging
@@ -11,6 +13,7 @@ import time
 from collections.abc import AsyncIterator, Mapping
 from urllib.parse import quote
 
+import anyio
 import httpx
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response, StreamingResponse
@@ -42,19 +45,24 @@ def _bad_gateway() -> Response:
 
 
 def _disposition(name: str) -> str:
-    fallback = name.encode("ascii", "ignore").decode("ascii").replace('"', "").replace("\\", "")
+    # The fallback is untrusted: besides the quote and backslash that would break out of the
+    # quoted-string, drop ASCII control characters (< 32, and DEL at 127) too.
+    ascii_only = name.encode("ascii", "ignore").decode("ascii")
+    fallback = "".join(c for c in ascii_only if c not in '"\\' and 32 <= ord(c) != 127)
     encoded = quote(name, safe="")
     return f"attachment; filename=\"{fallback or 'download'}\"; filename*=UTF-8''{encoded}"
 
 
-def _headers(ticket: Ticket, length: str) -> dict[str, str]:
-    return {
+def _headers(ticket: Ticket, length: str | None) -> dict[str, str]:
+    headers = {
         "Content-Type": ticket.content_type or "application/octet-stream",
-        "Content-Length": length,
         "Content-Disposition": _disposition(ticket.name),
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
     }
+    if length is not None:
+        headers["Content-Length"] = length
+    return headers
 
 
 def _masked(token: str) -> str:
@@ -96,15 +104,15 @@ def download_routes(
     env: Mapping[str, str] | None, *, oauth_store: StoreProvider, tickets: TicketStore | None = None
 ) -> list[Route]:
     async def download(request: Request) -> Response:
+        token = str(request.path_params.get("token", ""))
+        if not TOKEN_PATTERN.fullmatch(token):
+            return _not_found()
         # Resolved per request, not once at wiring time: ``ticket_store(env)`` reads
         # ``APP_PERSISTENT_STORAGE`` through :func:`config.persistent_storage`, and every other
         # store of this app pays that cost at first use rather than at ``build_exapp_app`` time
         # (see ``oauth/store.py::explicit_store_opener``), so an application built for a route
         # that never touches storage still builds against an incomplete deploy environment.
         store = tickets if tickets is not None else ticket_store(env)
-        token = str(request.path_params.get("token", ""))
-        if not TOKEN_PATTERN.fullmatch(token):
-            return _not_found()
         if request.method == "HEAD":
             ticket = await store.peek(token)
             if ticket is None or await _credentials(env, oauth_store, ticket) is None:
@@ -114,43 +122,55 @@ def download_routes(
         ticket = await store.claim(token)
         if ticket is None:
             return _not_found()
-        creds = await _credentials(env, oauth_store, ticket)
-        if creds is None:
-            await store.release(token)
-            return _not_found()
+        # From here on the ticket is claimed (``in_progress``): every path below either
+        # returns a response that already released or finished it, or re-raises through the
+        # handler below, which releases it so a client can retry instead of losing the link
+        # to an error it never caused.
         try:
-            upstream = await dav.open_download(shared_client(), creds, ticket.path)
-        except ToolError as exc:
-            await store.release(token)
-            if exc.reason in (REASON_UNKNOWN_ID, REASON_PERMISSION_DENIED):
+            creds = await _credentials(env, oauth_store, ticket)
+            if creds is None:
+                await store.release(token)
                 return _not_found()
-            return _bad_gateway()
-        except httpx.HTTPError:
-            await store.release(token)
-            return _bad_gateway()
-
-        length = upstream.headers.get("Content-Length") or str(ticket.size)
-
-        async def body() -> AsyncIterator[bytes]:
-            completed = False
             try:
-                async for chunk in upstream.aiter_raw(chunk_size=CHUNK_BYTES):
-                    yield chunk
-                completed = True
-            finally:
-                await upstream.aclose()
-                if completed:
-                    await store.finish(token)
-                    logger.info(
-                        "download delivered: user=%s file=%s link=%s at=%s",
-                        ticket.nc_user,
-                        ticket.name,
-                        _masked(token),
-                        int(time.time()),
-                    )
-                else:
-                    await store.release(token)
+                upstream = await dav.open_download(shared_client(), creds, ticket.path)
+            except ToolError as exc:
+                await store.release(token)
+                if exc.reason in (REASON_UNKNOWN_ID, REASON_PERMISSION_DENIED):
+                    return _not_found()
+                return _bad_gateway()
+            except httpx.HTTPError:
+                await store.release(token)
+                return _bad_gateway()
 
-        return StreamingResponse(body(), status_code=200, headers=_headers(ticket, length))
+            length = upstream.headers.get("Content-Length")
+
+            async def body() -> AsyncIterator[bytes]:
+                completed = False
+                try:
+                    async for chunk in upstream.aiter_raw(chunk_size=CHUNK_BYTES):
+                        yield chunk
+                    completed = True
+                finally:
+                    # The client can disconnect mid-stream, which cancels this scope; shield
+                    # the cleanup so aclose/finish/release (and the delivery log) still run
+                    # instead of being cut off by the cancellation that triggered them.
+                    with anyio.CancelScope(shield=True):
+                        await upstream.aclose()
+                        if completed:
+                            await store.finish(token)
+                            logger.info(
+                                "download delivered: user=%s file=%r link=%s at=%s",
+                                ticket.nc_user,
+                                ticket.name,
+                                _masked(token),
+                                int(time.time()),
+                            )
+                        else:
+                            await store.release(token)
+
+            return StreamingResponse(body(), status_code=200, headers=_headers(ticket, length))
+        except BaseException:
+            await store.release(token)
+            raise
 
     return [Route(DOWNLOAD_PATH, download, methods=["GET", "HEAD"])]

@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import logging
 
 import httpx
 import pytest
@@ -145,4 +147,160 @@ def test_interrupted_download_releases_the_ticket(world):
         respx.get(FILE_URL).mock(return_value=httpx.Response(200, stream=_Broken()))
         with pytest.raises(Exception):  # noqa: B017, PT011 - transport failure, any raise counts
             client.get(f"/dl/{token}")
+    assert run(tickets.peek(token)) is not None
+
+
+# --- fix round 1 -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "make_unusable",
+    [
+        pytest.param(
+            lambda oauth, tickets, token: run(oauth.revoke_authorization("auth-1")), id="revoked"
+        ),
+        pytest.param(
+            lambda oauth, tickets, token: run(oauth.set_access("alice", disabled=True)),
+            id="suspended",
+        ),
+    ],
+)
+def test_revoked_or_suspended_links_answer_exactly_not_found(world, make_unusable):
+    oauth, tickets, client = world
+    token = issue(tickets)
+    make_unusable(oauth, tickets, token)
+    response = client.get(f"/dl/{token}")
+    assert (response.status_code, response.text) == (404, "Not found")
+
+
+def test_a_gone_file_answers_exactly_not_found(world):
+    _, tickets, client = world
+    token = issue(tickets)
+    with respx.mock:
+        respx.get(FILE_URL).mock(return_value=httpx.Response(404))
+        response = client.get(f"/dl/{token}")
+    assert (response.status_code, response.text) == (404, "Not found")
+
+
+def test_nextcloud_401_answers_exactly_not_found_and_frees_the_ticket(world):
+    _, tickets, client = world
+    token = issue(tickets)
+    with respx.mock:
+        respx.get(FILE_URL).mock(return_value=httpx.Response(401))
+        response = client.get(f"/dl/{token}")
+    assert (response.status_code, response.text) == (404, "Not found")
+    assert run(tickets.peek(token)) is not None
+
+
+@pytest.mark.parametrize(
+    "make_ticket_unusable",
+    [
+        pytest.param(None, id="unknown_token"),
+        pytest.param("claim", id="in_progress"),
+        pytest.param("revoke", id="revoked_connection"),
+    ],
+)
+def test_head_answers_404_with_an_empty_body(world, make_ticket_unusable):
+    oauth, tickets, client = world
+    if make_ticket_unusable is None:
+        token = "A" * 43
+    else:
+        token = issue(tickets)
+        if make_ticket_unusable == "claim":
+            run(tickets.claim(token))
+        elif make_ticket_unusable == "revoke":
+            run(oauth.revoke_authorization("auth-1"))
+    response = client.head(f"/dl/{token}")
+    assert response.status_code == 404
+    assert response.content == b""
+
+
+def test_appapi_impersonation_sends_the_headers_of_the_ticket_owner(world):
+    _, tickets, client = world
+    token, _ = run(
+        tickets.issue(
+            auth_id=None,
+            nc_user="alice",
+            path="/Docs/Relazione à.pdf",
+            name="Relazione à.pdf",
+            content_type="application/pdf",
+            size=len(BODY),
+            ttl_seconds=600,
+        )
+    )
+    captured: dict[str, httpx.Headers] = {}
+
+    def responder(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return httpx.Response(200, content=BODY)
+
+    with respx.mock:
+        respx.get(FILE_URL).mock(side_effect=responder)
+        response = client.get(f"/dl/{token}")
+
+    assert response.status_code == 200
+    assert response.content == BODY
+    headers = captured["headers"]
+    assert headers["EX-APP-ID"] == ENV[config.ENV_APP_ID]
+    assert headers["EX-APP-VERSION"] == ENV[config.ENV_APP_VERSION]
+    token_b64 = headers["AUTHORIZATION-APP-API"]
+    assert base64.b64decode(token_b64).decode() == f"alice:{ENV[config.ENV_APP_SECRET]}"
+
+
+def test_the_delivery_log_names_user_and_file_but_never_the_full_token(world, caplog):
+    _, tickets, client = world
+    token = issue(tickets)
+    with caplog.at_level(logging.INFO, logger="mcp_connector.downloads.route"), respx.mock:
+        respx.get(FILE_URL).mock(return_value=httpx.Response(200, content=BODY))
+        response = client.get(f"/dl/{token}")
+    assert response.status_code == 200
+    assert "alice" in caplog.text
+    assert "Relazione à.pdf" in caplog.text
+    assert f"{token[:4]}…" in caplog.text
+    assert token not in caplog.text
+
+
+def test_missing_content_length_is_not_replaced_by_the_ticket_size(world):
+    _, tickets, client = world
+    token = issue(tickets)
+
+    class _Whole(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield BODY
+
+    with respx.mock:
+        respx.get(FILE_URL).mock(return_value=httpx.Response(200, stream=_Whole()))
+        response = client.get(f"/dl/{token}")
+    assert response.status_code == 200
+    assert "content-length" not in response.headers
+    assert response.content == BODY
+
+
+def test_control_characters_in_the_filename_are_stripped_from_the_fallback(world):
+    _, tickets, client = world
+    token = issue(tickets, name="a\x01b.pdf")
+    with respx.mock:
+        respx.get(FILE_URL).mock(return_value=httpx.Response(200, content=BODY))
+        response = client.get(f"/dl/{token}")
+    assert response.status_code == 200
+    disposition = response.headers["content-disposition"]
+    assert 'filename="ab.pdf"' in disposition
+    assert "filename*=UTF-8''a%01b.pdf" in disposition
+
+
+def test_an_unexpected_error_after_claim_fails_hard_and_returns_the_ticket(tmp_path):
+    tickets = dl_store.TicketStore(tmp_path / dl_store.TICKETS_FILENAME)
+    token = issue(tickets)
+
+    async def broken_provider():
+        raise RuntimeError("boom")
+
+    app = Starlette(
+        routes=dl_route.download_routes(ENV, oauth_store=broken_provider, tickets=tickets)
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get(f"/dl/{token}")
+
+    assert response.status_code == 500
     assert run(tickets.peek(token)) is not None
