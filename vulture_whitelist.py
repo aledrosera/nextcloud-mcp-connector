@@ -310,3 +310,17 @@ _._decode_payload
 # tests/unit/test_olivia_download_config.py and leaves this list with the task that calls
 # it, exactly as every parked name above it does.
 download_ttl_minutes
+
+# --- The store API of the ticket store, task 2 of docs/olivia/plan.md -------------------
+# downloads/store.py was built in task 2, because its schema, its constants and its
+# transactions only make sense together, and its callers arrive in later tasks: task 4 (the
+# /dl route handler) and task 5 (the link issuer) will call the public methods issue, claim,
+# peek, finish and release, plus the ticket_store factory. They are driven directly by
+# tests/unit/test_olivia_ticket_store.py and will leave this list with the task that calls
+# them, exactly as every parked store below does.
+_.issue
+_.claim
+_.peek
+_.finish
+_.release
+ticket_store

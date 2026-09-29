@@ -245,7 +245,7 @@ TABLES_READ_NEEDLES = ("/rows/", "/columns/")
 #
 # The exemption is deliberately narrow, two exact SQL forms per file, so an HTTP DELETE
 # written in either module is still reported, and ``.delete(`` above is never exempt anywhere.
-FILES_WITH_OWN_SQL = frozenset({"oauth/store.py", "audit/store.py"})
+FILES_WITH_OWN_SQL = frozenset({"oauth/store.py", "audit/store.py", "downloads/store.py"})
 SQL_DELETE_FORMS = ("DELETE FROM ", "ON DELETE CASCADE")
 
 # The second file where DELETE is not a tool deleting user data: the login flow revokes the
