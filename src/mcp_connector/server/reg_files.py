@@ -4,7 +4,7 @@ No tool takes a user name: the identity comes from the auth channel through
 ``deps.resolve_clients`` only (threat T-01-12, confused deputy).
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import Context
 from pydantic import Field
@@ -14,6 +14,20 @@ from ..downloads import issue
 from ..errors import ToolError
 from ..tools import files as files_tools
 from . import CREATE_ONLY, READ_ONLY, compact, graceful, mcp
+
+#: Largest tool answer claude.ai and Claude Desktop accept (Anthropic connector docs).
+TOOL_RESULT_CHAR_LIMIT = 150_000
+_SMALLEST_CHUNK = 4 * 1024
+
+
+async def read_within_budget(clients: Any, path: str, offset: int) -> str:
+    """Read one slice and shrink it until the serialised answer fits the client limit."""
+    budget = files_tools.DEFAULT_MAX_BYTES
+    text = compact(await files_tools.read(clients, path=path, offset=offset, max_bytes=budget))
+    while len(text) > TOOL_RESULT_CHAR_LIMIT and budget > _SMALLEST_CHUNK:
+        budget //= 2
+        text = compact(await files_tools.read(clients, path=path, offset=offset, max_bytes=budget))
+    return text
 
 
 @mcp.tool(annotations=READ_ONLY, structured_output=False)
@@ -61,8 +75,7 @@ async def files_read(
     ctx: Context | None = None,
 ) -> str:
     """Read a text file from Nextcloud; large files come back truncated with a next offset."""
-    clients = deps.resolve_clients(ctx)
-    return compact(await files_tools.read(clients, path=path, offset=offset))
+    return await read_within_budget(deps.resolve_clients(ctx), path, offset)
 
 
 @mcp.tool(annotations=READ_ONLY, structured_output=False)

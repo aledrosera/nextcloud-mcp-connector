@@ -328,7 +328,7 @@ async def test_without_a_limit_the_reader_keeps_the_ceiling_it_always_had(
 
         result = await chatgpt.fetch(clients, "file:4711")
 
-    assert chatgpt.MAX_TEXT_BYTES == files_tools.DEFAULT_MAX_BYTES == 512 * 1024
+    assert chatgpt.MAX_TEXT_BYTES == files_tools.DEFAULT_MAX_BYTES == 64 * 1024
     assert result["text"] == FILE_CONTENT
     assert "truncated" not in result["metadata"]
 

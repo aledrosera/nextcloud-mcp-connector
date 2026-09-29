@@ -27,7 +27,7 @@ from ..errors import ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
 
-DEFAULT_MAX_BYTES = 512 * 1024
+DEFAULT_MAX_BYTES = 64 * 1024
 HARD_MAX_BYTES = 2 * 1024 * 1024
 
 #: Nextcloud's v2 chunk endpoint accepts chunks from 5 MiB through 5 GiB, except for the
