@@ -494,6 +494,11 @@ async def upload_binary(
     }
 
 
+def is_text(content_type: str) -> bool:
+    """Public face of the text check, for fetch (fork olivia)."""
+    return _is_text(content_type)
+
+
 def _is_text(content_type: str) -> bool:
     base = content_type.split(";", 1)[0].strip().lower()
     return (

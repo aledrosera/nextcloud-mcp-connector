@@ -323,6 +323,7 @@ def test_the_provider_table_is_not_a_list_of_installed_apps() -> None:
         "search-deck-card-board",
         "talk-message",
         "talk-message-current",
+        "findling",
         "tables-search-tables",
     }
     assert "talk-conversations" not in provider_map.PROVIDER_KINDS

@@ -17,6 +17,7 @@ output schema: every byte here is paid for in every ``tools/list`` of every sess
 from mcp.server.mcpserver import Context
 
 from .. import deps
+from ..errors import ToolError
 from ..models import FetchResult, SearchHit, SearchResults
 from ..tools import chatgpt
 from . import READ_ONLY, graceful, mcp
@@ -36,4 +37,11 @@ async def search(query: str, ctx: Context | None = None) -> SearchResults:
 async def fetch(id: str, ctx: Context | None = None) -> FetchResult:  # noqa: A002 - OpenAI contract
     """Fetch the full content of one search result by its id."""
     clients = deps.resolve_clients(ctx)
-    return FetchResult(**await chatgpt.fetch(clients, id))
+    try:
+        owner = deps.resolve_ticket_owner(ctx)
+    except ToolError:
+        # A deployment without an ExApp owner (stdio, static bearer, the standalone OAuth
+        # server) cannot serve a link a code execution environment could later redeem, so a
+        # binary file falls back to the old refusal instead of failing every fetch call.
+        owner = None
+    return FetchResult(**await chatgpt.fetch(clients, id, owner=owner))

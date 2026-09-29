@@ -57,7 +57,7 @@ the live registry and fails if a name or a level disagrees with it.
 | `files_search` | read | Files and folders by name via WebDAV search; contents are not indexed |
 | `files_list` | read | The direct children of a folder, with size and modification time |
 | `files_read` | read | The content of one file |
-| `files_download` | read | Any-size file as bounded embedded-resource chunks |
+| `files_download` | read | Single-use download link for any file, to download from code execution |
 | `files_upload` | create-only | A new text file or any-size binary upload in base64 chunks; an existing path is refused, never overwritten |
 | `calendar_list_events` | read | Events in an explicit time range, with an explicit time zone |
 | `calendar_create_event` | create-only | A new event; existing events are never changed |
@@ -75,7 +75,7 @@ the live registry and fails if a name or a level disagrees with it.
 | `unified_search` | read | The Nextcloud unified search across providers, permission aware |
 | `prepare_context` | read | Files, notes, cards, the next week of events, waiting Talk conversations and unread mail counts in one call |
 | `search` | read | OpenAI compatible search entry point, delegates to unified search |
-| `fetch` | read | OpenAI compatible fetch, resolves an id to a file, note, card, event, mail, Talk message or table |
+| `fetch` | read | OpenAI compatible fetch, resolves an id to a file, note, card, event, mail, Talk message or table; binary files come back as a single-use download link |
 
 `search` and `fetch` exist because the ChatGPT connector profile requires exactly these two
 names and schemas. They are thin wrappers over the tools above, not a second implementation.

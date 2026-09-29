@@ -56,6 +56,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from .. import ids, provider_map
+from ..deps import TicketOwner
+from ..downloads import issue
 from ..errors import ToolError
 from ..nextcloud import NcClients, capabilities
 from ..nextcloud.clients import caldav
@@ -188,7 +190,11 @@ def _as_hit(clients: NcClients, hit: dict[str, Any]) -> dict[str, str]:
 
 
 async def fetch(
-    clients: NcClients, resource_id: str, *, max_bytes: int | None = None
+    clients: NcClients,
+    resource_id: str,
+    *,
+    max_bytes: int | None = None,
+    owner: TicketOwner | None = None,
 ) -> dict[str, Any]:
     """Read one search result in full and answer in the OpenAI fetch shape.
 
@@ -208,7 +214,7 @@ async def fetch(
     kind, parts = ids.parse(resource_id)
     match kind:
         case "file":
-            return await _fetch_file(clients, parts[0], max_bytes)
+            return await _fetch_file(clients, parts[0], max_bytes, owner=owner)
         case "note":
             return await _fetch_note(clients, parts[0])
         case "card":
@@ -229,13 +235,24 @@ async def fetch(
 
 
 async def _fetch_file(
-    clients: NcClients, fileid: str, max_bytes: int | None = None
+    clients: NcClients,
+    fileid: str,
+    max_bytes: int | None = None,
+    *,
+    owner: TicketOwner | None = None,
 ) -> dict[str, Any]:
     """Turn a file id back into a path, then read that path with the ordinary reader.
 
     ``MAX_TEXT_BYTES`` is read here and not bound as a default in the signature, so the
     ceiling stays one module level constant that a caller can lower and a test can lower
     for the whole module.
+
+    A binary file (PDF, Office, image, ...) cannot come back as ``text``: claude.ai and
+    Claude Desktop only accept text and images in a tool result, and ``files_read`` refuses
+    it outright. When an ``owner`` is available this hands out a single-use download link
+    instead of refusing (fork olivia, task 8); without one, the old refusal stands, because
+    a deployment without an ExApp owner cannot serve a link a code execution environment
+    could later redeem.
     """
     entry = await dav_client.find_by_fileid(clients.client, clients.creds, fileid)
     if entry is None:
@@ -248,6 +265,28 @@ async def _fetch_file(
         )
 
     path = str(entry["path"])
+    content_type = str(entry.get("content_type") or "")
+    if owner is not None and content_type and not files_tools.is_text(content_type):
+        link = await issue.issue_link(clients, owner, path)
+        name = marks.without_marks(path.rsplit("/", 1)[-1] or path)
+        return {
+            "id": ids.encode_file(fileid),
+            "title": name,
+            "text": (
+                f"{name} is a {content_type} file of {link['size']} bytes and is not returned "
+                f"as text. {issue.HOW_TO}\n{link['download_url']}"
+            ),
+            "url": str(link["download_url"]),
+            "metadata": {
+                "kind": "file",
+                "path": path,
+                "content_type": content_type,
+                "size": str(link["size"]),
+                "download_url": str(link["download_url"]),
+                "expires_at": str(link["expires_at"]),
+            },
+        }
+
     limit = MAX_TEXT_BYTES if max_bytes is None else max_bytes
     answer = await files_tools.read(clients, path=path, max_bytes=limit)
 

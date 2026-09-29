@@ -82,6 +82,12 @@ PROVIDER_KINDS: Mapping[str, str] = {
     # SearchTablesProvider: it sets no attributes at all, and getInternalLink builds
     # "#/" . $nodeType . "/" . $nodeId with $nodeType being "table" or "view".
     "tables-search-tables": "table",
+    # Findling is a content search provider (BL-15): it indexes file contents and reports a
+    # hit the same way the core files provider does, a resourceUrl of the form
+    # "/index.php/f/<fileid>". A content hit is still a file, and fetch already knows how to
+    # read one, so it maps to the same kind rather than staying an unresolved url (fork
+    # olivia, task 8).
+    "findling": "file",
 }
 
 #: The honest rest category for everything the table does not cover.
