@@ -226,6 +226,25 @@ async def get_range(
         return bytes(result)
 
 
+async def open_download(client: httpx.AsyncClient, creds: Credentials, path: str) -> httpx.Response:
+    """Open a streamed GET of one whole file for the download route (fork olivia).
+
+    The response is checked like every other DAV answer before it is handed out; the caller
+    streams it and must ``aclose()`` it. No Range header: the whole file goes to the client.
+    """
+    target = safe_path(path)
+    request = client.build_request(
+        "GET", files_url(creds, target), headers={"Accept-Encoding": "identity"}
+    )
+    response = await client.send(request, auth=creds.auth(), stream=True)
+    try:
+        _check(response, target)
+    except BaseException:
+        await response.aclose()
+        raise
+    return response
+
+
 def search_scope(creds: Credentials, folder: str = "/") -> str:
     """Return the search scope: the configured sandbox, or one folder below it.
 

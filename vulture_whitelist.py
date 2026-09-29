@@ -324,3 +324,11 @@ _.peek
 _.finish
 _.release
 ticket_store
+
+# --- The DAV streaming function of task 3 of docs/olivia/plan.md -----------------------
+# open_download: the whole-file streaming GET handler parked here, because the streamed
+# download function was built and tested one task before its caller exists: task 4 (the
+# /dl route handler) is the one that calls it to stream a file to the download client.
+# It is driven directly by tests/unit/test_olivia_dav_stream.py and will leave this list
+# with the task that calls it, exactly as the ticket store functions above do.
+open_download
