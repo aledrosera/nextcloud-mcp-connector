@@ -9,6 +9,22 @@ All notable changes to this app are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-29
+
+### Fixed
+
+- `NC_MCP_FILES_ROOT` now reaches an ExApp installation. 0.3.0 did not declare it in
+  `appinfo/info.xml`, so `occ app_api:app:register --env NC_MCP_FILES_ROOT=...` was accepted
+  and the variable was dropped without a warning: the file tools kept the whole files area of
+  every account. The standalone modes were not affected. A value passed before 0.3.1 never
+  arrived, so set the variable again after the update, and check the log line below
+  ([#12](https://github.com/street1983nk/nextcloud-mcp-connector/issues/12)).
+
+### Added
+
+- The ExApp logs at start which directory binds the file tools, or that none does, so an
+  administrator can see whether the sandbox took effect.
+
 ## [0.3.0] - 2026-09-26
 
 ### Added
@@ -823,6 +839,7 @@ First release, submitted to the Nextcloud App Store.
   never sees more than that user sees in the web interface.
 - A privacy and data flow description, see [docs/privacy.md](docs/privacy.md).
 
+[0.3.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.1.15...v0.2.0
