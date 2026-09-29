@@ -31,6 +31,7 @@ from .audit import CHAIN_INSTANCE, KIND_SWITCH, AuditStore, audit_opener
 from .audit import record as audit_record
 from .audit import refusals as audit_refusals
 from .audit.store import AUDIT_FILENAME
+from .downloads.logs import redact_download_tokens
 from .downloads.route import download_routes
 from .errors import IssuerRefused, ToolError
 from .exapp import config_values
@@ -817,6 +818,8 @@ def main() -> None:
         # hide what really happened behind a second, wrong message (IN-06).
         logger.error("%s %s", other.message, other.hint)
         raise SystemExit(2) from None
+
+    redact_download_tokens()
 
     if (resolved.get(config.ENV_HP_SHARED_KEY) or "").strip():
         # HaRP with the FRP tunnel: the unix socket is the transport, frpc runs beside us.
