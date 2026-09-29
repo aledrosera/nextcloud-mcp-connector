@@ -403,6 +403,7 @@ def parse_ics(
                 "end": end_value,
                 "all_day": all_day,
                 "location": _text_of(component, "LOCATION"),
+                "description": _text_of(component, "DESCRIPTION"),
                 "calendar": calendar or calendar_uri,
             }
         )

@@ -132,12 +132,16 @@ MAX_TABLE_BYTES = 4 * 1024
 #: this link needs the Calendar web interface, which is what a human opens.
 CALENDAR_WEB_PREFIX = "/index.php/apps/calendar/dayGridMonth"
 
-#: The Mail app, as the page a human opens after reading a mail here. Mail 5.11.1 has no
-#: verified web route to one single message, and a link built on a guess is worse than a link
-#: to the app, because it opens an error page instead of a mail. Like every other link of this
-#: module it is built from ``creds.base_url`` and never taken out of an answer: a message
-#: carries several addresses that its sender chose, and this server neither requests one of
-#: them nor hands one on as the link of a result (threat T-10-30).
+#: The Mail app's own thread route, verified on Mail 5.12.2: ``page#thread`` resolves
+#: ``/box/{mailboxId}/thread/{id}``, where ``id`` is the internal message id, the same number
+#: as in ``mail:<id>``. Like every other link of this module it is built from
+#: ``creds.base_url`` and never taken out of an answer: a message carries several addresses
+#: that its sender chose, and this server neither requests one of them nor hands one on as the
+#: link of a result (threat T-10-30).
+MAIL_THREAD_PATH = "/index.php/apps/mail/box/{mailbox}/thread/{message}"
+
+#: The Mail app's front page, used only when the mailbox id the app reported is not the plain
+#: digit :data:`MAIL_THREAD_PATH` needs, so a link is still opened instead of failed.
 MAIL_WEB_PREFIX = "/index.php/apps/mail"
 
 #: A mail without a subject is an ordinary mail, and an empty title is not readable in a
@@ -397,7 +401,14 @@ async def _resolve_card(clients: NcClients, card_id: str) -> tuple[str, str, dic
 
 async def _fetch_event(clients: NcClients, calendar_uri: str, object_name: str) -> dict[str, Any]:
     """Read one calendar object and render it as the few lines that describe an event."""
-    events = await caldav.get_event(clients.client, clients.creds, calendar_uri, object_name)
+    refs = await caldav.discover_calendars(clients.client, clients.creds)
+    display = next(
+        (ref.display_name for ref in refs if ref.uri == calendar_uri and ref.display_name),
+        calendar_uri,
+    )
+    events = await caldav.get_event(
+        clients.client, clients.creds, calendar_uri, object_name, calendar=display
+    )
     if not events:
         raise ToolError(
             message=f"The calendar object {object_name} holds no event.",
@@ -419,6 +430,8 @@ async def _fetch_event(clients: NcClients, calendar_uri: str, object_name: str) 
     if event.get("location"):
         lines.append(f"Location: {event['location']}")
         metadata["location"] = str(event["location"])
+    if event.get("description"):
+        lines.append(f"Description: {event['description']}")
     if event.get("uid"):
         metadata["uid"] = str(event["uid"])
     if len(events) > 1:
@@ -505,11 +518,18 @@ async def _fetch_mail(clients: NcClients, message_id: str) -> dict[str, Any]:
     if truncated:
         metadata["truncated"] = "true"
 
+    mailbox = message.get("mailboxId")
+    url = (
+        f"{clients.creds.base_url}{MAIL_THREAD_PATH.format(mailbox=mailbox, message=message_id)}"
+        if str(mailbox).isdigit()
+        else f"{clients.creds.base_url}{MAIL_WEB_PREFIX}"
+    )
+
     return {
         "id": ids.encode_mail(message_id),
         "title": marks.without_marks(str(message.get("subject") or "")).strip() or _NO_SUBJECT,
         "text": text,
-        "url": f"{clients.creds.base_url}{MAIL_WEB_PREFIX}",
+        "url": url,
         "metadata": metadata,
     }
 

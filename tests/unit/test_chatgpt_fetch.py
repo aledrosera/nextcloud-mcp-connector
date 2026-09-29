@@ -645,6 +645,13 @@ async def test_the_sweep_continues_to_the_next_board_and_reports_an_unknown_card
 async def test_an_event_id_is_read_from_caldav(clients: NcClients) -> None:
     ics = (FIXTURES / "event_allday.ics").read_text(encoding="utf-8")
     with respx.mock(assert_all_called=True) as mock:
+        mock.route(method="PROPFIND", url=f"{CALENDARS_ROOT}/").mock(
+            return_value=httpx.Response(
+                207,
+                text=(FIXTURES / "caldav_calendars_207.xml").read_text(encoding="utf-8"),
+                headers={"Content-Type": "application/xml; charset=utf-8"},
+            )
+        )
         mock.get(f"{CALENDARS_ROOT}/personal/allday.ics").mock(
             return_value=httpx.Response(200, text=ics)
         )
@@ -655,6 +662,7 @@ async def test_an_event_id_is_read_from_caldav(clients: NcClients) -> None:
     assert result["title"] == "Betriebsausflug"
     assert "2026-10-24" in result["text"]
     assert "Hamburg" in result["text"]
+    assert "Calendar: Persönlich" in result["text"], "the display name, not the calendar uri"
     assert result["url"].startswith(BASE)
     assert result["metadata"]["kind"] == "event"
     assert result["metadata"]["calendar"] == "personal"
@@ -1096,7 +1104,7 @@ async def test_the_url_is_built_from_the_instance_and_never_from_the_answer(
 
         result = await chatgpt.fetch(clients, f"mail:{MAIL_ID}")
 
-    assert result["url"] == f"{BASE}/index.php/apps/mail"
+    assert result["url"] == f"{BASE}/index.php/apps/mail/box/{MAILBOX_ID}/thread/{MAIL_ID}"
     assert SENDER_DOMAIN not in json.dumps(result, ensure_ascii=False), (
         "no address out of the answer appears anywhere in the result"
     )
