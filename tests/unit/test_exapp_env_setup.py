@@ -2380,6 +2380,11 @@ def test_every_variable_the_code_reads_is_declared_in_the_manifest(
     and cannot be set, because the deploy daemon drops what this manifest does not declare,
     would be half of a promise. The way meant for an administrator stays the admin settings
     of this app (BL-06); these three are the way of an installation set up by hand.
+
+    Nine became ten with 0.3.1, and that one is the reason this gate exists at all:
+    ``NC_MCP_FILES_ROOT`` shipped with 0.3.0, documented for every mode, and this set held
+    its absence for a release, so an ExApp installation ran with the whole files area while
+    the administrator had set a sandbox (issue #12).
     """
     declared = {
         (variable.findtext("name") or "").strip()
@@ -2393,6 +2398,7 @@ def test_every_variable_the_code_reads_is_declared_in_the_manifest(
         registry.ENV_ALLOWLIST_ONLY,
         registry.ENV_ALLOWED_CLIENTS,
         config.ENV_TALK_SEND,
+        config.ENV_FILES_ROOT,
         config.ENV_AUDIT_LOG,
         config.ENV_AUDIT_RETENTION_DAYS,
         config.ENV_AUDIT_MAX_BYTES,

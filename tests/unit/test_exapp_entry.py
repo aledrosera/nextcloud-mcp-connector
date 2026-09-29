@@ -308,6 +308,37 @@ def test_the_exapp_app_still_serves_mcp() -> None:
     assert "/mcp" in paths(entry_exapp.build_exapp_app(EXAPP_ENV))
 
 
+def test_the_start_names_the_directory_the_file_tools_are_bound_to(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Issue #12: the deploy daemon drops an undeclared variable without a word, so the log
+    of the start is where an administrator sees whether the sandbox took effect."""
+    with caplog.at_level(logging.INFO, logger="mcp_connector.entry_exapp"):
+        entry_exapp.build_exapp_app({**EXAPP_ENV, config.ENV_FILES_ROOT: "/Documents/AI/"})
+
+    assert "the file tools are bound to /Documents/AI (NC_MCP_FILES_ROOT)" in caplog.messages
+
+
+def test_the_start_says_so_when_no_directory_binds_the_file_tools(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO, logger="mcp_connector.entry_exapp"):
+        entry_exapp.build_exapp_app(EXAPP_ENV)
+
+    assert (
+        "the file tools see the whole files area (NC_MCP_FILES_ROOT is not set)" in caplog.messages
+    )
+
+
+def test_an_invalid_files_root_stops_the_build(caplog: pytest.LogCaptureFixture) -> None:
+    """Fail closed: a sandbox that cannot be read never falls back to the whole files area."""
+    with pytest.raises(ToolError) as excinfo:
+        entry_exapp.build_exapp_app({**EXAPP_ENV, config.ENV_FILES_ROOT: "/Documents/../.."})
+
+    assert config.ENV_FILES_ROOT in excinfo.value.message
+    assert not any("the file tools" in message for message in caplog.messages)
+
+
 def test_the_exapp_app_carries_the_dry_run_route_of_the_occ_command() -> None:
     """EXCH-06: a registered command whose handler is missing answers 404 on the one day
     somebody needs it, so the route is held against the path constant here as well."""
