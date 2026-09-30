@@ -325,3 +325,10 @@ _._decode_payload
 # until task 3 (the /ul route handler) calls them. Wired in Task 3/5.
 issue_upload_link
 parse_upload_path
+
+# --- The WebDAV helpers of the olivia fork, task 2 of docs/olivia/plan.md ----------------
+# ensure_folders and put_new_stream were built in task 2, parked here until task 3 (the /ul
+# route handler) calls them. ensure_folders creates missing parent folders top-down with MKCOL;
+# put_new_stream uploads a file body as a stream with create-only semantics (If-None-Match: *).
+ensure_folders
+put_new_stream

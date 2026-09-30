@@ -14,7 +14,7 @@ foreign host or vanish).
 
 import hashlib
 import re
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from posixpath import dirname
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
@@ -571,6 +571,48 @@ async def put_new_file(
         "etag": response.headers.get("etag", ""),
         "created": True,
     }
+
+
+#: A whole upload may take long on a slow link; the write of each chunk and the answer after
+#: the last one get generous limits (fork olivia, upload links). nginx and HaRP allow 1800 s.
+UPLOAD_TIMEOUT = httpx.Timeout(1800.0, connect=30.0)
+
+
+async def ensure_folders(client: httpx.AsyncClient, creds: Credentials, folder: str) -> int | None:
+    """MKCOL every folder of ``folder`` from the top down (fork olivia, upload links).
+
+    201 created and 405 already there both count as present. The first other status is
+    returned so the caller can map it; ``None`` means every folder exists now.
+    """
+    target = safe_path(folder)
+    current = ""
+    for part in (p for p in target.split("/") if p):
+        current = f"{current}/{part}"
+        response = await client.request("MKCOL", files_url(creds, current), auth=creds.auth())
+        if response.status_code not in (201, 405):
+            return response.status_code
+    return None
+
+
+async def put_new_stream(
+    client: httpx.AsyncClient, creds: Credentials, path: str, body: AsyncIterator[bytes]
+) -> int:
+    """PUT a streamed body to a file that must not exist yet, and return the status.
+
+    ``If-None-Match: *`` makes Nextcloud refuse with 412 when anything exists at the path, so
+    a file created between the link and the upload is never replaced. No Content-Length is
+    needed: Nextcloud accepts a chunked PUT (verified 2026-09-30) and writes a part file
+    that only becomes the target when the transfer completes.
+    """
+    target = safe_path(path)
+    response = await client.put(
+        files_url(creds, target),
+        content=body,
+        headers={"If-None-Match": "*"},
+        auth=creds.auth(),
+        timeout=UPLOAD_TIMEOUT,
+    )
+    return response.status_code
 
 
 def uploads_url(creds: Credentials, upload_id: str, part: str | None = None, *, path: str) -> str:
