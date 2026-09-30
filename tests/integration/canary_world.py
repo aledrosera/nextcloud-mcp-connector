@@ -157,8 +157,9 @@ def live_env() -> LiveEnv:
     """The live account, or a skip naming what is missing.
 
     The CI job ``integration`` has no ExApp variables and no container of this name, so every
-    test built on this skips there instead of failing. The step of the ``exapp`` job that runs
-    the gates sets :data:`ENV_REQUIRE_LIVE`, and there the same gaps fail (review WR-04).
+    test built on this skips there instead of failing. The step of the ``canary-nc35`` job
+    that runs the gates sets :data:`ENV_REQUIRE_LIVE`, and there the same gaps fail (review
+    WR-04).
     """
     values = {name: (os.environ.get(name) or "").strip() for name in REQUIRED_ENV}
     missing = [name for name, value in values.items() if not value]

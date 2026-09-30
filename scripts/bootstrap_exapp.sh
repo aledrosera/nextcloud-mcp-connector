@@ -1486,7 +1486,8 @@ echo "  ${PUBLIC_URL}/mcp"
 #
 #   1. Download the release archive on a machine that has access:
 #      https://github.com/nextcloud/app_api/releases (pick the tag that matches the
-#      server version, 34.x for nextcloud:34-apache).
+#      server version of the running image: 34.x for the default of compose.exapp.yml,
+#      35.x when NC_EXAPP_NEXTCLOUD_IMAGE points at a 35 image).
 #   2. Unpack it into the container so the app directory keeps its plain name:
 #        docker compose -f compose.exapp.yml cp app_api nextcloud:/var/www/html/custom_apps/app_api
 #        docker compose -f compose.exapp.yml exec -T --user root nextcloud \
