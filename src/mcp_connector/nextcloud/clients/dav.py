@@ -1,10 +1,10 @@
 """WebDAV client: SEARCH, PROPFIND, ranged GET, and create-only file uploads.
 
-The ordinary file write is a PUT that carries ``If-None-Match: *``. Large binary uploads use
-Nextcloud's private chunk directory and one final MOVE with ``Overwrite: F``; that MOVE only
-assembles a new file and can never replace an existing target. No tool exposes delete, copy,
-rename, property editing, or an overwrite mode. The precondition is evaluated by Nextcloud in
-the same request, which is why this client does no PROPFIND probe before a create-only PUT.
+Every file write is a PUT that carries ``If-None-Match: *``, whether it is the direct text
+write of ``put_new_file`` or the streamed write of ``put_new_stream`` behind a single-use
+upload link (fork olivia). No tool exposes delete, copy, rename, property editing, or an
+overwrite mode. The precondition is evaluated by Nextcloud in the same request, which is why
+this client does no PROPFIND probe before a create-only PUT.
 
 Status handling follows two rules from the research: never repeat a failed
 authentication (Nextcloud counts failures per source IP and slows down every user of the
@@ -12,7 +12,6 @@ server afterwards), and never let a redirect pass silently (the auth header woul
 foreign host or vanish).
 """
 
-import hashlib
 import re
 from collections.abc import AsyncIterator, Sequence
 from posixpath import dirname
@@ -33,7 +32,6 @@ from ..credentials import Credentials
 from . import xml
 
 DAV_FILES_PREFIX = "/remote.php/dav/files/"
-DAV_UPLOADS_PREFIX = "/remote.php/dav/uploads/"
 
 #: Digits, and only ASCII ones. ``str.isdigit`` also accepts a superscript two and an
 #: Arabic-Indic digit, and neither is a file id Nextcloud ever handed out. This is the
@@ -633,143 +631,6 @@ async def put_new_stream(
         timeout=UPLOAD_TIMEOUT,
     )
     return response.status_code
-
-
-def uploads_url(creds: Credentials, upload_id: str, part: str | None = None, *, path: str) -> str:
-    """Isolate connector uploads by sandbox and destination, including on retries.
-
-    Caller-controlled ids never name a browser's existing temporary upload directory.
-    Changing the destination or configured root selects a different staging directory.
-    """
-    user = quote(creds.user, safe="")
-    identity = "\x00".join((config.files_root(), safe_path(path), upload_id))
-    folder = "nc-mcp-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
-    suffix = "" if part is None else f"/{quote(part, safe='')}"
-    return f"{creds.base_url}{DAV_UPLOADS_PREFIX}{user}/{folder}{suffix}"
-
-
-async def start_chunked_upload(
-    client: httpx.AsyncClient,
-    creds: Credentials,
-    path: str,
-    upload_id: str,
-) -> None:
-    """Create the temporary folder used by Nextcloud's chunk-upload protocol."""
-    target = safe_path(path)
-    response = await client.request(
-        "MKCOL",
-        uploads_url(creds, upload_id, path=target),
-        headers={"Destination": files_url(creds, target)},
-        auth=creds.auth(),
-    )
-    if response.status_code == 405:
-        # A retry after an uncertain first response may find the folder already present. The
-        # upload id is random or caller-owned, and all actual writes remain create-only.
-        return
-    _check_chunk_response(response, target)
-
-
-async def put_upload_chunk(
-    client: httpx.AsyncClient,
-    creds: Credentials,
-    path: str,
-    upload_id: str,
-    chunk_index: int,
-    data: bytes,
-    total_size: int,
-    content_type: str,
-) -> None:
-    """Store one chunk in Nextcloud's temporary upload folder."""
-    target = safe_path(path)
-    response = await client.put(
-        uploads_url(creds, upload_id, f"{chunk_index:05d}", path=target),
-        content=data,
-        headers={
-            "Destination": files_url(creds, target),
-            "OC-Total-Length": str(total_size),
-            "Content-Type": content_type,
-        },
-        auth=creds.auth(),
-    )
-    _check_chunk_response(response, target)
-
-
-async def finish_chunked_upload(
-    client: httpx.AsyncClient,
-    creds: Credentials,
-    path: str,
-    upload_id: str,
-    total_size: int,
-) -> dict:
-    """Assemble the temporary chunks into a new file without allowing replacement."""
-    target = safe_path(path)
-    response = await client.request(
-        "MOVE",
-        f"{uploads_url(creds, upload_id, path=target)}/.file",
-        headers={
-            "Destination": files_url(creds, target),
-            "OC-Total-Length": str(total_size),
-            "Overwrite": "F",
-        },
-        auth=creds.auth(),
-    )
-    # As with a direct PUT, only 201 proves that this was a new destination. A 204
-    # means the server ignored Overwrite: F and must not be reported as a safe create.
-    if response.status_code in (200, 204):
-        _check_write(response, target)
-    _check_chunk_response(response, target)
-    return {
-        "path": target,
-        "etag": response.headers.get("etag", ""),
-        "created": True,
-    }
-
-
-def _check_chunk_response(response: httpx.Response, path: str) -> None:
-    """Translate a chunk request response while preserving create-only semantics."""
-    status = response.status_code
-    if status in (200, 201, 204):
-        return
-    if status == 412:
-        raise ConflictError(
-            message=f"A file already exists at {path}.",
-            hint="This server never overwrites files. Choose a different name.",
-        )
-    if status == 403:
-        raise ToolError(
-            message=f"No permission to write to {path}.",
-            hint="Check the share permissions of the target folder in Nextcloud.",
-            reason=REASON_PERMISSION_DENIED,
-        )
-    if status in (404, 409):
-        parent = dirname(path) or "/"
-        raise ToolError(
-            message=f"The parent folder {parent} of {path} does not exist.",
-            hint="Create the folder in Nextcloud first, or upload into a folder that exists.",
-            reason=REASON_UNKNOWN_ID,
-        )
-    if status == 413:
-        raise ToolError(
-            message=f"Nextcloud refused the upload of {path} as too large.",
-            hint="Upload smaller chunks or check the Nextcloud server's upload limits.",
-        )
-    if status == 423:
-        raise ToolError(
-            message=f"{path} is locked in Nextcloud.",
-            hint="Wait until the other client releases the lock, or choose another name.",
-        )
-    if status == 507:
-        raise ToolError(
-            message=f"Not enough space in Nextcloud for {path}.",
-            hint="Free up quota in Nextcloud and try again.",
-        )
-    _check(response, path)
-    raise ToolError(
-        message=(
-            f"Nextcloud answered the chunk upload of {path} with an unexpected status {status}."
-        ),
-        hint="Check the Nextcloud log for that request; the file was not created.",
-    )
 
 
 def _check_write(response: httpx.Response, path: str) -> None:

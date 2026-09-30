@@ -321,10 +321,11 @@ _._decode_payload
 # above it does.
 
 # --- The upload link issuer of the olivia fork, task 1 ---------------------------------
-# downloads.upload.issue_upload_link was built in task 1, parked here until task 5 wires it
-# into a tool that calls it. parse_upload_path left this list with task 3, which added the
-# /ul route handler (downloads/upload_route.py) as its caller.
-issue_upload_link
+# Empty on purpose, and that is the rule of this file at work rather than an omission.
+# downloads.upload.issue_upload_link was built in task 1, parked here until task 5 wired it
+# into files_upload (server/reg_files.py), which now calls it, so the name left the list with
+# the task that calls it. parse_upload_path left this list with task 3, which added the /ul
+# route handler (downloads/upload_route.py) as its caller.
 
 # --- The WebDAV helpers of the olivia fork, task 2 of docs/olivia/plan.md ----------------
 # Empty on purpose, and that is the rule of this file at work rather than an omission.

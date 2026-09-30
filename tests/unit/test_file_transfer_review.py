@@ -1,7 +1,5 @@
 """Regression checks for transfer bounds and directory isolation."""
 
-import base64
-
 import httpx
 import pytest
 import respx
@@ -79,53 +77,15 @@ def test_dav_filters_returned_paths_and_supports_subpath_installations(
     assert [entry["path"] for entry in dav.parse_entries(body, creds)] == ["/Docs/ok.pdf"]
 
 
-def test_upload_ids_are_isolated_by_root_and_destination(monkeypatch: pytest.MonkeyPatch) -> None:
-    first = dav.uploads_url(CREDS, "browser-upload", path="/Docs/a.pdf")
-    assert "/browser-upload" not in first
-    assert first == dav.uploads_url(CREDS, "browser-upload", path="/Docs/a.pdf")
-    assert first != dav.uploads_url(CREDS, "browser-upload", path="/Docs/b.pdf")
-    monkeypatch.setenv(config.ENV_FILES_ROOT, "/Docs")
-    assert first != dav.uploads_url(CREDS, "browser-upload", path="/Docs/a.pdf")
-
-
 @pytest.mark.anyio
-@pytest.mark.parametrize("binary", [False, True])
-async def test_upload_cannot_replace_bound_root(binary: bool, monkeypatch: pytest.MonkeyPatch):
+async def test_upload_cannot_replace_bound_root(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv(config.ENV_FILES_ROOT, "/Docs")
     async with httpx.AsyncClient() as client:
         clients = NcClients(client=client, creds=CREDS)
         with respx.mock as mock:
-            call = (
-                files.upload_binary(clients, "/Docs", "", 0, final=True)
-                if binary
-                else files.upload(clients, "/Docs", "")
-            )
             with pytest.raises(ToolError, match="root folder"):
-                await call
+                await files.upload(clients, "/Docs", "")
             assert not mock.calls
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize("status", [200, 204])
-async def test_assembly_does_not_report_replacement_as_creation(status: int) -> None:
-    async with httpx.AsyncClient() as client:
-        with respx.mock as mock:
-            mock.route(method="MOVE").respond(status)
-            with pytest.raises(ToolError, match="replaced"):
-                await dav.finish_chunked_upload(client, CREDS, "/a.pdf", "test-upload", 10)
-
-
-@pytest.mark.anyio
-async def test_oversized_base64_rejected_before_decode(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(files, "HARD_UPLOAD_CHUNK_BYTES", 3)
-
-    def unexpected_decode(*args, **kwargs):
-        raise AssertionError("Oversized input must not be decoded")
-
-    monkeypatch.setattr(base64, "b64decode", unexpected_decode)
-    async with httpx.AsyncClient() as client:
-        with pytest.raises(ToolError, match="encoded chunk"):
-            await files.upload_binary(NcClients(client, CREDS), "/a.pdf", "A" * 8, 6)
 
 
 @pytest.mark.anyio
@@ -138,26 +98,6 @@ async def test_wrong_content_range_is_rejected(header: str) -> None:
             )
             with pytest.raises(ToolError, match="different byte range"):
                 await dav.get_range(client, CREDS, "/a.pdf", offset=10, limit=10)
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"total_bytes": 1, "chunk_index": 2, "upload_id": "test", "final": True},
-        {"total_bytes": files.HARD_UPLOAD_CHUNK_BYTES * files.MAX_UPLOAD_CHUNKS + 1},
-        {
-            "total_bytes": files.HARD_UPLOAD_CHUNK_BYTES * files.MAX_UPLOAD_CHUNKS,
-            "chunk_index": files.MAX_UPLOAD_CHUNKS,
-        },
-    ],
-)
-async def test_impossible_uploads_are_rejected_before_network(kwargs: dict) -> None:
-    async with httpx.AsyncClient() as client:
-        with respx.mock as mock:
-            with pytest.raises(ToolError):
-                await files.upload_binary(NcClients(client, CREDS), "/a.pdf", "YQ==", **kwargs)
-            assert not mock.calls
 
 
 @pytest.mark.anyio
@@ -181,18 +121,10 @@ async def test_empty_files_never_trigger_unbounded_get(monkeypatch: pytest.Monke
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("binary", [False, True])
-async def test_mime_type_cannot_end_in_newline(binary: bool) -> None:
+async def test_mime_type_cannot_end_in_newline() -> None:
     async with httpx.AsyncClient() as client:
         clients = NcClients(client, CREDS)
         with respx.mock as mock:
-            call = (
-                files.upload_binary(
-                    clients, "/a.pdf", "YQ==", 1, final=True, content_type="text/plain\n"
-                )
-                if binary
-                else files.upload(clients, "/a.txt", "a", content_type="text/plain\n")
-            )
             with pytest.raises(ToolError, match="mimetype"):
-                await call
+                await files.upload(clients, "/a.txt", "a", content_type="text/plain\n")
             assert not mock.calls

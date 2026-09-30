@@ -135,8 +135,14 @@ async def test_files_upload_is_annotated_as_create_only() -> None:
     assert annotations.idempotent_hint is False, "a second call on the same path fails"
     assert annotations.open_world_hint is False
     assert tool.output_schema is None, "structured_output=False (schema diet)"
-    assert "never overwrites" in (tool.description or ""), (
+    assert set(tool.input_schema.get("properties", {})) == {"path", "content"}
+    assert set(tool.input_schema.get("required", [])) == {"path"}
+    description = tool.description or ""
+    assert "never overwrites" in description, (
         "the constraint belongs in the description the model reads"
+    )
+    assert "upload_url" in description, (
+        "a binary file goes through the upload link, and the model has to see that path"
     )
 
 

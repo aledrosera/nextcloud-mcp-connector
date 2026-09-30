@@ -10,8 +10,7 @@ from mcp.server.mcpserver import Context
 from pydantic import Field
 
 from .. import deps
-from ..downloads import issue
-from ..errors import ToolError
+from ..downloads import issue, upload
 from ..tools import files as files_tools
 from . import CREATE_ONLY, READ_ONLY, compact, graceful, mcp
 
@@ -97,67 +96,14 @@ async def files_upload(
     path: Annotated[str, Field(description="New file path; must not exist")],
     content: Annotated[
         str | None,
-        Field(description="UTF-8 text; omit for binary"),
+        Field(description="UTF-8 text to write now; omit to get an upload_url for any file"),
     ] = None,
-    content_base64: Annotated[
-        str | None,
-        Field(description="Base64 chunk for binary upload"),
-    ] = None,
-    total_bytes: Annotated[
-        int | None,
-        Field(ge=0, description="Total binary size in bytes"),
-    ] = None,
-    chunk_index: Annotated[
-        int,
-        Field(ge=1, le=files_tools.MAX_UPLOAD_CHUNKS, description="Chunk number, starting at 1"),
-    ] = 1,
-    upload_id: Annotated[
-        str,
-        Field(description="Continuation id"),
-    ] = "",
-    final: Annotated[
-        bool,
-        Field(description="Assemble after this chunk"),
-    ] = False,
-    content_type: Annotated[
-        str,
-        Field(description="Binary MIME type"),
-    ] = "application/octet-stream",
     ctx: Context | None = None,
 ) -> str:
-    """Create text or upload large binary files as base64 chunks; never overwrites."""
+    """Create a new file; never overwrites. Text: pass content. Any other file: omit content,
+    then PUT it to upload_url from code execution (curl -T)."""
     clients = deps.resolve_clients(ctx)
-    if content_base64 is not None:
-        if content is not None:
-            raise ToolError(
-                message="Send either content or content_base64, not both.",
-                hint="Use content_base64 for PDF and other binary files.",
-            )
-        if total_bytes is None:
-            raise ToolError(
-                message="total_bytes is required with content_base64.",
-                hint="Set it to the complete file size in bytes.",
-            )
-        return compact(
-            await files_tools.upload_binary(
-                clients,
-                path=path,
-                content_base64=content_base64,
-                total_bytes=total_bytes,
-                chunk_index=chunk_index,
-                upload_id=upload_id,
-                final=final,
-                content_type=content_type,
-            )
-        )
-    if any((total_bytes is not None, upload_id, final, chunk_index != 1)):
-        raise ToolError(
-            message="Binary upload fields require content_base64.",
-            hint="Send the file bytes as base64, or remove the binary fields for text.",
-        )
     if content is None:
-        raise ToolError(
-            message="Send content for a text file or content_base64 for a binary file.",
-            hint="For a PDF, encode one chunk of its bytes as base64.",
-        )
+        owner = deps.resolve_ticket_owner(ctx)
+        return compact(await upload.issue_upload_link(clients, owner, path))
     return compact(await files_tools.upload(clients, path=path, content=content))
