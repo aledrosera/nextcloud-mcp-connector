@@ -212,7 +212,15 @@ READ_METHODS = frozenset({"PROPFIND", "REPORT"})
 
 #: The attribute names of an HTTP call on an httpx client. ``get`` is missing on purpose: it
 #: is also the name of every dictionary lookup, and a GET changes nothing anyway.
-CALL_ATTRS = frozenset({"request", "post", "put", "patch", "delete", "stream", "send"})
+#: ``build_request`` carries verb and target of a request that ``send`` fires later (review
+#: WR-06 of phase 28): ``send(req)`` names no target, so the verb has to be read where the
+#: request is built.
+CALL_ATTRS = frozenset(
+    {"request", "build_request", "post", "put", "patch", "delete", "stream", "send"}
+)
+
+#: The call names whose first argument is the verb, as in ``client.request("PROPFIND", url)``.
+VERB_FIRST_ATTRS = frozenset({"request", "build_request"})
 
 #: The one module that talks to the system tag collection, held to the rule that it reads.
 SYSTEMTAGS_MODULE = "nextcloud/clients/systemtags.py"
@@ -746,8 +754,8 @@ def _mentions_tags(node: ast.AST) -> bool:
 
 
 def _is_a_read_request(node: ast.Call) -> bool:
-    """True for ``*.request(<PROPFIND or REPORT>, ...)`` and for nothing else."""
-    if not isinstance(node.func, ast.Attribute) or node.func.attr != "request":
+    """True for ``*.request`` or ``*.build_request`` with PROPFIND or REPORT, nothing else."""
+    if not isinstance(node.func, ast.Attribute) or node.func.attr not in VERB_FIRST_ATTRS:
         return False
     verb = node.args[0] if node.args else None
     return isinstance(verb, ast.Constant) and verb.value in READ_METHODS
@@ -793,10 +801,10 @@ def systemtags_module_writes(source: str) -> list[str]:
 
 
 def _systemtags_request_forms(source: str) -> tuple[tuple[str, str], ...]:
-    """The pair of verb and unparsed target of every ``request`` call, in source order."""
+    """The pair of verb and unparsed target of every ``request`` or ``build_request`` call."""
     forms: list[tuple[str, str]] = []
     for node in _http_calls(source):
-        if not isinstance(node.func, ast.Attribute) or node.func.attr != "request":
+        if not isinstance(node.func, ast.Attribute) or node.func.attr not in VERB_FIRST_ATTRS:
             continue
         verb = ast.unparse(node.args[0]).strip("'\"") if node.args else ""
         target = ast.unparse(node.args[1]) if len(node.args) > 1 else ""
@@ -837,6 +845,17 @@ _MULTILINE_TAG_WRITES = {
         '        content=b"",\n'
         "    )\n"
     ),
+    # Review WR-06: the verb sits in build_request, and send(req) names no target at all.
+    "build_request plus send on TAGS_PATH": (
+        '    req = client.build_request("POST", f"{creds.base_url}{TAGS_PATH}")\n'
+        "    await client.send(req)\n"
+    ),
+    "build_request plus send on a tag": (
+        "    req = client.build_request(\n"
+        '        "DELETE", f"{creds.base_url}/remote.php/dav/systemtags/{tag_id}"\n'
+        "    )\n"
+        "    await client.send(req)\n"
+    ),
 }
 
 
@@ -865,6 +884,7 @@ def test_the_systemtags_check_would_notice_a_multiline_write_in_real_code(inject
     [
         '    await client.put(home_url(creds), content=b"")\n',
         '    await client.request("POST", home_url(creds))\n',
+        '    await client.send(client.build_request("POST", home_url(creds)))\n',
     ],
 )
 def test_the_systemtags_client_only_reads(injected: str) -> None:
@@ -894,6 +914,16 @@ def test_the_two_forms_the_systemtags_client_really_builds_stay_allowed() -> Non
     assert _systemtags_request_forms(real) == tuple(sorted(ALLOWED_SYSTEMTAGS_FORMS)), (
         "the system tag client builds a request form nobody allowed"
     )
+
+
+def test_a_third_form_built_with_build_request_is_noticed() -> None:
+    """Review WR-06: a read form built with build_request counts as a form like request does."""
+    real = (SRC / SYSTEMTAGS_MODULE).read_text(encoding="utf-8")
+    source = (
+        f"{real}\n\nasync def _injected(client, creds):\n"
+        '    req = client.build_request("PROPFIND", f"{creds.base_url}/remote.php/dav/x")\n'
+    )
+    assert _systemtags_request_forms(source) != tuple(sorted(ALLOWED_SYSTEMTAGS_FORMS))
 
 
 def test_the_tables_read_exemption_covers_two_call_forms_and_nothing_else() -> None:
