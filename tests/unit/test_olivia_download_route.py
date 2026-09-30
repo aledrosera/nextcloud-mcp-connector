@@ -182,14 +182,21 @@ def test_a_gone_file_answers_exactly_not_found(world):
     assert (response.status_code, response.text) == (404, "Not found")
 
 
-def test_nextcloud_401_answers_exactly_not_found_and_frees_the_ticket(world):
+@pytest.mark.parametrize("status", [401, 403])
+def test_nextcloud_rejecting_the_credentials_burns_the_ticket(world, status):
+    """A rejected credential (401/403) is not released for a retry: it would only resend the
+
+    same rejected credential and feed Nextcloud's failed-login counter, so the ticket is
+    burned instead and a second GET on the same token is a plain 404.
+    """
     _, tickets, client = world
     token = issue(tickets)
     with respx.mock:
-        respx.get(FILE_URL).mock(return_value=httpx.Response(401))
+        respx.get(FILE_URL).mock(return_value=httpx.Response(status))
         response = client.get(f"/dl/{token}")
     assert (response.status_code, response.text) == (404, "Not found")
-    assert run(tickets.peek(token)) is not None
+    assert run(tickets.peek(token)) is None
+    assert client.get(f"/dl/{token}").status_code == 404
 
 
 @pytest.mark.parametrize(

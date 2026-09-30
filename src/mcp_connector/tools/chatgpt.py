@@ -287,7 +287,7 @@ async def _fetch_file(
                 f"{name} is a {content_type} file of {link['size']} bytes and is not returned "
                 f"as text. {issue.HOW_TO}\n{link['download_url']}"
             ),
-            "url": str(link["download_url"]),
+            "url": f"{clients.creds.base_url}{provider_map.FILE_WEB_PREFIX}/{fileid}",
             "metadata": {
                 "kind": "file",
                 "path": path,

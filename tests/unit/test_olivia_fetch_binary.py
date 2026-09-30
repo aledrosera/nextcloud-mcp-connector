@@ -41,7 +41,7 @@ async def test_fetch_of_a_pdf_returns_a_download_link(monkeypatch):
         "4711",
         owner=TicketOwner("a", "alice"),
     )
-    assert result["url"] == "https://x/dl/tok"
+    assert result["url"] == "https://cloud.example/index.php/f/4711"
     assert result["metadata"]["download_url"] == "https://x/dl/tok"
     assert "web_fetch" in result["text"]
     assert all(isinstance(v, str) for v in result["metadata"].values())

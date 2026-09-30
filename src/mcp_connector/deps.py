@@ -384,8 +384,13 @@ def resolve_ticket_owner(ctx: Any) -> TicketOwner:
     """
     identity = _oauth_identity(ctx)
     if identity is not None:
-        if identity.credential == CREDENTIAL_APP_PASSWORD and identity.auth_id:
-            return TicketOwner(auth_id=identity.auth_id, nc_user=identity.nc_user)
+        if identity.credential == CREDENTIAL_APP_PASSWORD:
+            if identity.auth_id:
+                return TicketOwner(auth_id=identity.auth_id, nc_user=identity.nc_user)
+            raise ToolError(
+                message="This connection cannot issue download links.",
+                hint="Reconnect the connector in Claude and try again.",
+            )
         return TicketOwner(auth_id=None, nc_user=identity.nc_user)
     creds = resolve_credentials(ctx)
     if creds.mode != MODE_APPAPI:

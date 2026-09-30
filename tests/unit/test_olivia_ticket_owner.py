@@ -18,6 +18,7 @@ from starlette.requests import Request
 from mcp_connector import config, deps
 from mcp_connector.errors import ToolError
 from mcp_connector.oauth.verifier import (
+    CREDENTIAL_APP_PASSWORD,
     CREDENTIAL_IMPERSONATE,
     OAUTH_STATE_ATTR,
     OAuthIdentity,
@@ -134,3 +135,22 @@ def test_an_appapi_impersonation_identity_carries_no_authorization_id(exapp_env:
 def test_basic_credentials_without_an_identity_are_refused(passthrough_env: None) -> None:
     with pytest.raises(ToolError, match="ExApp"):
         deps.resolve_ticket_owner(FakeContext(headers=basic_headers()))
+
+
+def test_an_app_password_identity_without_an_authorization_id_is_refused(exapp_env: None) -> None:
+    """An app-password identity with no ``auth_id`` has no connection a route could later
+
+    rebuild credentials from by id, and it is not an impersonation identity either, so it
+    must not fall back to impersonating the Nextcloud user by name (that would issue a link
+    for a connection this deployment cannot honour again).
+    """
+    with pytest.raises(ToolError) as excinfo:
+        deps.resolve_ticket_owner(
+            FakeContext(
+                headers=appapi_headers(user=""),
+                identity=identity(auth_id="", credential=CREDENTIAL_APP_PASSWORD),
+            )
+        )
+
+    assert excinfo.value.message == "This connection cannot issue download links."
+    assert excinfo.value.hint == "Reconnect the connector in Claude and try again."

@@ -13,8 +13,9 @@ from ..nextcloud.clients import dav
 from .store import TicketStore, ticket_store
 
 HOW_TO = (
-    "Download it from your code execution environment (curl -L or requests); web_fetch cannot "
-    "open this link. It works for one completed download and expires at expires_at."
+    "Download it from your code execution environment (curl -fL -o <file> or requests); "
+    "web_fetch cannot open this link. It works for one completed download and expires at "
+    "expires_at."
 )
 
 

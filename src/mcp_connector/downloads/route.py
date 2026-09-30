@@ -134,9 +134,15 @@ def download_routes(
             try:
                 upstream = await dav.open_download(shared_client(), creds, ticket.path)
             except ToolError as exc:
-                await store.release(token)
-                if exc.reason in (REASON_UNKNOWN_ID, REASON_PERMISSION_DENIED):
+                if exc.reason == REASON_PERMISSION_DENIED:
+                    # Burn the ticket instead of releasing it: a retry would only resend the
+                    # same rejected credential and feed Nextcloud's failed-login counter.
+                    await store.finish(token)
                     return _not_found()
+                if exc.reason == REASON_UNKNOWN_ID:
+                    await store.release(token)
+                    return _not_found()
+                await store.release(token)
                 return _bad_gateway()
             except httpx.HTTPError:
                 await store.release(token)

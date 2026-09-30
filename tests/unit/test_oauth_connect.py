@@ -30,6 +30,7 @@ from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
 from mcp_connector import config, entry_http
+from mcp_connector.downloads import route as download_route
 from mcp_connector.entry_exapp import build_exapp_app
 from mcp_connector.exapp.browser_identity import AppApiBrowserIdentitySource
 from mcp_connector.exapp.target import exapp_target
@@ -913,6 +914,15 @@ def test_the_exapp_application_serves_the_onboarding_and_the_http_mode_does_not(
 
     assert {connect.CONNECT_PATH, connect.WAIT_PATH} <= exapp
     assert not {connect.CONNECT_PATH, connect.WAIT_PATH} & standalone
+
+
+def test_the_download_route_is_mounted_on_the_exapp_and_not_on_the_standalone_http_mode() -> None:
+    """The fork olivia's single-use ``/dl/{token}`` route is ExApp only, like the onboarding."""
+    exapp = {getattr(route, "path", "") for route in build_exapp_app(ENV).router.routes}
+    standalone = {getattr(route, "path", "") for route in entry_http.build_app({}).router.routes}
+
+    assert download_route.DOWNLOAD_PATH in exapp
+    assert download_route.DOWNLOAD_PATH not in standalone
 
 
 def test_the_default_store_is_opened_once_and_purged_at_the_first_use(

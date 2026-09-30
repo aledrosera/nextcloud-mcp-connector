@@ -9,6 +9,7 @@ while IFS= read -r f; do files+=("$f"); done < <(git ls-files -- appinfo src tes
   | grep -v -e '^scripts/olivia-rename.sh$' -e '^scripts/olivia-check-rename.sh$')
 perl -pi -e "
   s{<id>mcp_connector</id>}{<id>${NEW}</id>}g;
+  s{<namespace>McpConnector</namespace>}{<namespace>McpConnectorOlivia</namespace>}g;
   s{<name>MCP Connector</name>}{<name>MCP Connector (olivia)</name>}g;
   s{street1983nk/mcp_connector(?!_olivia)}{aledrosera/${NEW}}g;
   s{exapps/mcp_connector(?![_a-z])}{exapps/${NEW}}g;

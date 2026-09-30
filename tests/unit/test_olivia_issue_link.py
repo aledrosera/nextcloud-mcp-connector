@@ -52,6 +52,7 @@ async def test_issue_link_returns_a_single_use_url(tmp_path):
     assert result["single_use"] is True
     assert result["expires_at"] == "1970-01-01T00:21:40+00:00"  # 1000 + 5 * 60
     assert "web_fetch" in result["how_to"]
+    assert "curl -fL -o" in result["how_to"]
     token = result["download_url"].rsplit("/", 1)[-1]
     claimed = await tickets.claim(token, now=1001)
     assert claimed is not None
