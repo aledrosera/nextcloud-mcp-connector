@@ -60,9 +60,32 @@ Other findings:
 - The CI step can go green by skipping.
 - The canary's write refusals can pass for the wrong reason.
 
+## Fix Status
+
+Fixed on 2026-09-30 by gsd-code-fixer, one commit per finding, local only (not pushed). Every commit passed `ruff check`, `ruff format --check`, pyright (latest), vulture and `pytest tests/unit tests/contract` (5100 passed, 33 skipped at the last commit); `tests/integration` still collects. The live gates (canary, pairs, provider freeze) were not run here, they need Docker and a Nextcloud.
+
+| Finding | Status | Commit | Regression test |
+|---------|--------|--------|-----------------|
+| CR-01 | fixed | `1f9da6b` | `tests/unit/test_search_exclusion.py` (message in a tagged file room, unverifiable, failing room list); canary world posts a stem message into the file room |
+| WR-01 | fixed | `e3da1de` | `test_files_search_answers_a_failing_search_alike` (500, 503, timeout) |
+| WR-02 | fixed (gate only, owner decision open) | `338aa66` | `tests/contract/test_provider_classes.py`, live gate `tests/integration/test_provider_classes_live.py` |
+| WR-03 | fixed | `097434c` | `tests/unit/test_tables_exclusion.py` (other providers with `/f/<id>`, conversation links) |
+| WR-04 | fixed (NC version question open) | `51e6a4d` | `tests/unit/test_live_requirement.py` |
+| WR-05 | fixed | `4675bdb` | `tests/unit/test_canary_refusals.py` |
+| WR-06 | fixed | `36c08cf` | counter proofs in `tests/contract/test_no_destructive_calls.py` |
+| IN-01..03 | not in scope | - | - |
+
+Open owner decisions:
+- **WR-02:** the runtime default stays fail-open (a provider without a readable file reference is kept). Inverting it withholds whole providers from users while anything is tagged, which is visible behaviour. Implemented instead: a provider freeze analogous to GATE-01 (every known provider has one class and a reason, the room class must equal what `search` screens) plus a live gate in the canary CI step that fails on every unclassified provider of the instance. Residual risk: a third-party provider on a user's instance that names files its own way still passes; the gate only sees the CI instance.
+- **WR-04:** the CI step runs against the NC 34 topology of `compose.exapp.yml`, while every live proof so far was measured on nc35. Whether the gate step should target nc35 (or both) is an owner decision and was not changed. The first CI run of the step remains a required acceptance item before GATE-02/03 count as done.
+- **WR-03 (note):** free text cells that contain a `/f/<id>` address stay untouched, as D-28-18 decided; only link objects are screened. Conversation link cells are all withheld in the `unverifiable` state and when the conversation list cannot be read, also those of plain rooms (fail-closed). Candidate for the phase 29 residual list.
+- **CR-01 (note):** the conversation list is now also read when a search returns Talk message hits and something is tagged, one GET more in that case.
+
 ## Critical Issues
 
 ### CR-01: Talk message hits from a file conversation carry the tagged file name, unscreened in every state
+
+**Status:** fixed in `1f9da6b`
 
 **File:** `src/mcp_connector/tools/search.py:92`, `src/mcp_connector/tools/search.py:311-313`, `src/mcp_connector/tools/search.py:342-394`
 **Issue:** `_FILE_SHARE_PROVIDERS = ("talk-message", "talk-message-current")` are kept unconditionally with `file_bearing=False`, in `untagged`, `active` and `unverifiable`. The comment above the constant documents the hit title as `"<actor> in <conversation>"`. Measurement 27-05 established that a file conversation's display name is the file name (`NAME_IST_DATEINAME=ja`). The 27-03 probe only tested a file *shared into* an ordinary room. It never tested a message *written in* the file conversation, which is what the Files sidebar chat produces.
@@ -94,6 +117,8 @@ harness.ocs_post(f"{TALK_CHAT}/{file_token}", {"message": f"{world.stamm} datei-
 
 ### WR-01: files_search decides the tag before the SEARCH error, so tagged and invented roots differ during a SEARCH failure (breaks D-28-17)
 
+**Status:** fixed in `e3da1de`
+
 **File:** `src/mcp_connector/tools/files.py:168-173`
 **Issue:** The D-28-19 check `if tags.excludes(path=target_folder): raise dav.not_found(search_scope)` runs *before* `if isinstance(first, BaseException): raise first`. The comment calls this ordering intentional ("before the SEARCH outcome is read"). If the SEARCH fails with 5xx, a timeout or 423:
 - A tagged root answers `File not found: /files/<user>/<folder>`.
@@ -111,11 +136,15 @@ Swapping is safe: an invented root always yields a 404 from SEARCH itself, and a
 
 ### WR-02: Search-provider classification is fail-open, so unknown file-bearing providers pass unscreened
 
+**Status:** fixed in `338aa66` (see Fix Status for the open owner decision)
+
 **File:** `src/mcp_connector/tools/withhold.py:103-105` (used by `search.py:311`)
 **Issue:** A provider hit counts as file-bearing only if it has `attributes.fileId`, `attributes.path` or a `/f/<id>` URL. Every other provider is kept in all states, including `unverifiable`. `talk-conversations` (D-28-21) was only found because the canary instance happened to have Talk. CR-01 is a second instance of the same class. Any provider that names files through its own URL scheme passes the same way (for example Collectives pages, which are files, or third-party apps). GATE-01 freezes the *tool* registry but there is no equivalent freeze for the *provider* registry, so a newly installed app gets no gate.
 **Fix:** Invert the default. Keep an explicit allowlist of providers proven to name no file (for example `calendar`, `contacts`, `deck`, `mail`, `settings`, `tables`), and treat any other provider without a readable file reference as file-bearing: withheld while anything is tagged, withheld in `unverifiable`. Add a live gate that lists `ocs.list_search_providers` on the canary instance and fails on an unclassified provider (the D-28-04 pattern).
 
 ### WR-03: Tables link cells of other providers and non-JSON link values bypass the screen
+
+**Status:** fixed in `097434c`
 
 **File:** `src/mcp_connector/tools/tables.py:513-537`
 **Issue:** `_linked_fileid` returns `None` (not a file link) for:
@@ -132,6 +161,8 @@ All three render the tagged file's name or id in `tables_browse` and `fetch(tabl
 
 ### WR-04: The CI step goes green when every live test skips
 
+**Status:** fixed in `51e6a4d` (see Fix Status for the open owner decision)
+
 **File:** `.github/workflows/ci.yml:129-139`, `tests/integration/canary_world.py:140-166`, `:1131-1132`
 **Issue:** `live_env()` and `canary_world()` call `pytest.skip` in four cases:
 - a required variable is missing
@@ -144,11 +175,15 @@ The step runs plain `pytest ... -m integration -s`, so a renamed container, a ch
 
 ### WR-05: Canary write refusals pass for any error; the switches are not neutralised
 
+**Status:** fixed in `4675bdb`
+
 **File:** `tests/integration/test_canary.py:305-313`, `:419-450`
 **Issue:** `ABWEISUNG` only asserts `all(r.is_error for r in pages)`. `talk_send` refused because `NC_MCP_TALK_SEND` switched the channel off, `files_upload` failing on a 5xx, or `notes_create` failing because the Notes app is missing all count as a correct refusal. Unlike `test_pair_equality_live.py:414-415`, the canary never calls `monkeypatch.delenv("NC_MCP_TALK_SEND")` or `delenv("NC_MCP_FILES_ROOT")`, so an environment with either set runs a different code path than the one the gate claims to prove.
 **Fix:** Call `delenv` for both variables in both canary tests. In the normal mode, assert the refusal wording: `_unknown_token` for `talk_send`, `parent_missing` for `files_upload` and `notes_create`. That is the D-27-01 "does not exist" sentence and not just any error.
 
 ### WR-06: EXCL-07 method scan misses build_request plus send
+
+**Status:** fixed in `36c08cf`
 
 **File:** `tests/contract/test_no_destructive_calls.py:215`, `tag_writes` / `systemtags_module_writes`
 **Issue:** `CALL_ATTRS` lacks `build_request`. `req = client.build_request("POST", f"{base}{TAGS_PATH}")` followed by `await client.send(req)` escapes both AST rules:
