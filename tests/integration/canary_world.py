@@ -28,7 +28,7 @@ import subprocess
 import uuid
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 from urllib.parse import quote
 
 import httpx
@@ -101,6 +101,18 @@ SHARE_USER, SHARE_ROOM, SHARE_DECK = 0, 10, 12
 #: Nextcloud keeps a deleted calendar and object in its calendar trash bin unless told not to.
 _NO_CAL_TRASH = {"X-NC-CalDAV-No-Trashbin": "1"}
 
+#: Set by the CI step of GATE-02/03 (review WR-04 of phase 28): a missing prerequisite there
+#: is a broken topology, not an absent one, so it fails instead of skipping. A renamed
+#: container or a changed ``.env.exapp`` would otherwise turn both gates into green skips.
+ENV_REQUIRE_LIVE = "NC_MCP_REQUIRE_LIVE"
+
+
+def skip_or_fail(reason: str) -> NoReturn:
+    """Skip without a live setup; fail when the run demands one (:data:`ENV_REQUIRE_LIVE`)."""
+    if (os.environ.get(ENV_REQUIRE_LIVE) or "").strip() == "1":
+        pytest.fail(f"{ENV_REQUIRE_LIVE}=1 but {reason}", pytrace=False)
+    pytest.skip(reason)
+
 
 # --- protocol -------------------------------------------------------------------------
 
@@ -141,15 +153,16 @@ def live_env() -> LiveEnv:
     """The live account, or a skip naming what is missing.
 
     The CI job ``integration`` has no ExApp variables and no container of this name, so every
-    test built on this skips there instead of failing.
+    test built on this skips there instead of failing. The step of the ``exapp`` job that runs
+    the gates sets :data:`ENV_REQUIRE_LIVE`, and there the same gaps fail (review WR-04).
     """
     values = {name: (os.environ.get(name) or "").strip() for name in REQUIRED_ENV}
     missing = [name for name, value in values.items() if not value]
     if missing:
-        pytest.skip(f"no live run configured (missing: {', '.join(missing)})")
+        skip_or_fail(f"no live run configured (missing: {', '.join(missing)})")
     assert values["NC_MCP_TEST_USER"] != "admin", "the live run acts as a normal user"
     if shutil.which("docker") is None:
-        pytest.skip("docker is not on PATH, occ cannot tag")
+        skip_or_fail("docker is not on PATH, occ cannot tag")
     probe = subprocess.run(  # noqa: S603 - fixed argv, test harness
         ["docker", "inspect", "-f", "{{.State.Running}}", topology.NC_CONTAINER],  # noqa: S607
         capture_output=True,
@@ -157,7 +170,7 @@ def live_env() -> LiveEnv:
         check=False,
     )
     if probe.returncode != 0 or "true" not in probe.stdout:
-        pytest.skip(f"the container {topology.NC_CONTAINER} is not running")
+        skip_or_fail(f"the container {topology.NC_CONTAINER} is not running")
     return LiveEnv(
         url=normalize_base_url(values["NC_MCP_URL"]),
         user=values["NC_MCP_TEST_USER"],
@@ -1145,7 +1158,7 @@ def canary_world(env: LiveEnv, raw: Path) -> Iterator[World]:
     :attr:`World.cleanup_lines`; asserting them is the caller's part.
     """
     if not env.user2:
-        pytest.skip("NC_MCP_TEST_USER2 is missing, the file conversation needs a second account")
+        skip_or_fail("NC_MCP_TEST_USER2 is missing, the file conversation needs a second account")
     harness = Harness(env)
     cleanup = Cleanup()
     stamm, marker = run_id()
