@@ -31,6 +31,12 @@ FORBIDDEN_PARAMS: frozenset[str] = frozenset(
         "summary",
         "title",
         "values",
+        # mail_draft (olivia fork, task 7): mail content and personal data
+        "body",
+        "subject",
+        "to",
+        "cc",
+        "bcc",
     }
 )
 
@@ -56,6 +62,7 @@ PARAM_ALLOWLIST: Mapping[str, frozenset[str]] = {
     "files_search": frozenset({"cursor", "folder", "limit", "query"}),
     "files_upload": frozenset({"path"}),
     "mail_browse": frozenset({"account_id", "cursor", "filter", "level", "limit", "mailbox_id"}),
+    "mail_draft": frozenset({"account", "attachments", "reply_to"}),
     "notes_create": frozenset({"category"}),
     "notes_read": frozenset({"note_id"}),
     "notes_search": frozenset({"limit", "query"}),

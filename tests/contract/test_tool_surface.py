@@ -58,14 +58,15 @@ EXPECTED_TOOLS = {
     "talk_browse",
     "talk_send",
     "mail_browse",
+    "mail_draft",
     "search",
     "fetch",
 }
 
-# The six write paths. Everything else in EXPECTED_TOOLS only reads (D-16). The set is
-# unchanged by phase 10, and that is a statement rather than an omission: the Mail family adds
-# one tool and not one write path, so the number of ways this server can put something into
-# somebody's Nextcloud stays six while the number of pure reads grows to fifteen.
+# The seven write paths. Everything else in EXPECTED_TOOLS only reads (D-16). The set was
+# unchanged by phase 10 (the Mail family added one tool and not one write path, so the count
+# stayed six while the number of pure reads grew to fifteen); the olivia fork's task 7 is the
+# first plan since then to add a seventh: ``mail_draft`` only ever creates a draft, never sends.
 CREATE_TOOLS = {
     "files_upload",
     "calendar_create_event",
@@ -73,6 +74,7 @@ CREATE_TOOLS = {
     "deck_create_card",
     "tables_create_row",
     "talk_send",
+    "mail_draft",
 }
 
 # The documented exception to the schema diet: ChatGPT reads structured content (D-14).
@@ -392,16 +394,15 @@ async def test_there_is_no_tool_per_talk_level_and_no_second_send() -> None:
 
 
 @pytest.mark.anyio
-async def test_the_one_mail_tool_is_a_pure_read_with_an_enum_level_and_has_no_send_beside_it() -> (
-    None
-):
-    """D-06 for the Mail family, and the one family that contributes no write path at all.
+async def test_the_mail_browse_tool_is_a_pure_read_with_an_enum_level() -> None:
+    """D-06 for the Mail family's read side.
 
-    ``mail_browse`` and the existing ``fetch`` cover everything this server does with mail: the
-    three navigation levels here, the full text of one message over ``mail:<databaseId>``
+    ``mail_browse`` and the existing ``fetch`` cover everything this server reads about mail:
+    the three navigation levels here, the full text of one message over ``mail:<databaseId>``
     there. The forbidden set below is therefore not a list of names nobody got round to yet.
-    The absence of a send, a draft and a second read tool is a contract of this phase
-    (MAIL-01), and the client one layer down has no code that could break it (T-10-37).
+    The absence of a send and a second read tool is a contract of this phase (MAIL-01), and the
+    client one layer down has no code that could break it (T-10-37). ``mail_draft`` (olivia
+    fork, task 7) is the family's one write path and is checked on its own below.
     """
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
@@ -445,12 +446,35 @@ async def test_the_one_mail_tool_is_a_pure_read_with_an_enum_level_and_has_no_se
         "mail_create_draft",
     }
     assert not (set(tools) & forbidden), (
-        "mail_browse and fetch cover this family, and the missing send is a contract: "
-        f"{set(tools) & forbidden}"
+        "mail_browse, mail_draft and fetch cover this family, and the missing send is a "
+        f"contract: {set(tools) & forbidden}"
     )
-    assert not (CREATE_TOOLS & {name for name in tools if name.startswith("mail")}), (
-        "the Mail family contributes no write path; the six write tools are unchanged"
+    mail_write_tools = {name for name in tools if name.startswith("mail")} & CREATE_TOOLS
+    assert mail_write_tools == {"mail_draft"}, (
+        "the Mail family's only write path is the draft tool of task 7 (olivia fork), never a "
+        f"send: {mail_write_tools}"
     )
+
+
+@pytest.mark.anyio
+async def test_mail_draft_is_annotated_as_create_only_and_never_sends() -> None:
+    """The Mail family's one write path: it can only create a draft, never send one."""
+    async with Client(mcp, raise_exceptions=True) as client:
+        tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+
+    assert "mail_draft" in tools, "the draft write path must be exposed (olivia fork, task 7)"
+    tool = tools["mail_draft"]
+
+    annotations = tool.annotations
+    assert annotations is not None
+    assert annotations.read_only_hint is False, "mail_draft writes"
+    assert annotations.destructive_hint is False, "it can only create a draft, never replace one"
+    assert annotations.idempotent_hint is False, "a second call creates a second draft"
+    assert annotations.open_world_hint is False
+    assert tool.output_schema is None, "structured_output=False (schema diet)"
+
+    description = tool.description or ""
+    assert "never sent" in description, "the tool says out loud that it never sends mail"
 
 
 @pytest.mark.anyio
@@ -536,12 +560,12 @@ async def test_prepare_context_is_listed_as_a_bundling_read() -> None:
 
 @pytest.mark.anyio
 async def test_the_curated_set_is_complete_and_only_the_chatgpt_profile_has_a_schema() -> None:
-    """The whole surface in one assertion: 22 tools, and the diet holds for 20 of them."""
+    """The whole surface in one assertion: 23 tools, and the diet holds for 21 of them."""
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
     assert set(tools) == EXPECTED_TOOLS
-    assert len(tools) == 22, "the curated set is twenty-two tools, no more and no fewer"
+    assert len(tools) == 23, "the curated set is twenty-three tools, no more and no fewer"
 
     with_schema = {name for name, tool in tools.items() if tool.output_schema is not None}
     assert with_schema == STRUCTURED_TOOLS, (
@@ -688,11 +712,12 @@ def _properties(schema: dict[str, Any]) -> list[tuple[str, Any]]:
 
 @pytest.mark.anyio
 async def test_every_tool_carries_honest_annotations() -> None:
-    """D-16 over the whole registry: six create-only tools, fifteen pure reads.
+    """D-16 over the whole registry: seven create-only tools, sixteen pure reads.
 
-    The write count is the number that did **not** move in phase 10, and the assertion below
-    says so by comparing against the frozen ``CREATE_TOOLS`` rather than against a literal:
-    Mail is a family with one tool, and that tool reads.
+    The assertion below compares against the frozen ``CREATE_TOOLS`` rather than against a
+    literal, exactly so a plan that adds or moves a write path names it there first: phase 10
+    left the count at six because Mail's one tool of that phase reads, and the olivia fork's
+    task 7 is what first moved it, with ``mail_draft``.
     """
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
@@ -741,7 +766,7 @@ async def test_no_input_schema_accepts_a_user_parameter() -> None:
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    assert set(tools) == EXPECTED_TOOLS, "the confused deputy check must cover all 22 schemas"
+    assert set(tools) == EXPECTED_TOOLS, "the confused deputy check must cover all 23 schemas"
 
     findings: list[str] = []
     for name, tool in sorted(tools.items()):
@@ -781,7 +806,7 @@ async def test_the_readme_permission_table_matches_the_live_registry() -> None:
 def test_a_documented_tool_count_is_the_current_one_or_says_which_run_it_is_from() -> None:
     """IN-04: a page may record a run with an old count, it may not leave it unexplained.
 
-    Two kinds of number live in ``docs/``. A statement about the product ("all 22 tools")
+    Two kinds of number live in ``docs/``. A statement about the product ("all 23 tools")
     has to be the number this registry answers. A dated evidence line ("connected, 15 tools
     listed") is a record of a run and stays as it was recorded, and a reader who counts both
     holds one of them for wrong unless the page says which is which. So a page that names a

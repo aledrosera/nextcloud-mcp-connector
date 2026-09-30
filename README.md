@@ -15,7 +15,7 @@ You bring the model, and no content leaves your server.
 
 ## What it does
 
-- 22 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
+- 23 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
   Mail and cloud wide search
 - OAuth 2.1 to the MCP authorization specification: dynamic client registration, PKCE S256,
   audience bound tokens, refresh rotation with reuse detection and immediate revocation.
@@ -37,7 +37,8 @@ You bring the model, and no content leaves your server.
   clear error instead of replacing it
 - No user-visible moving or renaming, no share changes and no permission changes; a binary
   file uploaded through a single-use link still refuses an existing destination
-- Mail is strictly read only: no sending, no draft, no move, no flag, no delete, and no
+- Mail never sends: `mail_draft` only ever creates a draft the user reviews and sends in Mail
+  themselves, and beyond that Mail stays read only, with no move, no flag, no delete, and no
   attachment download
 - No admin access: the server acts as one user and inherits exactly that user's permissions
 - No full text search inside file contents unless a search app such as Findling is installed
@@ -71,6 +72,7 @@ the live registry and fails if a name or a level disagrees with it.
 | `talk_browse` | read | Talk conversations and the history of one; reading leaves no trace |
 | `talk_send` | create-only | One message into a conversation; never edited or deleted, switchable off instance wide |
 | `mail_browse` | read | Mail accounts, their mailboxes and message envelopes; strictly read only |
+| `mail_draft` | create-only | Draft in Nextcloud Mail, new or reply, with Nextcloud files attached; never sent |
 | `contacts_search` | read | Address book contacts |
 | `unified_search` | read | The Nextcloud unified search across providers, permission aware |
 | `prepare_context` | read | Files, notes, cards, the next week of events, waiting Talk conversations and unread mail counts in one call |

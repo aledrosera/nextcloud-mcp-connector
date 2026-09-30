@@ -1,4 +1,5 @@
-"""Registration of the mail tool. The logic lives in :mod:`mcp_connector.tools.mail`.
+"""Registration of the mail tools. The logic lives in :mod:`mcp_connector.tools.mail` and
+:mod:`mcp_connector.tools.drafts`.
 
 ``level`` is a ``Literal`` and therefore an enum in the input schema, not a free string: the
 model sees the three valid values instead of guessing "inbox" or "folders" and paying a round
@@ -12,9 +13,11 @@ that persist tool lists; the honest answer to a missing app is the sentence the 
 Empty strings are the defaults instead of ``None``, so no ``anyOf`` of string and null reaches
 the schema; the body below turns them back into ``None`` before the call.
 
-One tool and no second one, which is the whole security statement of this family: there is no
-send, no draft, no move, no flag and no delete here, and the full text of a single mail travels
-through the existing ``fetch`` with ``mail:<databaseId>`` rather than through a tool of its own.
+A single read tool and a single create tool, which is the whole security statement of this
+family (olivia fork, task 7): ``mail_browse`` still has no move, flag or delete beside it, and
+``mail_draft`` only ever creates a draft, never sends one; ``/message/send`` and ``/api/outbox``
+stay off limits. The full text of a single mail travels through the existing ``fetch`` with
+``mail:<databaseId>`` rather than through a tool of its own.
 
 The full filter grammar stands in ``README.md`` and in the runtime hint of
 :data:`mcp_connector.tools.mail._FILTER_HINT`, never in this file: every byte here is paid for
@@ -42,8 +45,9 @@ from mcp.server.mcpserver import Context
 from pydantic import Field
 
 from .. import deps
+from ..tools import drafts
 from ..tools import mail as mail_tools
-from . import READ_ONLY, compact, graceful, mcp
+from . import CREATE_ONLY, READ_ONLY, compact, graceful, mcp
 
 
 @mcp.tool(annotations=READ_ONLY, structured_output=False)
@@ -89,5 +93,38 @@ async def mail_browse(
             filter=filter or None,
             limit=limit,
             cursor=cursor or None,
+        )
+    )
+
+
+@mcp.tool(annotations=CREATE_ONLY, structured_output=False)
+@graceful
+async def mail_draft(
+    to: Annotated[
+        list[str] | None, Field(description="Recipients; a reply defaults to sender")
+    ] = None,
+    subject: Annotated[str, Field(description="Subject; a reply defaults to Re: ...")] = "",
+    body: Annotated[str, Field(description="Plain text body")] = "",
+    reply_to: Annotated[str, Field(description="mail:<id> to answer")] = "",
+    account: Annotated[str, Field(description="Sender account email or id")] = "",
+    cc: Annotated[list[str] | None, Field(description="Cc recipients")] = None,
+    bcc: Annotated[list[str] | None, Field(description="Bcc recipients")] = None,
+    attachments: Annotated[list[str] | None, Field(description="Nextcloud file paths")] = None,
+    ctx: Context | None = None,
+) -> str:
+    """Create a draft in Nextcloud Mail, new or a reply, with Nextcloud files attached; it is
+    never sent. The user reviews and sends it in Mail."""
+    clients = deps.resolve_clients(ctx)
+    return compact(
+        await drafts.create(
+            clients,
+            to=to,
+            cc=cc,
+            bcc=bcc,
+            subject=subject,
+            body=body,
+            account=account,
+            reply_to=reply_to,
+            attachments=attachments,
         )
     )
