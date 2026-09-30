@@ -10,6 +10,7 @@ an interrupted client puts it back so the same link can be tried again until it 
 import logging
 from collections.abc import AsyncIterator, Mapping
 
+import anyio
 import httpx
 from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse, Response
@@ -47,7 +48,8 @@ def upload_routes(
         if not TOKEN_PATTERN.fullmatch(token):
             return _not_found()
         declared = request.headers.get("content-length", "")
-        if declared.isdigit() and int(declared) > MAX_UPLOAD_BYTES:
+        declared_length = int(declared) if declared.isdigit() else None
+        if declared_length is not None and declared_length > MAX_UPLOAD_BYTES:
             return _too_large()
         store = tickets if tickets is not None else ticket_store(env)
         ticket = await store.claim(token)
@@ -72,13 +74,23 @@ def upload_routes(
 
             try:
                 folder = target.rsplit("/", 1)[0]
-                failed = (
-                    await dav.ensure_folders(shared_client(), creds, folder) if folder else None
-                )
-                status = (
-                    failed
-                    if failed is not None
-                    else await dav.put_new_stream(shared_client(), creds, target, body())
+                if folder:
+                    mkcol_status = await dav.ensure_folders(shared_client(), creds, folder)
+                    # MKCOL never carries the PUT's own precondition, so its statuses are
+                    # mapped on their own here and never fall into the PUT table below: a
+                    # bare 405/412 there means "exists" and 200/204 means "replaced a file",
+                    # neither of which a folder creation ever claims (fix round 1, M3).
+                    if mkcol_status is not None:
+                        if mkcol_status in (401, 403):
+                            await store.finish(token)
+                            return _not_found()
+                        if mkcol_status == 409:
+                            await store.finish(token)
+                            return _json(409, {"error": "conflict", "path": target})
+                        await store.release(token)
+                        return _bad_gateway()
+                status = await dav.put_new_stream(
+                    shared_client(), creds, target, body(), content_length=declared_length
                 )
             except _TooLarge:
                 await store.release(token)
@@ -118,7 +130,12 @@ def upload_routes(
             await store.release(token)
             return _too_large() if status == 413 else _bad_gateway()
         except BaseException:
-            await store.release(token)
+            # A cancellation (the client disconnecting, the server shutting down) is what
+            # most often reaches this branch, and it cancels the very scope this code runs
+            # in; shield the release so the ticket still goes back instead of the shutdown
+            # itself swallowing it (fix round 1, M2, same fix as the GET body of route.py).
+            with anyio.CancelScope(shield=True):
+                await store.release(token)
             raise
 
     return [Route(UPLOAD_PATH, upload, methods=["PUT"])]

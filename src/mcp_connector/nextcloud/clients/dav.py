@@ -583,10 +583,19 @@ async def ensure_folders(client: httpx.AsyncClient, creds: Credentials, folder: 
 
     201 created and 405 already there both count as present. The first other status is
     returned so the caller can map it; ``None`` means every folder exists now.
+
+    Starts from :func:`config.files_root`, not from ``/``: with a multi segment sandbox
+    root (``NC_MCP_FILES_ROOT=/Documents/AI``) walking every segment of the absolute path
+    would MKCOL the root's own ancestors (``/Documents``), which are outside the sandbox
+    and were never this upload's to create. Only the part of ``target`` below the root
+    is walked; a target that sits directly in the root issues no MKCOL at all (fix round
+    1, I1).
     """
     target = safe_path(folder)
-    current = ""
-    for part in (p for p in target.split("/") if p):
+    root = config.files_root()
+    current = "" if root == "/" else root
+    rest = target[len(current) :]
+    for part in (p for p in rest.split("/") if p):
         current = f"{current}/{part}"
         response = await client.request("MKCOL", files_url(creds, current), auth=creds.auth())
         if response.status_code not in (201, 405):
@@ -595,20 +604,31 @@ async def ensure_folders(client: httpx.AsyncClient, creds: Credentials, folder: 
 
 
 async def put_new_stream(
-    client: httpx.AsyncClient, creds: Credentials, path: str, body: AsyncIterator[bytes]
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    path: str,
+    body: AsyncIterator[bytes],
+    *,
+    content_length: int | None = None,
 ) -> int:
     """PUT a streamed body to a file that must not exist yet, and return the status.
 
     ``If-None-Match: *`` makes Nextcloud refuse with 412 when anything exists at the path, so
-    a file created between the link and the upload is never replaced. No Content-Length is
-    needed: Nextcloud accepts a chunked PUT (verified 2026-09-30) and writes a part file
-    that only becomes the target when the transfer completes.
+    a file created between the link and the upload is never replaced. Content-Length is
+    optional: without it, Nextcloud accepts a chunked PUT (verified 2026-09-30) and writes a
+    part file that only becomes the target when the transfer completes. When the caller
+    knows the length the client declared (fix round 1, H1), it is forwarded so Nextcloud's
+    own size check discards a body that ends short of what the client promised, instead of
+    silently accepting a truncated file.
     """
     target = safe_path(path)
+    headers = {"If-None-Match": "*"}
+    if content_length is not None:
+        headers["Content-Length"] = str(content_length)
     response = await client.put(
         files_url(creds, target),
         content=body,
-        headers={"If-None-Match": "*"},
+        headers=headers,
         auth=creds.auth(),
         timeout=UPLOAD_TIMEOUT,
     )

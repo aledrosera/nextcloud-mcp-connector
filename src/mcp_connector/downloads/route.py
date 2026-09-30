@@ -195,7 +195,12 @@ def download_routes(
 
             return StreamingResponse(body(), status_code=200, headers=_headers(ticket, length))
         except BaseException:
-            await store.release(token)
+            # Shielded for the same reason as the ``body()`` cleanup above: this branch is
+            # most often reached because the surrounding scope was cancelled, and an
+            # unshielded release would itself be cancelled before the ticket went back
+            # (fix round 1, M2).
+            with anyio.CancelScope(shield=True):
+                await store.release(token)
             raise
 
     return [Route(DOWNLOAD_PATH, download, methods=["GET", "HEAD"])]

@@ -86,6 +86,19 @@ def test_a_completed_upload_creates_the_file_and_burns_the_link(world):
     assert (again.status_code, again.text) == (404, "Not found")
 
 
+def test_the_client_declared_content_length_is_forwarded_to_nextcloud(world):
+    # H1 (fix round 1): a truncated body must be caught by Nextcloud's own length check,
+    # not just accepted as a shorter-than-promised chunked stream.
+    _, tickets, client = world
+    token = issue(tickets)
+    with respx.mock:
+        folders_ok()
+        put = respx.put(FILE_URL).mock(return_value=httpx.Response(201))
+        answer = client.put(f"/ul/{token}", content=b"x" * 1000)
+    assert answer.status_code == 201
+    assert put.calls.last.request.headers["Content-Length"] == "1000"
+
+
 def test_unknown_malformed_and_download_tickets_get_the_same_404(world):
     _, tickets, client = world
     dl_token, _ = run(
@@ -126,6 +139,7 @@ def test_a_folder_that_is_a_file_is_409_conflict(world):
         answer = client.put(f"/ul/{token}", content=b"x")
     assert answer.status_code == 409
     assert answer.json()["error"] == "conflict"
+    assert run(tickets.peek(token)) is None
 
 
 def test_declared_size_over_the_limit_is_413_before_claiming(world):
@@ -187,17 +201,27 @@ def test_revoked_connection_is_404(world):
     run(oauth.revoke_authorization("auth-1"))
     answer = client.put(f"/ul/{token}", content=b"x")
     assert (answer.status_code, answer.text) == (404, "Not found")
+    assert run(tickets.peek(token)) is not None
+
+
+def test_suspended_account_is_404_and_stays_usable(world):
+    oauth, tickets, client = world
+    token = issue(tickets)
+    run(oauth.set_access("alice", disabled=True))
+    answer = client.put(f"/ul/{token}", content=b"x")
+    assert (answer.status_code, answer.text) == (404, "Not found")
+    assert run(tickets.peek(token)) is not None
 
 
 def test_the_log_masks_the_token(world, caplog):
     _, tickets, client = world
     token = issue(tickets)
-    # Scoped to our own logger, like test_the_delivery_log_names_user_and_file_but_never_the_
+    # Scoped to our own package, like test_the_delivery_log_names_user_and_file_but_never_the_
     # full_token in test_olivia_download_route.py: an unscoped caplog.at_level("INFO") also
-    # captures the test client's own httpx2 request log, which logs the raw request URL
+    # captures the test client's own httpx request log, which logs the raw request URL
     # (token and all) and would make this assertion fail on infrastructure noise, not on the
     # route's own logging.
-    with respx.mock, caplog.at_level("INFO", logger="mcp_connector.downloads.upload_route"):
+    with respx.mock, caplog.at_level("INFO", logger="mcp_connector"):
         folders_ok()
         respx.put(FILE_URL).mock(return_value=httpx.Response(201))
         client.put(f"/ul/{token}", content=b"x")
@@ -243,5 +267,53 @@ def test_a_client_that_disconnects_mid_upload_leaves_the_link_usable(world):
 
         respx.put(FILE_URL).mock(side_effect=consume)
         run(client.app(scope, receive, send))
-    assert sent[0]["status"] in (400, 502)
+    # httpx re-raises ClientDisconnect unwrapped (verified by the round 1 review), so the
+    # route's own ClientDisconnect branch always answers, never the generic httpx.HTTPError
+    # one.
+    assert sent[0]["status"] == 400
     assert run(tickets.peek(token)) is not None
+
+
+# --- fix round 1, I2: every row of the brief's outcome table, MKCOL and PUT mapped apart --
+
+
+@pytest.mark.parametrize(
+    ("kind", "status", "expected_status", "expected_error", "ticket_gone"),
+    [
+        pytest.param("put", 200, 502, "precondition_ignored", True, id="put_200_ignored"),
+        pytest.param("put", 204, 502, "precondition_ignored", True, id="put_204_ignored"),
+        pytest.param("put", 413, 413, None, False, id="put_413_stays_usable"),
+        pytest.param("put", 404, 409, "conflict", True, id="put_404_conflict"),
+        pytest.param("put", 409, 409, "conflict", True, id="put_409_conflict"),
+        pytest.param("put", 405, 409, "exists", True, id="put_405_exists"),
+        pytest.param("put", 412, 409, "exists", True, id="put_412_exists"),
+        pytest.param("put", 401, 404, None, True, id="put_401_not_found"),
+        pytest.param("put", 403, 404, None, True, id="put_403_not_found"),
+        pytest.param("put", 500, 502, None, False, id="put_500_stays_usable"),
+        pytest.param("mkcol", 401, 404, None, True, id="mkcol_401_not_found"),
+        pytest.param("mkcol", 403, 404, None, True, id="mkcol_403_not_found"),
+        pytest.param("mkcol", 409, 409, "conflict", True, id="mkcol_409_conflict"),
+        pytest.param("mkcol", 500, 502, None, False, id="mkcol_500_stays_usable"),
+    ],
+)
+def test_the_outcome_table(
+    world, caplog, kind, status, expected_status, expected_error, ticket_gone
+):
+    _, tickets, client = world
+    token = issue(tickets)
+    with respx.mock, caplog.at_level("ERROR", logger="mcp_connector.downloads.upload_route"):
+        if kind == "mkcol":
+            respx.route(method="MKCOL", url__startswith=ROOT).mock(
+                return_value=httpx.Response(status)
+            )
+        else:
+            folders_ok()
+            respx.put(FILE_URL).mock(return_value=httpx.Response(status))
+        answer = client.put(f"/ul/{token}", content=b"x")
+    assert answer.status_code == expected_status
+    if expected_error is not None:
+        assert answer.json()["error"] == expected_error
+    if kind == "put" and status in (200, 204):
+        assert "ignored If-None-Match" in caplog.text
+    remaining = run(tickets.peek(token))
+    assert (remaining is None) == ticket_gone

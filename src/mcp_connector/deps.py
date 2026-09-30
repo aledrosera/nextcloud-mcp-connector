@@ -377,7 +377,7 @@ def resolve_ticket_owner(ctx: Any) -> TicketOwner:
     An impersonation identity and a plain AppAPI header end up the same: neither has a
     connection a route could later rebuild credentials from by id, so both carry
     ``auth_id=None`` and the route impersonates the Nextcloud user by name instead
-    (``_credentials`` in ``downloads/route.py``). Basic credentials of the HTTP passthrough
+    (``rebuild_credentials`` in ``downloads/route.py``). Basic credentials of the HTTP passthrough
     mode are refused outright: that deployment has neither an authorization id nor an
     AppAPI identity to impersonate later, so no link this server issued could ever be
     honoured again.
