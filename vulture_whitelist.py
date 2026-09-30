@@ -319,3 +319,9 @@ _._decode_payload
 # first caller existed. Task 7 (files_download, server/reg_files.py) now calls issue_link,
 # so the name left this list with the task that calls it, exactly as every parked name
 # above it does.
+
+# --- The upload link issuer of the olivia fork, task 1 ---------------------------------
+# downloads.upload.issue_upload_link and parse_upload_path were built in task 1, parked here
+# until task 3 (the /ul route handler) calls them. Wired in Task 3/5.
+issue_upload_link
+parse_upload_path
