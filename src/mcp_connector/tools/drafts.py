@@ -1,6 +1,7 @@
 """Drafts in Nextcloud Mail, new or replies, with Nextcloud files attached (fork olivia)."""
 
 import re
+from collections import Counter
 from collections.abc import Sequence
 from email.utils import getaddresses
 from typing import Any
@@ -132,6 +133,11 @@ async def create(
         chosen = _account_of(accounts, original)
     elif len(accounts) == 1:
         chosen = accounts[0]
+    elif not accounts:
+        raise ToolError(
+            message="No mail account is set up in Nextcloud Mail.",
+            hint="Add an account in the Mail app first.",
+        )
     else:
         raise ToolError(
             message="Several mail accounts exist.",
@@ -143,8 +149,15 @@ async def create(
     elif original is not None:
         source = original.get("replyTo") or original.get("from") or []
         recipients = [
-            {"label": r.get("label") or r.get("email"), "email": r.get("email")} for r in source
+            {"label": r.get("label") or r["email"], "email": r["email"]}
+            for r in source
+            if r.get("email")
         ]
+        if not recipients:
+            raise ToolError(
+                message="The original mail names no sender to reply to.",
+                hint="Pass to with the recipients of the reply.",
+            )
     else:
         raise ToolError(message="A new draft needs at least one recipient.", hint="Pass to.")
     if not subject and original is not None:
@@ -182,7 +195,9 @@ async def create(
         "mail_url": f"{clients.creds.base_url}/index.php/apps/mail/",
         "note": DRAFT_NOTE,
     }
-    missing = [name for name in wanted if name not in saved]
+    # Counted, not looked up: two attachments may share a name from different folders, and
+    # Mail storing only one of them must still be reported (fork olivia, review of task 6).
+    missing = list((Counter(wanted) - Counter(saved)).elements())
     if missing:
         result["missing_attachments"] = missing
     return result

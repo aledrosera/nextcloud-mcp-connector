@@ -180,3 +180,39 @@ async def test_only_the_drafts_route_is_ever_called(clients):
         mock.post(DRAFTS_URL).mock(return_value=created())
         await drafts.create(clients, to=["a@b.it"], subject="s", body="b", account="2")
         assert [str(call.request.url) for call in mock.calls] == [DRAFTS_URL]
+
+
+async def test_same_named_attachments_from_two_folders_are_counted(clients, monkeypatch):
+    async def ok(client, creds, path):
+        return {"is_collection": False, "size": 10}
+
+    monkeypatch.setattr(drafts.dav, "stat", ok)
+    with respx.mock:
+        respx.post(DRAFTS_URL).mock(return_value=created(["a.pdf"]))
+        result = await drafts.create(
+            clients,
+            to=["a@b.it"],
+            subject="s",
+            body="b",
+            account="3",
+            attachments=["/Docs/a.pdf", "/Other/a.pdf"],
+        )
+    assert result["missing_attachments"] == ["a.pdf"]
+
+
+async def test_no_mail_account_is_a_clear_error(clients, monkeypatch):
+    async def none(client, creds):
+        return []
+
+    monkeypatch.setattr(drafts.mail_client, "get_accounts", none)
+    with pytest.raises(ToolError, match="No mail account"):
+        await drafts.create(clients, to=["a@b.it"], subject="s", body="b")
+
+
+async def test_a_reply_to_a_mail_without_sender_address_needs_to(clients, monkeypatch):
+    async def anonymous(client, creds, message_id):
+        return {**ORIGINAL, "replyTo": [], "from": [{"label": "?"}]}, False
+
+    monkeypatch.setattr(drafts.mail_client, "get_message", anonymous)
+    with pytest.raises(ToolError, match="no sender"):
+        await drafts.create(clients, reply_to="mail:140813", body="x")
