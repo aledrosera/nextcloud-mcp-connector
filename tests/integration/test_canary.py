@@ -303,13 +303,21 @@ async def call_and_scan(
         f"is_error={[bool(r.is_error) for r in pages]} gebucht={booked}"
     )
     if tool in MUST_REFUSE:
+        # Review WR-05: an error is not enough, it has to be the refusal the gate claims.
+        problems = [
+            cw.refusal_problem(tool, args, mode, " ".join(surfaces(r)))
+            if r.is_error
+            else "no error"
+            for r in pages
+        ]
         cw.check(
             RAW,
             "ABWEISUNG",
             tool,
             case,
-            all(r.is_error for r in pages),
-            f"is_error={[bool(r.is_error) for r in pages]} gebucht={booked}",
+            not any(problems),
+            f"is_error={[bool(r.is_error) for r in pages]} gebucht={booked} "
+            f"befund={[p for p in problems if p]}",
         )
     if mode == "normal" and control_expected(world, tool, args):
         seen = any(world.control_marker in s for r in pages for s in surfaces(r))

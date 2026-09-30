@@ -39,7 +39,7 @@ from lxml import etree
 from mcp import Client
 from mcp.types import CallToolResult
 
-from mcp_connector import ids
+from mcp_connector import config, ids
 from mcp_connector.config import normalize_base_url
 from mcp_connector.nextcloud import capabilities, exclusion
 from mcp_connector.nextcloud.clients import caldav as caldav_client
@@ -49,6 +49,8 @@ from mcp_connector.nextcloud.clients import systemtags as systemtags_client
 from mcp_connector.nextcloud.clients import tables as tables_client
 from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.server import mcp
+from mcp_connector.tools import talk as talk_tools
+from mcp_connector.tools import withhold
 
 __all__ = [
     "RAW_DIR",
@@ -68,7 +70,9 @@ __all__ = [
     "mcp_env",
     "occ",
     "record",
+    "refusal_problem",
     "run_id",
+    "skip_or_fail",
     "tag",
     "tag_ids",
     "untag",
@@ -184,11 +188,41 @@ def credentials(env: LiveEnv) -> Credentials:
 
 
 def mcp_env(monkeypatch: pytest.MonkeyPatch, env: LiveEnv) -> None:
-    """The environment an in-memory client call resolves its credentials from."""
+    """The environment an in-memory client call resolves its credentials from.
+
+    The two switches that change a code path are neutralised (review WR-05 of phase 28): with
+    ``NC_MCP_TALK_SEND`` off, ``talk_send`` refuses before the guard is asked, and with a
+    ``NC_MCP_FILES_ROOT`` the sandbox answers first; either would let a gate prove a path
+    other than the one it names. A test that wants a switch sets it after this call.
+    """
     monkeypatch.setenv("NC_MCP_URL", env.url)
     monkeypatch.setenv("NC_MCP_USER", env.user)
     monkeypatch.setenv("NC_MCP_APP_PASSWORD", env.app_password)
     monkeypatch.delenv("NC_MCP_STATIC_BEARER", raising=False)
+    monkeypatch.delenv(config.ENV_FILES_ROOT, raising=False)
+    monkeypatch.delenv(config.ENV_TALK_SEND, raising=False)
+
+
+#: The refusal each write of the canary has to answer with, by mode (review WR-05 of phase
+#: 28). In the normal state it is the "does not exist" sentence of D-27-01, and any other
+#: error (a 5xx, a missing app, a switched off channel) is a failure of the gate. In an
+#: outage it is the one sentence of the unanswered check, or the normal refusal when the
+#: forced outage let the guard answer after all (a stale listing that recovers).
+PARENT_MISSING_FRAGMENTS = ("The parent folder ", " does not exist.")
+
+
+def refusal_problem(tool: str, args: dict[str, Any], mode: str, text: str) -> str | None:
+    """Why ``text`` is not the refusal ``tool`` owes in ``mode``, or ``None`` when it is."""
+    if tool == "talk_send":
+        normal: tuple[str, ...] = (talk_tools._unknown_token(str(args.get("token") or "")).message,)
+    elif tool in ("files_upload", "notes_create"):
+        normal = PARENT_MISSING_FRAGMENTS
+    else:
+        return f"no refusal is defined for {tool}"
+    choices = [normal] if mode == "normal" else [normal, (withhold.EXCLUSION_UNAVAILABLE,)]
+    if any(all(fragment in text for fragment in wanted) for wanted in choices):
+        return None
+    return f"expected one of {choices!r}"
 
 
 # --- occ and tagging ------------------------------------------------------------------
