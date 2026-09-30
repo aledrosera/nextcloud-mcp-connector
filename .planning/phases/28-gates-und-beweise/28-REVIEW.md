@@ -218,3 +218,9 @@ The line needles cover only `systemtags-relations`, `tag:files` and the legacy F
 _Reviewed: 2026-09-30T18:31:39Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+## Owner decisions (2026-09-30)
+
+- **WR-02:** the runtime default stays fail-open, as implemented. The residual risk (third-party search providers that name files without a file id, path or `/f/` link are not screened) is named in the phase 29 documentation. A strict admin option is a later candidate, off by default.
+- **WR-04:** the canary and pair proofs move to NC 35 only, not to both versions. NC 34 stays covered by the other integration steps. Implemented as a follow-up task (CI job on the official `nextcloud:35.0.1-apache` image), because the `compose.exapp.yml` topology is pinned to 34.0.3 for EXAPP-06.
+- **WR-03 note and IN-02:** free text cells with a `/f/<id>` address and the file-room oracle of IN-02 go to the phase 29 residual list and are named as limits in the documentation.
