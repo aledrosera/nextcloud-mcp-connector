@@ -247,6 +247,20 @@ MAIL_ATTACHMENT_READ_FORM = (
     'ATTACHMENT_PATH = "/index.php/apps/mail/api/messages/{message}/attachment/{attachment}"'
 )
 
+# ``nextcloud/clients/mail_drafts.py`` (fork olivia, added 2026-09-30 with the user's approval)
+# is the one deliberate exception to the ``/api/drafts`` needle above: the fork lets a tool
+# save a draft, new or reply, through the same internal route Mail's own composer uses,
+# verified live against Mail 5.12.2 (201 with the stored draft's id; without the
+# ``OCS-APIRequest`` header Nextcloud answers 412). Mail's own ``DraftsJob`` appends the
+# stored draft to the account's Drafts folder over IMAP with a null transport, so this call
+# can create a draft but never sends, moves or deletes one, and every other Mail needle
+# above, most of all ``/message/send`` and ``/api/outbox``, still guards this file exactly as
+# it guards every other one. The exemption is as narrow as the mail attachment one above it:
+# the exact ``DRAFTS_PATH`` assignment, in this one file, and nothing wider.
+MAIL_DRAFTS_CREATE_NEEDLES = ("/api/drafts",)
+FILE_WITH_THE_MAIL_DRAFTS_CREATE = "nextcloud/clients/mail_drafts.py"
+MAIL_DRAFTS_CREATE_FORM = 'DRAFTS_PATH = "/index.php/apps/mail/api/drafts"'
+
 # The two files where the word DELETE is not an HTTP verb. TOOL-09 is a promise about what
 # this server does to data in Nextcloud, and both of these are our own SQLite files.
 #
@@ -372,6 +386,8 @@ def _violations(relative: str, lines: Iterable[tuple[int, str]]) -> list[str]:
                 relative, text
             ):
                 continue
+            if needle in MAIL_DRAFTS_CREATE_NEEDLES and _is_the_mail_drafts_create(relative, text):
+                continue
             findings.append(f"{relative}:{number}: {needle!r} ({why}): {text.strip()}")
     return findings
 
@@ -416,6 +432,16 @@ def _is_the_mail_attachment_read(relative: str, text: str) -> bool:
     than a segment that could also appear in prose or in a different, later line.
     """
     return relative == FILE_WITH_THE_MAIL_ATTACHMENT_READ and MAIL_ATTACHMENT_READ_FORM in text
+
+
+def _is_the_mail_drafts_create(relative: str, text: str) -> bool:
+    """True for the one ``DRAFTS_PATH`` line of ``mail_drafts.py``, false elsewhere.
+
+    Same shape as :func:`_is_the_mail_attachment_read`: one file, one exact line, so a second
+    ``/api/drafts`` literal introduced later in this file, or the same literal anywhere else,
+    is still a finding.
+    """
+    return relative == FILE_WITH_THE_MAIL_DRAFTS_CREATE and MAIL_DRAFTS_CREATE_FORM in text
 
 
 def test_the_gate_would_notice_a_destructive_call_in_real_code() -> None:
@@ -713,6 +739,67 @@ def test_the_mail_attachment_read_line_passes_the_gate_only_in_its_own_file() ->
         relative, [*real, (len(real) + 1, '    OTHER = "chat/attachment/upload"')]
     )
     assert any("'/attachment'" in finding for finding in poisoned_same_file_attachment)
+
+
+def test_the_mail_drafts_create_exemption_covers_one_line_and_nothing_else() -> None:
+    """Counter proof for the narrow exemption: only the exact line, only in that one file.
+
+    Same three things as the mail attachment counter proof above have to hold at once: the
+    same literal in any other file must still trip the gate (a), any other line of
+    ``mail_drafts.py`` that merely mentions ``/api/drafts`` must still trip it too (b), and
+    the exempted line itself must pass (c).
+    """
+    mail_drafts = FILE_WITH_THE_MAIL_DRAFTS_CREATE
+
+    # (c) the exempted line, in its own file, passes.
+    assert _is_the_mail_drafts_create(mail_drafts, f"    {MAIL_DRAFTS_CREATE_FORM}")
+
+    # (a) the identical literal in a different file is not covered by this exemption.
+    assert not _is_the_mail_drafts_create(
+        "nextcloud/clients/mail.py", f"    {MAIL_DRAFTS_CREATE_FORM}"
+    )
+    assert not _is_the_mail_drafts_create("tools/drafts.py", f"    {MAIL_DRAFTS_CREATE_FORM}")
+
+    # (b) a different line of the same file, that merely mentions the needle, is not covered
+    # either: only the one exact assignment is exempt.
+    assert not _is_the_mail_drafts_create(mail_drafts, '    OTHER = "/apps/mail/api/drafts/9999"')
+
+    assert (SRC / mail_drafts).is_file(), f"{mail_drafts} is exempt but does not exist"
+
+
+def test_the_mail_drafts_create_line_passes_the_gate_only_in_its_own_file() -> None:
+    """The main gate (a), through ``_violations`` itself, and not a reimplementation of it.
+
+    Mirrors :func:`test_the_mail_attachment_read_line_passes_the_gate_only_in_its_own_file`: the
+    real module is clean today, the exempted line stays clean once it is the real one, and the
+    same literal dropped into an unrelated file is still reported. ``/api/outbox`` and
+    ``/message/send`` are untouched by this exemption on purpose: it only ever matches
+    ``/api/drafts``.
+    """
+    relative = FILE_WITH_THE_MAIL_DRAFTS_CREATE
+    real = _code_lines(SRC / relative)
+    assert _violations(relative, real) == [], (
+        f"{relative} must be clean before the exemption can prove anything"
+    )
+
+    poisoned_elsewhere = _violations("tools/drafts.py", [(1, f"    {MAIL_DRAFTS_CREATE_FORM}")])
+    assert any("'/api/drafts'" in finding for finding in poisoned_elsewhere)
+
+    poisoned_same_file = _violations(
+        relative, [*real, (len(real) + 1, '    OTHER = "/apps/mail/api/drafts/9999"')]
+    )
+    assert any("'/api/drafts'" in finding for finding in poisoned_same_file)
+
+    still_forbidden = _violations(
+        relative,
+        [
+            *real,
+            (len(real) + 1, '    await client.post(f"{creds.base_url}/apps/mail/api/outbox")'),
+            (len(real) + 2, '    await client.post(f"{creds.base_url}/apps/mail/message/send")'),
+        ],
+    )
+    assert any("'/api/outbox'" in finding for finding in still_forbidden)
+    assert any("'/message/send'" in finding for finding in still_forbidden)
 
 
 def test_no_module_level_mutable_state_outside_the_two_documented_caches() -> None:
