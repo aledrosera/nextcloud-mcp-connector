@@ -38,8 +38,8 @@ You bring the model, and no content leaves your server.
 - No user-visible moving or renaming, no share changes and no permission changes; a binary
   file uploaded through a single-use link still refuses an existing destination
 - Mail never sends: `mail_draft` only ever creates a draft the user reviews and sends in Mail
-  themselves, and beyond that Mail stays read only, with no move, no flag, no delete, and no
-  attachment download
+  themselves, and beyond that Mail stays read only, with no move, no flag and no delete;
+  attachments are only read, through single-use download links
 - No admin access: the server acts as one user and inherits exactly that user's permissions
 - No full text search inside file contents unless a search app such as Findling is installed
 
