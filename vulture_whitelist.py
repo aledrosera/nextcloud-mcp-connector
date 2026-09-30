@@ -331,9 +331,3 @@ issue_upload_link
 # ensure_folders and put_new_stream were built in task 2, parked here until task 3 called
 # them. Task 3 added the /ul route handler (downloads/upload_route.py), which calls both
 # (MKCOL top-down, then the create-only streamed PUT), so both left the list with it.
-
-# --- The /ul route factory of the olivia fork, task 3 ------------------------------------
-# upload_route.upload_routes was built and tested in task 3, one task before its wiring:
-# task 4 mounts it into entry_exapp.py next to download_routes, the same split as the /dl
-# route (built in task 4, wired in task 7 of the base olivia plan). Parked here until then.
-upload_routes

@@ -33,6 +33,7 @@ from .audit import refusals as audit_refusals
 from .audit.store import AUDIT_FILENAME
 from .downloads.logs import redact_download_tokens
 from .downloads.route import download_routes
+from .downloads.upload_route import upload_routes
 from .errors import IssuerRefused, ToolError
 from .exapp import config_values
 from .exapp.audit_read import audit_read_routes
@@ -379,6 +380,7 @@ def build_exapp_app(env: Mapping[str, str] | None = None) -> Starlette:
         ),
         *purge_routes(env, nextcloud=nextcloud, store_provider=store),
         *download_routes(env, oauth_store=store),
+        *upload_routes(env, oauth_store=store),
         *audit_verify_routes(env, store_provider=audit_store),
         *audit_read_routes(env, store_provider=audit_store),
         *exchange_check_routes(env, config=exchange_config),

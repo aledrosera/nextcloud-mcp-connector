@@ -96,8 +96,8 @@ PROXY_OWNED_HEADERS = (
 #: of the browser onboarding, the four endpoints of the authorization server, the consent
 #: screen behind /authorize, the decision behind that screen, the connections page of one
 #: account (D-38, AUTH-02, AUTH-03, EXAPP-02), and since the olivia fork the public
-#: single-use download route.
-DECLARED_ROUTES = 14
+#: single-use download and upload routes.
+DECLARED_ROUTES = 15
 
 #: The routes that must not be PUBLIC, and the level they carry instead. Empty, and that is
 #: the finding of the live counter check: HaRP records every refusal of a USER route in a
@@ -732,7 +732,7 @@ def test_the_tunnel_probe_reads_the_process_table(
     assert result.returncode == expected_code, result.stderr
 
 
-def test_the_manifest_declares_exactly_the_fourteen_routes_of_this_phase(
+def test_the_manifest_declares_exactly_the_fifteen_routes_of_this_phase(
     manifest_root: etree._Element,
 ) -> None:
     """D-38: /mcp is PUBLIC since plan 03-01, the one broad well-known route that carried the
@@ -741,12 +741,13 @@ def test_the_manifest_declares_exactly_the_fourteen_routes_of_this_phase(
     server plus the consent screen behind /authorize. Every one of them is anchored at both
     ends and PUBLIC for a reason of its own, the decision behind the consent screen
     included: HaRP names the account that decides on a PUBLIC route too, and a USER
-    declaration would answer ten refusals with a five minute 502 on all fourteen (CR-01).
+    declaration would answer ten refusals with a five minute 502 on all fifteen (CR-01).
     Phase 4 adds the thirteenth, the connections page of one account, for the same measured
     reason: a settings page reached from a stale tab produces refusals as normal traffic.
-    The olivia fork adds the fourteenth, the single-use download route: PUBLIC because the
-    link is handed to Claude's own environment, never to a browser holding the user's
-    session, and the ticket itself is the only credential a caller can present."""
+    The olivia fork adds the fourteenth, the single-use download route, and the fifteenth,
+    the single-use upload route: both PUBLIC because the link is handed to Claude's own
+    environment, never to a browser holding the user's session, and the ticket itself is the
+    only credential a caller can present."""
     routes = [
         ((route.findtext("url") or "").strip(), (route.findtext("access_level") or "").strip())
         for route in manifest_root.findall(".//route")
@@ -766,6 +767,7 @@ def test_the_manifest_declares_exactly_the_fourteen_routes_of_this_phase(
         ("^/revoke/?$", "PUBLIC"),
         ("^/connections/?$", "PUBLIC"),
         ("^/dl/[A-Za-z0-9_-]{20,128}$", "PUBLIC"),
+        ("^/ul/[A-Za-z0-9_-]{20,128}$", "PUBLIC"),
     ]
 
 
@@ -1026,7 +1028,7 @@ def test_the_bootstrap_registration_strips_the_same_headers() -> None:
         assert f'"{header}"' in text, f"{header} is not stripped by the registration"
 
 
-def test_the_bootstrap_registration_declares_the_same_fourteen_routes(
+def test_the_bootstrap_registration_declares_the_same_fifteen_routes(
     manifest_root: etree._Element,
 ) -> None:
     """The json-info payload overrides the manifest, so a route that only lives in

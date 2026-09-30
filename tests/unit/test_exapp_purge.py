@@ -337,13 +337,13 @@ def test_the_proxy_marker_is_the_same_header_the_lifecycle_routes_refuse() -> No
 def test_the_handler_path_is_declared_in_no_route_of_the_manifest() -> None:
     """T-02-20 and pitfall 13: a declared route would publish an instance wide deletion.
 
-    The manifest still carries exactly the fourteen routes of the olivia fork, and none of them
+    The manifest still carries exactly the fifteen routes of the olivia fork, and none of them
     matches the purge path in any spelling.
     """
     root = etree.parse(str(MANIFEST), hardened_parser()).getroot()
     urls = [(element.text or "").strip() for element in root.iter("url")]
 
-    assert len(urls) == 14, urls
+    assert len(urls) == 15, urls
     bare = purge.PURGE_PATH.strip("/")
     for url in urls:
         assert bare not in url, f"{url} would make the purge reachable from the internet"

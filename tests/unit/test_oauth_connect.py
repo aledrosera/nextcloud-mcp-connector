@@ -925,6 +925,17 @@ def test_the_download_route_is_mounted_on_the_exapp_and_not_on_the_standalone_ht
     assert download_route.DOWNLOAD_PATH not in standalone
 
 
+def test_the_upload_route_is_mounted_in_the_exapp_only() -> None:
+    """The fork olivia's single-use ``/ul/{token}`` route is ExApp only, like the download one."""
+    from mcp_connector.downloads import upload_route
+
+    exapp = {getattr(route, "path", "") for route in build_exapp_app(ENV).router.routes}
+    standalone = {getattr(route, "path", "") for route in entry_http.build_app({}).router.routes}
+
+    assert upload_route.UPLOAD_PATH in exapp
+    assert upload_route.UPLOAD_PATH not in standalone
+
+
 def test_the_default_store_is_opened_once_and_purged_at_the_first_use(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

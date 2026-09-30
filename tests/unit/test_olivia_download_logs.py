@@ -40,6 +40,13 @@ def test_install_is_idempotent():
     assert sum(isinstance(f, logs.RedactDownloadToken) for f in access.filters) == 1
 
 
+def test_upload_token_is_masked():
+    item = record("/ul/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd")
+    logs.RedactDownloadToken().filter(item)
+    assert isinstance(item.args, tuple)
+    assert item.args[2] == "/ul/AbCd…"
+
+
 def test_filter_survives_dictconfig():
     """The filter must survive uvicorn.run's logging config initialization."""
     logs.redact_download_tokens()

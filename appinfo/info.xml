@@ -197,12 +197,15 @@ Prérequis :
 			<image-tag>0.3.2-olivia.2</image-tag>
 		</docker-install>
 		<!--
-		  - Exactly fourteen routes, and they are the whole external attack surface of this app.
+		  - Exactly fifteen routes, and they are the whole external attack surface of this app.
 		  -
 		  - The fourteenth is the fork olivia's own addition, the single-use download route
 		  - at /dl/{token}: PUBLIC because the link is handed to Claude's own code execution
 		  - environment, never to a browser holding the user's session, and an unknown,
 		  - expired or already used token gets the same 404 as every other unusable one.
+		  -
+		  - The fifteenth is the single-use upload route at /ul/{token}, PUT only, with the
+		  - same 404 for every unusable token.
 		  -
 		  - The three AppAPI lifecycle paths (/heartbeat, /init and /enabled) are deliberately
 		  - absent, and this comment is the only place they appear here. A path that matches no
@@ -463,6 +466,12 @@ Prérequis :
 			<route>
 				<url>^/dl/[A-Za-z0-9_-]{20,128}$</url>
 				<verb>GET,HEAD</verb>
+				<access_level>PUBLIC</access_level>
+				<headers_to_exclude>["AUTHORIZATION-APP-API","EX-APP-ID","EX-APP-VERSION","AA-VERSION","X-ORIGIN-IP"]</headers_to_exclude>
+			</route>
+			<route>
+				<url>^/ul/[A-Za-z0-9_-]{20,128}$</url>
+				<verb>PUT</verb>
 				<access_level>PUBLIC</access_level>
 				<headers_to_exclude>["AUTHORIZATION-APP-API","EX-APP-ID","EX-APP-VERSION","AA-VERSION","X-ORIGIN-IP"]</headers_to_exclude>
 			</route>
