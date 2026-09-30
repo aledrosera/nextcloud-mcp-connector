@@ -1007,6 +1007,22 @@ def _build_talk(world: World, cleanup: Cleanup) -> tuple[str, str]:
         lambda: _absent(harness.room_tokens(), file_token),
     )
     harness.ocs_post(f"{TALK_ROOMS}/{file_token}/participants/active", {})
+    # A message written in the file conversation, the way the Files sidebar chat writes one:
+    # its search hit is titled "<actor> in <file name>" (review CR-01 of phase 28), so the
+    # stem search of the canary has to meet it and find it withheld.
+    posted = harness.ocs_data(
+        harness.ocs_post(
+            f"{TALK_CHAT}/{file_token}", {"message": f"{world.stamm} datei-raum-nachricht"}
+        ),
+        "message in file room",
+    )
+    file_message_id = str((posted or {}).get("id") or "")
+    assert file_message_id, f"message in file room without id: {posted}"
+    cleanup.add(
+        f"talk datei-raum-nachricht {file_message_id}",
+        lambda: harness.ocs_delete(f"{TALK_CHAT}/{file_token}/{file_message_id}"),
+        lambda: _message_state(harness, file_token, file_message_id),
+    )
     harness.ocs_delete(f"{TALK_ROOMS}/{file_token}/participants/active")
     tokens = harness.room_tokens()
     assert token in tokens, "the harness room is not listed"

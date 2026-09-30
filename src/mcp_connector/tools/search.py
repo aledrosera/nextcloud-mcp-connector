@@ -87,8 +87,11 @@ _UNKNOWN_PROVIDER_REASON = "This Nextcloud has no search provider with that id."
 #: with a single entry (``KLASSE=kein-leak``), while a plain text message was found with
 #: title "<actor> in <conversation>", its text as subline and a ``/call/<token>#message_<id>``
 #: link (``UNTERSCHEIDUNG=keine``). Their hits therefore carry no file and are treated as
-#: not file-bearing in every state. Should a later spreed start to match file names, the
-#: probe says so and these hits have to be withheld in ``active`` and ``unverifiable``.
+#: not file-bearing in the sense of :func:`withhold.file_refs`. That probe only shared a file
+#: *into* an ordinary room, though: a message *written in* the conversation Talk opens for a
+#: file (the Files sidebar chat) carries that conversation, and so the file name, in its
+#: title. Their hits are therefore decided against the conversation list exactly like the
+#: conversation hits below (review CR-01 of phase 28, the rule of D-28-21).
 _FILE_SHARE_PROVIDERS = ("talk-message", "talk-message-current")
 
 #: The Talk conversation provider. Its hit is a conversation, and the conversation Talk opens
@@ -97,6 +100,10 @@ _FILE_SHARE_PROVIDERS = ("talk-message", "talk-message-current")
 #: normal state and in the outage (``raw/28-10-befund-diagnose.txt``, nc35). Its hits are
 #: therefore decided against the conversation list like ``talk_browse`` does (D-28-21).
 _CONVERSATIONS_PROVIDER = "talk-conversations"
+
+#: Every provider whose hit names a conversation, through its title and its ``/call/<token>``
+#: link, and is therefore screened with the room rule of :func:`_screen_conversations`.
+_ROOM_SCREENED_PROVIDERS = frozenset({_CONVERSATIONS_PROVIDER, *_FILE_SHARE_PROVIDERS})
 
 _ROOM_LIST_REASON = "The conversation list could not be read, so conversation hits are withheld."
 
@@ -328,7 +335,10 @@ def _screen(clients: NcClients, provider_id: str, entries: list[Any], scope: Tag
 
 
 def _conversation_token(entry: dict[str, Any]) -> str | None:
-    """The token of one ``talk-conversations`` hit, read from its ``/call/<token>`` link."""
+    """The token of one conversation or message hit, read from its ``/call/<token>`` link.
+
+    A message hit links ``/call/<token>#message_<id>``; the fragment is not part of the path.
+    """
     try:
         segments = httpx.URL(str(entry.get("resourceUrl") or "")).path.split("/")
     except (httpx.InvalidURL, ValueError):
@@ -352,13 +362,19 @@ async def _screen_conversations(
     when the check cannot be answered, every file conversation is held back and the caller
     names that once in ``degraded``. A conversation without a file stays. A hit whose token
     is not in the list of this account resolves to the id ``"-"``, which no file carries, and
-    is withheld whenever anything is tagged (fail-closed).
+    is withheld whenever anything is tagged (fail-closed). The message providers follow the
+    same rule by the conversation their hit was written in (review CR-01 of phase 28).
 
     The list is read only when there are such hits and something is tagged, so every other
     search costs no request more. The guard answers from the scope of this call: no second
     REPORT. A list that cannot be read withholds the conversation hits under their provider.
     """
-    parts = [part for provider_id, part in screened if provider_id == _CONVERSATIONS_PROVIDER]
+    named = [
+        (provider_id, part)
+        for provider_id, part in screened
+        if provider_id in _ROOM_SCREENED_PROVIDERS
+    ]
+    parts = [part for _, part in named]
     if scope.state == "untagged" or not any(part.kept for part in parts):
         return False
     try:
@@ -366,9 +382,10 @@ async def _screen_conversations(
             clients.client, clients.creds, include_last_message=False
         )
     except (ToolError, httpx.HTTPError):
-        for part in parts:
+        for provider_id, part in named:
+            if part.kept:
+                degraded.append({"provider": provider_id, "reason": _ROOM_LIST_REASON})
             part.kept.clear()
-        degraded.append({"provider": _CONVERSATIONS_PROVIDER, "reason": _ROOM_LIST_REASON})
         return False
 
     by_token = {

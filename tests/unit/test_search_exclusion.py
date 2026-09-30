@@ -372,6 +372,7 @@ async def test_unverifiable_withholds_every_file_bearing_hit_with_one_degraded_e
     with respx.mock(assert_all_called=False) as mock:
         guard_routes.unverifiable(mock)
         lookup = mock.route(method="SEARCH", url=DAV_SEARCH)
+        mock.get(ROOM_URL).mock(return_value=rooms_answer([room("2uqkjpn2", "MCP-Talk")]))
         mock.get(PROVIDERS_URL).mock(return_value=providers(*answers))
         for pid, items in answers.items():
             mock.get(search_url(pid)).mock(return_value=answer(items))
@@ -416,9 +417,10 @@ async def test_a_failing_lookup_withholds_pathless_hits_and_keeps_path_hits(
 
 @pytest.mark.anyio
 async def test_talk_message_hits_are_not_file_bearing_per_the_nc35_probe() -> None:
-    """KLASSE=kein-leak (raw/27-03-provider-probe.txt): a talk-message hit stays."""
+    """KLASSE=kein-leak (raw/27-03-provider-probe.txt): a message in a plain room stays."""
     with respx.mock(assert_all_called=False) as mock:
         guard_routes.active(mock, ("Docs/geheim.txt", "5001", False))
+        mock.get(ROOM_URL).mock(return_value=rooms_answer([room("2uqkjpn2", "MCP-Talk")]))
         mock.get(PROVIDERS_URL).mock(return_value=providers("talk-message"))
         mock.get(search_url("talk-message")).mock(return_value=answer([talk_message_entry()]))
 
@@ -576,6 +578,77 @@ async def test_a_failing_room_list_withholds_the_conversation_hits_and_names_the
 
     assert ids_of(result) == ["file:4711"]
     assert [entry["provider"] for entry in result["degraded"]] == ["talk-conversations"]
+    assert "geheim" not in json.dumps(result)
+
+
+# --- talk messages written in a file conversation (review CR-01 of phase 28) ---------------
+
+
+def message_in(token: str, conversation: str, message_id: str) -> dict[str, Any]:
+    """A talk-message hit written in ``conversation``: its name is in the title."""
+    entry = talk_message_entry()
+    entry["title"] = f"bob in {conversation}"
+    entry["resourceUrl"] = f"{BASE}/call/{token}#message_{message_id}"
+    entry["attributes"] = {**entry["attributes"], "conversation": token, "messageId": message_id}
+    return entry
+
+
+MESSAGE_HITS = [
+    message_in("tagroom1", "geheim.txt", "71"),
+    message_in("freeroom", "frei.txt", "72"),
+    message_in("teamroom", "Team", "73"),
+]
+
+
+@pytest.mark.parametrize("provider_id", ["talk-message", "talk-message-current"])
+@pytest.mark.anyio
+async def test_a_message_in_a_tagged_file_room_is_dropped_silently(provider_id: str) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        _, report = guard_routes.active(mock, ("Docs/geheim.txt", "5001", False))
+        rooms = mock.get(ROOM_URL).mock(return_value=rooms_answer(ROOMS))
+        mock.get(PROVIDERS_URL).mock(return_value=providers(provider_id))
+        mock.get(search_url(provider_id)).mock(return_value=answer(MESSAGE_HITS))
+
+        result = await search_tools.unified_search(fresh(), query="prüfen")
+
+    assert [hit["title"] for hit in result["results"]] == ["bob in frei.txt", "bob in Team"]
+    assert rooms.call_count == 1
+    assert report.call_count == 1
+    assert "degraded" not in result
+    assert "skipped" not in result
+    dumped = json.dumps(result)
+    assert "geheim" not in dumped
+    assert "tagroom1" not in dumped
+
+
+@pytest.mark.anyio
+async def test_unverifiable_withholds_messages_of_file_rooms_and_keeps_plain_rooms() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.unverifiable(mock)
+        mock.get(ROOM_URL).mock(return_value=rooms_answer(ROOMS))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-message"))
+        mock.get(search_url("talk-message")).mock(return_value=answer(MESSAGE_HITS))
+
+        result = await search_tools.unified_search(fresh(), query="prüfen")
+
+    assert [hit["title"] for hit in result["results"]] == ["bob in Team"]
+    assert result["degraded"] == [EXCLUSION]
+    assert "geheim" not in json.dumps(result)
+
+
+@pytest.mark.anyio
+async def test_a_failing_room_list_withholds_message_hits_under_their_provider() -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "5001", False))
+        mock.get(ROOM_URL).mock(return_value=httpx.Response(500))
+        mock.get(PROVIDERS_URL).mock(return_value=providers("talk-message", "talk-conversations"))
+        mock.get(search_url("talk-message")).mock(return_value=answer(MESSAGE_HITS))
+        mock.get(search_url("talk-conversations")).mock(return_value=answer([]))
+
+        result = await search_tools.unified_search(fresh(), query="prüfen")
+
+    assert result["results"] == []
+    assert [entry["provider"] for entry in result["degraded"]] == ["talk-message"]
     assert "geheim" not in json.dumps(result)
 
 
