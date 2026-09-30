@@ -71,6 +71,38 @@ def folders_ok():
     respx.route(method="MKCOL", url__startswith=ROOT).mock(return_value=httpx.Response(405))
 
 
+def _raw_scope(path):
+    # Twin of the scope built inline by the disconnect test below: raw ASGI in, so the
+    # fake ``receive`` can hand the route more than one ``http.request`` message and we can
+    # assert on exactly how many of them the route consumed.
+    return {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "PUT",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [],
+        "server": ("test", 80),
+        "client": ("1.2.3.4", 5),
+    }
+
+
+def _receive_from(messages):
+    # Raises instead of returning a synthetic disconnect once ``messages`` is empty, so a
+    # route that asks for one more chunk than it should is caught as a hard failure, not
+    # silently answered with an ASGI message the real server would never send here.
+    async def receive():
+        if not messages:
+            raise AssertionError("route asked for more body than the client sent")
+        return messages.pop(0)
+
+    return receive
+
+
 def test_a_completed_upload_creates_the_file_and_burns_the_link(world):
     _, tickets, client = world
     token = issue(tickets)
@@ -320,3 +352,74 @@ def test_the_outcome_table(
         assert "ignored If-None-Match" in caplog.text
     remaining = run(tickets.peek(token))
     assert (remaining is None) == ticket_gone
+
+
+# --- drain fix (2026-09-30 live incident): an error answered without reading the rest of the
+# --- body leaves data unread when uvicorn closes the connection, which HaRP saw as a
+# --- truncated response and Cloudflare turned into a 502 instead of the intended 404/409 ---
+
+
+def test_an_unknown_token_still_drains_the_body(world):
+    _, _tickets, client = world
+    token = "A" * 43  # well formed per TOKEN_PATTERN, never issued: store.claim() returns None
+    messages = [
+        {"type": "http.request", "body": b"a", "more_body": True},
+        {"type": "http.request", "body": b"b", "more_body": True},
+        {"type": "http.request", "body": b"c", "more_body": False},
+    ]
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    run(client.app(_raw_scope(f"/ul/{token}"), _receive_from(messages), send))
+    assert sent[0]["status"] == 404
+    assert messages == []
+
+
+def test_a_put_answer_that_never_read_the_body_still_drains_it(world, monkeypatch):
+    # Nextcloud can answer 412 (If-None-Match) before reading the streamed body at all, but
+    # httpx's MockTransport (used under respx) always fully drains a streamed ``content=``
+    # before invoking the mocked handler, so respx alone cannot reproduce "answers without
+    # reading" here (verified: even a bare ``respx.put(...).mock(return_value=...)`` consumes
+    # the whole async generator first). Stubbing ``dav.put_new_stream`` to ignore its ``body``
+    # argument reproduces the real scenario the brief describes.
+    _, tickets, client = world
+    token = issue(tickets)
+    messages = [
+        {"type": "http.request", "body": b"a", "more_body": True},
+        {"type": "http.request", "body": b"b", "more_body": True},
+        {"type": "http.request", "body": b"c", "more_body": False},
+    ]
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    async def put_without_reading(client_, creds, path, body, *, content_length=None):
+        return 412
+
+    monkeypatch.setattr(upload_route.dav, "put_new_stream", put_without_reading)
+
+    with respx.mock:
+        folders_ok()
+        run(client.app(_raw_scope(f"/ul/{token}"), _receive_from(messages), send))
+    assert sent[0]["status"] == 409
+    assert messages == []
+
+
+def test_a_successful_upload_reads_the_body_exactly_once(world):
+    _, tickets, client = world
+    token = issue(tickets)
+    messages = [{"type": "http.request", "body": b"x" * 1000, "more_body": False}]
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    with respx.mock:
+        folders_ok()
+        respx.put(FILE_URL).mock(return_value=httpx.Response(201))
+        run(client.app(_raw_scope(f"/ul/{token}"), _receive_from(messages), send))
+    assert sent[0]["status"] == 201
+    assert messages == []
