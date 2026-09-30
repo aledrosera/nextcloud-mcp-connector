@@ -53,7 +53,7 @@ Da claude.ai web e Claude Desktop, Claude deve poter:
 - **`content` assente:**
   1. `safe_path(path)`; un percorso che finisce con `/` è rifiutato; `stat` WebDAV: se esiste qualcosa (file o cartella) → errore "esiste già, scegli un altro nome".
   2. Biglietto nello store esistente con percorso `upload:<path>`, TTL 30 min, proprietario = `resolve_ticket_owner(ctx)` (nei deployment senza ExApp lo strumento risponde con lo stesso errore di `files_download`).
-  3. Risposta JSON compatta: `path`, `upload_url` (`<NC_MCP_PUBLIC_URL>/ul/<token>`), `method: "PUT"`, `expires_at`, `single_use: true`, `max_bytes: 104857600`, `how_to` = "Upload from your code execution environment: curl -fsS -T <file> <upload_url>. One completed upload; the target must not exist; missing folders are created."
+  3. Risposta JSON compatta: `path`, `upload_url` (`<NC_MCP_PUBLIC_URL>/ul/<token>`), `method: "PUT"`, `expires_at`, `single_use: true`, `max_bytes: 104857600`, `how_to` = "Upload from your code execution environment: curl --fail-with-body -sS -T <file> <upload_url>. One completed upload; the target must not exist; missing folders are created."
 - Descrizione dello strumento aggiornata entro il budget (`scripts/check_tool_budget.py`).
 
 ### 4.2 Rotta pubblica `PUT /ul/{token}`
