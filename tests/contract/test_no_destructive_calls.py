@@ -231,6 +231,27 @@ TABLES_READ_FORMS = (
 #: either of those segments.
 TABLES_READ_NEEDLES = ("/rows/", "/columns/")
 
+# ``downloads/mail_attachment.py`` (fork olivia, added 2026-09-30 with the user's approval)
+# builds one GET of one internal Mail route to stream an attachment through the same
+# single-use ``/dl/{token}`` link a file already gets. The route it has to use is
+# ``/index.php/apps/mail/api/messages/{message}/attachment/{attachment}``, verified live
+# against Mail 5.12.2: the OCS route Mail *declares* for the same purpose,
+# ``/ocs/v2.php/apps/mail/message/{id}/attachment/{aid}``, answers 200 with an EMPTY body
+# for a binary attachment, so it cannot serve a download at all, which is why the internal
+# route is the one this fork uses instead. That literal trips two needles above at once,
+# ``/attachment`` and ``/api/messages``, because both segments sit in the one path this
+# route needs. The exemption below is narrower than the tables one: it names the exact
+# source line, not a family of forms, because there is exactly one line to exempt and the
+# module builds nothing else. ``mail_attachment.open_attachment`` only ever issues a GET
+# (asserted directly by a unit test of that module), so the needles keep guarding every
+# other file and every other line, including every other line of this same module: a
+# second write-shaped route introduced there later is still reported like anywhere else.
+MAIL_ATTACHMENT_READ_NEEDLES = ("/attachment", "/api/messages")
+FILE_WITH_THE_MAIL_ATTACHMENT_READ = "downloads/mail_attachment.py"
+MAIL_ATTACHMENT_READ_FORM = (
+    'ATTACHMENT_PATH = "/index.php/apps/mail/api/messages/{message}/attachment/{attachment}"'
+)
+
 # The two files where the word DELETE is not an HTTP verb. TOOL-09 is a promise about what
 # this server does to data in Nextcloud, and both of these are our own SQLite files.
 #
@@ -354,6 +375,10 @@ def _violations(relative: str, lines: Iterable[tuple[int, str]]) -> list[str]:
                 continue
             if needle in TABLES_READ_NEEDLES and _is_a_tables_read(relative, text):
                 continue
+            if needle in MAIL_ATTACHMENT_READ_NEEDLES and _is_the_mail_attachment_read(
+                relative, text
+            ):
+                continue
             findings.append(f"{relative}:{number}: {needle!r} ({why}): {text.strip()}")
     return findings
 
@@ -388,6 +413,16 @@ def _is_a_tables_read(relative: str, text: str) -> bool:
     return relative in FILES_WITH_THE_TABLES_READS and any(
         form in text for form in TABLES_READ_FORMS
     )
+
+
+def _is_the_mail_attachment_read(relative: str, text: str) -> bool:
+    """True for the one ``ATTACHMENT_PATH`` line of ``mail_attachment.py``, false elsewhere.
+
+    Narrower than :func:`_is_a_tables_read` on purpose: there is one file and one exact
+    line to exempt, not a family of forms, so the match is the whole assignment rather
+    than a segment that could also appear in prose or in a different, later line.
+    """
+    return relative == FILE_WITH_THE_MAIL_ATTACHMENT_READ and MAIL_ATTACHMENT_READ_FORM in text
 
 
 def test_the_gate_would_notice_a_destructive_call_in_real_code() -> None:
@@ -625,6 +660,66 @@ def test_the_tables_read_exemption_covers_two_call_forms_and_nothing_else() -> N
     )
     for relative in FILES_WITH_THE_TABLES_READS:
         assert (SRC / relative).is_file(), f"{relative} is exempt but does not exist"
+
+
+def test_the_mail_attachment_read_exemption_covers_one_line_and_nothing_else() -> None:
+    """Counter proof for the narrow exemption: only the exact line, only in that one file.
+
+    Three things have to hold at once for this exemption to be safe rather than a hole:
+    the same literal in any other file must still trip the gate (a), any other line of
+    ``mail_attachment.py`` that carries either needle must still trip it too (b), and the
+    exempted line itself must pass (c). All three are asserted here, the way
+    :func:`test_the_tables_read_exemption_covers_two_call_forms_and_nothing_else` does for
+    the Tables family.
+    """
+    mail_attachment = FILE_WITH_THE_MAIL_ATTACHMENT_READ
+
+    # (c) the exempted line, in its own file, passes.
+    assert _is_the_mail_attachment_read(mail_attachment, f"    {MAIL_ATTACHMENT_READ_FORM}")
+
+    # (a) the identical literal in a different file is not covered by this exemption.
+    assert not _is_the_mail_attachment_read(
+        "nextcloud/clients/mail.py", f"    {MAIL_ATTACHMENT_READ_FORM}"
+    )
+    assert not _is_the_mail_attachment_read("tools/chatgpt.py", f"    {MAIL_ATTACHMENT_READ_FORM}")
+
+    # (b) a different line of the same file, that merely mentions one of the two needles,
+    # is not covered either: only the one exact assignment is exempt.
+    assert not _is_the_mail_attachment_read(
+        mail_attachment, '    OTHER = "/apps/mail/api/messages/9999"'
+    )
+    assert not _is_the_mail_attachment_read(mail_attachment, '    OTHER = "chat/attachment/upload"')
+
+    assert (SRC / mail_attachment).is_file(), f"{mail_attachment} is exempt but does not exist"
+
+
+def test_the_mail_attachment_read_line_passes_the_gate_only_in_its_own_file() -> None:
+    """The main gate (a), through ``_violations`` itself, and not a reimplementation of it.
+
+    Mirrors :func:`test_each_tables_needle_trips_on_its_route_and_leaves_the_real_module_alone`:
+    the real module is clean today, the exempted line stays clean once it is the real one, and
+    the same literal dropped into an unrelated file is still reported (T-08-20 applies here
+    too, one file down from Tables and Talk).
+    """
+    relative = FILE_WITH_THE_MAIL_ATTACHMENT_READ
+    real = _code_lines(SRC / relative)
+    assert _violations(relative, real) == [], (
+        f"{relative} must be clean before the exemption can prove anything"
+    )
+
+    poisoned_elsewhere = _violations("tools/chatgpt.py", [(1, f"    {MAIL_ATTACHMENT_READ_FORM}")])
+    assert any("'/attachment'" in finding for finding in poisoned_elsewhere)
+    assert any("'/api/messages'" in finding for finding in poisoned_elsewhere)
+
+    poisoned_same_file_messages = _violations(
+        relative, [*real, (len(real) + 1, '    OTHER = "/apps/mail/api/messages/9999"')]
+    )
+    assert any("'/api/messages'" in finding for finding in poisoned_same_file_messages)
+
+    poisoned_same_file_attachment = _violations(
+        relative, [*real, (len(real) + 1, '    OTHER = "chat/attachment/upload"')]
+    )
+    assert any("'/attachment'" in finding for finding in poisoned_same_file_attachment)
 
 
 def test_no_module_level_mutable_state_outside_the_two_documented_caches() -> None:

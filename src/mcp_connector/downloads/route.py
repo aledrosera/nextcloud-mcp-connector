@@ -27,6 +27,7 @@ from ..nextcloud.http import shared_client
 from ..oauth.crypto import DecryptionRejected
 from ..oauth.principal import login_name_of, principal_of
 from ..oauth.store import StoreProvider
+from . import mail_attachment
 from .store import Ticket, TicketStore, ticket_store
 
 logger = logging.getLogger(__name__)
@@ -131,8 +132,18 @@ def download_routes(
             if creds is None:
                 await store.release(token)
                 return _not_found()
+            # A mail attachment ticket carries its own two part path (fork olivia): the same
+            # route serves both kinds, and which upstream call to make is decided here, once,
+            # from the ticket's own path rather than from anything the request carries.
+            attachment_parts = mail_attachment.parse_ticket_path(ticket.path)
             try:
-                upstream = await dav.open_download(shared_client(), creds, ticket.path)
+                if attachment_parts is not None:
+                    message_id, attachment_id = attachment_parts
+                    upstream = await mail_attachment.open_attachment(
+                        shared_client(), creds, message_id, attachment_id
+                    )
+                else:
+                    upstream = await dav.open_download(shared_client(), creds, ticket.path)
             except ToolError as exc:
                 if exc.reason == REASON_PERMISSION_DENIED:
                     # Burn the ticket instead of releasing it: a retry would only resend the

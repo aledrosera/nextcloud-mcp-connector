@@ -59,7 +59,7 @@ import httpx
 
 from .. import ids, provider_map
 from ..deps import TicketOwner
-from ..downloads import issue
+from ..downloads import issue, mail_attachment
 from ..errors import ToolError
 from ..nextcloud import NcClients, capabilities
 from ..nextcloud.clients import caldav
@@ -125,6 +125,12 @@ MESSAGE_CONTEXT_LIMIT = 1
 #: an excerpt beside a total and not a page of a walk, and the total beside it is what keeps
 #: the excerpt honest. ``tables_browse`` is the way to the rest, and it pages.
 TABLE_ROWS = 20
+
+#: How many attachments a fetched mail lists with their own line before the rest collapse
+#: into one "and K more". Twenty is the same screen-of-rows setting as :data:`TABLE_ROWS`,
+#: chosen for the same reason: an ordinary mail carries a handful of attachments, and the
+#: pathological one that carries hundreds gets a bounded answer instead of an unbounded one.
+MAX_ATTACHMENT_LINES = 20
 
 #: Ceiling for the text of one fetched table, in bytes of the UTF-8 encoding. Also a setting:
 #: :data:`TABLE_ROWS` bounds the number of rows, and this one bounds what those rows may cost,
@@ -233,7 +239,7 @@ async def fetch(
         case "event":
             return await _fetch_event(clients, parts[0], parts[1])
         case "mail":
-            return await _fetch_mail(clients, parts[0])
+            return await _fetch_mail(clients, parts[0], owner=owner)
         case "message":
             return await _fetch_message(clients, parts[0], parts[1])
         case "table":
@@ -481,8 +487,19 @@ def _instant(value: Any) -> str:
     return value.isoformat() if hasattr(value, "isoformat") else str(value)
 
 
-async def _fetch_mail(clients: NcClients, message_id: str) -> dict[str, Any]:
+async def _fetch_mail(
+    clients: NcClients, message_id: str, *, owner: TicketOwner | None = None
+) -> dict[str, Any]:
     """Read one mail: the body as text, cut at a marked ceiling, the signals beside it.
+
+    Every attachment is listed after the body, one line each (fork olivia, mail
+    attachments): name, mime type and size, plus a single-use download link served by the
+    same ``/dl/{token}`` route a binary file already gets, when ``owner`` is available. The
+    same reasoning as :func:`_fetch_file` applies to the absence of one: a deployment
+    without an ExApp owner cannot serve a link a code execution environment could later
+    redeem, so the attachment is still named, only without a link. A link that fails to
+    issue for one attachment (storage trouble, or an id this route's ticket shape cannot
+    carry) does not fail the mail fetch either; see :func:`_issue_attachment_link`.
 
     The app check is the first line, exactly as in :func:`_fetch_card`. Without it a Nextcloud
     without the Mail app would fall into the 404 branch of the shared status mapping, and that
@@ -547,6 +564,17 @@ async def _fetch_mail(clients: NcClients, message_id: str) -> dict[str, Any]:
     if truncated:
         metadata["truncated"] = "true"
 
+    raw_attachments = message.get("attachments")
+    attachments = (
+        [a for a in raw_attachments if isinstance(a, dict)]
+        if isinstance(raw_attachments, list)
+        else []
+    )
+    if attachments:
+        lines = await _attachment_lines(message_id, attachments, owner)
+        text = f"{text}\n\nAttachments ({len(attachments)}):\n" + "\n".join(lines)
+        metadata["attachments"] = str(len(attachments))
+
     mailbox = message.get("mailboxId")
     url = (
         f"{clients.creds.base_url}{MAIL_THREAD_PATH.format(mailbox=mailbox, message=message_id)}"
@@ -561,6 +589,69 @@ async def _fetch_mail(clients: NcClients, message_id: str) -> dict[str, Any]:
         "url": url,
         "metadata": metadata,
     }
+
+
+async def _attachment_lines(
+    message_id: str, attachments: list[dict[str, Any]], owner: TicketOwner | None
+) -> list[str]:
+    """One line per attachment, at most :data:`MAX_ATTACHMENT_LINES` of them (fork olivia).
+
+    The rest collapse into one "and K more" line rather than growing the answer without a
+    bound, the same trade :data:`TABLE_ROWS` makes for a table excerpt. A trailing
+    :data:`issue.HOW_TO` line is appended once, and only when at least one attachment
+    actually carries a link: a mail whose attachments are all unlinkable (no owner, or every
+    issue failed) reads as a plain list, and a line of instructions for a link nobody got
+    would be a false pointer.
+    """
+    shown = attachments[:MAX_ATTACHMENT_LINES]
+    lines: list[str] = []
+    any_link = False
+    for entry in shown:
+        name = marks.without_marks(str(entry.get("fileName") or f"{entry.get('id')}.eml"))
+        mime = str(entry.get("mime") or "application/octet-stream")
+        size = int(entry.get("size") or 0)
+        line = f"- {name} ({mime}, {size} bytes)"
+        link = await _issue_attachment_link(message_id, entry, name, mime, size, owner)
+        if link is not None:
+            line = f"{line}: {link['download_url']}"
+            any_link = True
+        lines.append(line)
+
+    remaining = len(attachments) - len(shown)
+    if remaining > 0:
+        lines.append(f"- … and {remaining} more")
+    if any_link:
+        lines.append(issue.HOW_TO)
+    return lines
+
+
+async def _issue_attachment_link(
+    message_id: str,
+    entry: dict[str, Any],
+    name: str,
+    mime: str,
+    size: int,
+    owner: TicketOwner | None,
+) -> dict[str, Any] | None:
+    """One attachment's single-use link, or ``None`` when it cannot be issued.
+
+    ``None`` covers three ordinary cases and none of them is a bug: no ``owner`` at all (see
+    :func:`_fetch_mail`), an attachment id that does not round trip through
+    :func:`mail_attachment.parse_ticket_path` (an embedded message can carry an id this
+    route's ticket shape does not accept), or a :class:`ToolError` while issuing the ticket
+    itself (storage trouble, the same failure :func:`issue.issue_link` already answers this
+    way for a file). Any of the three still lists the attachment, only without a link.
+    """
+    if owner is None:
+        return None
+    attachment_id = str(entry.get("id") or "")
+    path = mail_attachment.ticket_path(message_id, attachment_id)
+    if mail_attachment.parse_ticket_path(path) is None:
+        return None
+    try:
+        return await issue.issue_ticket(owner, path=path, name=name, content_type=mime, size=size)
+    except ToolError:
+        return None
 
 
 def _mail_signals(message: dict[str, Any]) -> dict[str, str]:

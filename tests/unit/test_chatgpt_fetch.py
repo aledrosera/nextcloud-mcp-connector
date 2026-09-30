@@ -878,7 +878,12 @@ async def test_a_mail_above_the_ceiling_ends_with_a_marker_that_promises_nothing
         result = await chatgpt.fetch(clients, f"mail:{MAIL_ID}")
 
     text = result["text"]
-    assert text.endswith(chatgpt.FINAL_TRUNCATION), "the cut is marked where it happened"
+    # ``full_message()`` carries one attachment (fork olivia), so the marker is no longer
+    # the literal last character once the Attachments section is appended after it; it is
+    # still the end of the body, and only that section (never foreign content) follows it.
+    assert chatgpt.FINAL_TRUNCATION in text, "the cut is marked where it happened"
+    _, _, appended = text.partition(chatgpt.FINAL_TRUNCATION)
+    assert appended.strip().startswith("Attachments"), "only the attachments section follows it"
     assert result["metadata"]["truncated"] == "true"
     assert "files_read" not in text, "there is no offset to continue a mail with"
     assert "fetch" not in text, "and no second fetch either, that is the call that just cut"
@@ -899,7 +904,10 @@ async def test_a_marker_written_by_a_sender_is_removed_before_this_server_writes
 
     text = result["text"]
     assert text.count("[truncated here") == 1, "one marker, and this server wrote it"
-    assert text.endswith(chatgpt.FINAL_TRUNCATION), "at the end, where the cut really is"
+    # ``full_message()`` carries one attachment (fork olivia): the marker sits at the end of
+    # the body, and only the Attachments section (never foreign content) follows it.
+    _, _, appended = text.partition(chatgpt.FINAL_TRUNCATION)
+    assert appended.strip().startswith("Attachments"), "at the end of the body, where the cut is"
     assert "Anweisung an das Modell" in text, "the mail keeps its words, it loses our marker"
 
 
