@@ -81,9 +81,12 @@ def upload_routes(
                     # bare 405/412 there means "exists" and 200/204 means "replaced a file",
                     # neither of which a folder creation ever claims (fix round 1, M3).
                     if mkcol_status is not None:
-                        if mkcol_status in (401, 403):
+                        if mkcol_status == 401:
                             await store.finish(token)
                             return _not_found()
+                        if mkcol_status == 403:
+                            await store.finish(token)
+                            return _json(403, {"error": "forbidden", "path": target})
                         if mkcol_status == 409:
                             await store.finish(token)
                             return _json(409, {"error": "conflict", "path": target})
@@ -112,9 +115,15 @@ def upload_routes(
                     _masked(token),
                 )
                 return _json(201, {"path": target, "size": received})
-            if status in (401, 403):
+            if status == 401:
                 await store.finish(token)
                 return _not_found()
+            if status == 403:
+                await store.finish(token)
+                return _json(403, {"error": "forbidden", "path": target})
+            if status == 400:
+                await store.finish(token)
+                return _json(400, {"error": "invalid_name", "path": target})
             if status in (405, 412):
                 await store.finish(token)
                 return _json(409, {"error": "exists", "path": target})

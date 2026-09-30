@@ -98,6 +98,31 @@ async def test_a_new_draft_is_posted_with_the_exact_payload(clients):
     assert result["note"] == drafts.DRAFT_NOTE
 
 
+async def test_a_new_draft_with_one_account_uses_it_without_being_asked(clients, monkeypatch):
+    async def one(client, creds):
+        return [ACCOUNTS[1]]
+
+    monkeypatch.setattr(drafts.mail_client, "get_accounts", one)
+    with respx.mock:
+        route = respx.post(DRAFTS_URL).mock(return_value=created())
+        result = await drafts.create(clients, to=["a@b.it"], subject="s", body="b")
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["accountId"] == 3
+    assert result["account"] == "alessandro.drosera@gmail.com"
+
+
+async def test_a_reply_addressed_to_an_alias_picks_its_account(clients, monkeypatch):
+    async def aliased(client, creds, message_id):
+        return {**ORIGINAL, "to": [{"label": "Ale", "email": "ale@drosera.info"}]}, False
+
+    monkeypatch.setattr(drafts.mail_client, "get_message", aliased)
+    with respx.mock:
+        route = respx.post(DRAFTS_URL).mock(return_value=created())
+        await drafts.create(clients, reply_to="mail:140813", body="x")
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["accountId"] == 3
+
+
 async def test_a_reply_takes_account_recipient_subject_and_thread_from_the_original(clients):
     with respx.mock:
         route = respx.post(DRAFTS_URL).mock(return_value=created())

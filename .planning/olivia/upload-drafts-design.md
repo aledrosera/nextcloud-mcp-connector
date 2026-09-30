@@ -70,7 +70,9 @@ Da claude.ai web e Claude Desktop, Claude deve poter:
 | Nextcloud 201/204 | 201 `{"path", "size"}` | usato |
 | Nextcloud 412 (file comparso nel frattempo) | 409 `{"error": "exists"}` | bruciato |
 | Nextcloud 409 su `MKCOL`/`PUT` (al posto di una cartella c'è un file) | 409 `{"error": "conflict"}` | bruciato |
-| Nextcloud 401/403 (credenziale rifiutata) | 404 | bruciato |
+| Nextcloud 401 (credenziale rifiutata) | 404 | bruciato |
+| Nextcloud 403 su `MKCOL`/`PUT` (percorso rifiutato: cartella condivisa in sola lettura, nome bloccato, regola di accesso) | 403 `{"error": "forbidden"}` | bruciato |
+| Nextcloud 400 sul `PUT` (nome non valido) | 400 `{"error": "invalid_name"}` | bruciato |
 | Nextcloud irraggiungibile o 5xx | 502 | di nuovo utilizzabile |
 | Oltre 100 MB | 413 | di nuovo utilizzabile |
 | Connessione interrotta dal client | — | di nuovo utilizzabile |

@@ -1890,15 +1890,16 @@ def test_every_description_carries_the_answer_of_the_faq(manifest_root: etree._E
     One marker per fact, in the language of the variant: nothing runs on its own, there is
     a switch per account, and a connection can be ended on its own.
 
-    The fourth triple belongs to the same rule and was added with the Mail family (SEC-01).
-    The most important capability statement of that phase is that mail is read only, and a
-    reader who decides whether to install this app decides on this text: a sentence that
-    lives in the repository alone is not in front of them when they decide.
+    The fourth triple belongs to the same rule and was added with the Mail family (SEC-01),
+    then updated with the upload/drafts series (fix round 2, I2). The most important
+    capability statement of that phase is now that mail drafts are never sent, and a reader
+    who decides whether to install this app decides on this text: a sentence that lives in
+    the repository alone is not in front of them when they decide.
     """
     markers = {
-        None: ("background", "switch", "disconnect", "read only"),
-        "de": ("Hintergrund", "Schalter", "trenn", "nur lesen"),
-        "fr": ("arrière-plan", "interrupteur", "déconnect", "lecture seule"),
+        None: ("background", "switch", "disconnect", "never sent"),
+        "de": ("Hintergrund", "Schalter", "trenn", "nie gesendet"),
+        "fr": ("arrière-plan", "interrupteur", "déconnect", "jamais envoyés"),
     }
 
     for lang, expected in markers.items():

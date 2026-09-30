@@ -275,6 +275,8 @@ def test_a_client_that_disconnects_mid_upload_leaves_the_link_usable(world):
 
 
 # --- fix round 1, I2: every row of the brief's outcome table, MKCOL and PUT mapped apart --
+# --- fix round 2, I1/M2: 401 split from 403 (403 is now its own "forbidden" answer, not the
+# --- same 404 as an unknown link), and the PUT's own 400 ("invalid_name") added --
 
 
 @pytest.mark.parametrize(
@@ -287,11 +289,12 @@ def test_a_client_that_disconnects_mid_upload_leaves_the_link_usable(world):
         pytest.param("put", 409, 409, "conflict", True, id="put_409_conflict"),
         pytest.param("put", 405, 409, "exists", True, id="put_405_exists"),
         pytest.param("put", 412, 409, "exists", True, id="put_412_exists"),
+        pytest.param("put", 400, 400, "invalid_name", True, id="put_400_invalid_name"),
         pytest.param("put", 401, 404, None, True, id="put_401_not_found"),
-        pytest.param("put", 403, 404, None, True, id="put_403_not_found"),
+        pytest.param("put", 403, 403, "forbidden", True, id="put_403_forbidden"),
         pytest.param("put", 500, 502, None, False, id="put_500_stays_usable"),
         pytest.param("mkcol", 401, 404, None, True, id="mkcol_401_not_found"),
-        pytest.param("mkcol", 403, 404, None, True, id="mkcol_403_not_found"),
+        pytest.param("mkcol", 403, 403, "forbidden", True, id="mkcol_403_forbidden"),
         pytest.param("mkcol", 409, 409, "conflict", True, id="mkcol_409_conflict"),
         pytest.param("mkcol", 500, 502, None, False, id="mkcol_500_stays_usable"),
     ],

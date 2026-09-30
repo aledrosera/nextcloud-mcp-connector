@@ -99,9 +99,11 @@ both: see [Deletion and user control](#deletion-and-user-control).
   itself. The assistant, not this app, talks to the model.
 - No access beyond the signed in user's own permissions. A restricted user sees
   through the connector exactly what the web interface shows them, and no more.
-- No sending of mail. Mail is read only in this app: there is no way to send a
-  mail, to draft one, to move, flag or delete a message, and no attachment is
-  downloaded. A contract test holds that sentence, see
+- No sending of mail. This app can create a draft, new or in reply, in
+  Nextcloud Mail, but it never sends one: there is no way to send a mail, to
+  move, flag or delete a message. An attachment of a mail is read through the
+  same single-use link a file download uses, never fetched directly. A
+  contract test holds that sentence, see
   [The chain that mail closes](#the-chain-that-mail-closes).
 
 ## What leaves your control
@@ -174,9 +176,11 @@ protection incident.
   a narrower and less reliable way out than a message, and it is one. An operator
   who needs every path closed also reviews which folders, boards and tables the
   connected accounts share.
-- **Mail is read only.** There is no way in this app to send a mail, to create a
-  draft, to move, flag or delete a message, and the attachment route of the Mail app
-  is never called. The new family adds reach into private data and untrusted
+- **Mail is read, plus create-only drafts.** This app can create a draft, new or
+  in reply, but there is no way in it to send a mail, to move, flag or delete a
+  message, and the attachment route of the Mail app is never called: a draft's
+  attachment names an existing Nextcloud file by path, nothing is fetched from
+  Mail for it. The new family adds reach into private data and untrusted
   content, and it deliberately adds no second way out.
 - There are no destructive write paths at all. Nothing is deleted, overwritten,
   moved or re-shared, and the write tools that exist can only create.

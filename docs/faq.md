@@ -63,11 +63,15 @@ and they are yours.
 
 ### Can the assistant send or delete my mail?
 
-No. Mail is read only in this app, and that is not a setting somebody could have
-switched the other way: there is no code in this connector that sends a mail,
-creates a draft, moves a message into another mailbox, sets or clears a flag,
-deletes anything or downloads an attachment. A contract test reads the two mail
-modules on every run and asserts that not one such call exists, which is why the
+No. This app can create a mail draft, new or in reply, but it never sends one:
+there is no code in this connector that sends a mail, moves a message into
+another mailbox, sets or clears a flag, deletes anything or fetches an
+attachment from the Mail app; a draft's attachment names an existing
+Nextcloud file by path instead. The one write call to Mail this app makes
+lives in `nextcloud/clients/mail_drafts.py`. A contract test reads that
+module and the two read-only ones, `nextcloud/clients/mail.py` and
+`tools/mail.py`, on every run, holding the draft module to a single named
+exception and the other two to no write call at all, which is why the
 sentence can be stated instead of promised.
 
 What the assistant can do is read: the mail accounts of your own Nextcloud Mail, the
@@ -155,7 +159,7 @@ everyone the container is shared with. Closing that path is not a setting of thi
 app; it is a review of what the connected accounts share.
 
 Mail stays readable with the switch off, and that is the point rather than an
-oversight. Mail has no outgoing channel of its own: it is read only in this app,
-with no way to send, draft, move, flag or delete a message, so closing the Talk
-channel leaves the reading families intact and takes the direct messaging step
-away.
+oversight. Mail has no outgoing channel of its own: it can create a draft,
+never send one, and there is no way to move, flag or delete a message, so
+closing the Talk channel leaves the reading and drafting families intact and
+takes the direct messaging step away.

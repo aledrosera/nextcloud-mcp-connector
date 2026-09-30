@@ -802,6 +802,54 @@ def test_the_mail_drafts_create_line_passes_the_gate_only_in_its_own_file() -> N
     assert any("'/message/send'" in finding for finding in still_forbidden)
 
 
+#: fix round 2, M3: the write-call needles this pair is held to, checked by exact count
+#: instead of by presence/absence, on the model of :data:`ALLOWED_TALK_ROUTES` — comments
+#: and docstrings blanked first by :func:`_code_lines`, so a mention in prose cannot hide or
+#: fake a real call. ``mail_drafts.py`` may call ``.post(`` exactly once and nothing else on
+#: this list; ``tools/drafts.py``, the layer above it, must call none of them directly and
+#: always go through ``mail_drafts.create_draft``.
+MAIL_DRAFTS_WRITE_CALLS = (".post(", ".put(", ".patch(", ".delete(", ".request(", "ocs_post")
+
+
+def _write_call_counts(lines: Iterable[tuple[int, str]]) -> dict[str, int]:
+    text = "\n".join(line for _, line in lines)
+    return {call: text.count(call) for call in MAIL_DRAFTS_WRITE_CALLS}
+
+
+def test_mail_drafts_client_calls_post_exactly_once_and_nothing_else() -> None:
+    """M3: the one file allowed to touch ``/api/drafts`` may write exactly once, with POST."""
+    counts = _write_call_counts(_code_lines(SRC / FILE_WITH_THE_MAIL_DRAFTS_CREATE))
+    assert counts == {
+        ".post(": 1,
+        ".put(": 0,
+        ".patch(": 0,
+        ".delete(": 0,
+        ".request(": 0,
+        "ocs_post": 0,
+    }
+
+
+def test_drafts_tool_calls_mail_drafts_but_never_writes_directly() -> None:
+    """M3: the tool layer only ever reaches Mail through ``mail_drafts.create_draft``."""
+    counts = _write_call_counts(_code_lines(SRC / "tools/drafts.py"))
+    assert counts == {
+        ".post(": 0,
+        ".put(": 0,
+        ".patch(": 0,
+        ".delete(": 0,
+        ".request(": 0,
+        "ocs_post": 0,
+    }
+
+
+def test_the_write_call_count_check_would_catch_an_added_call() -> None:
+    """Counter proof: one extra line in a copy of the text makes the count check fail."""
+    real = _code_lines(SRC / FILE_WITH_THE_MAIL_DRAFTS_CREATE)
+    poisoned = [*real, (len(real) + 1, "    await client.put(url)")]
+    counts = _write_call_counts(poisoned)
+    assert counts[".put("] == 1
+
+
 def test_no_module_level_mutable_state_outside_the_two_documented_caches() -> None:
     """D-20: nothing between two requests may remember anything about a session."""
     findings: list[str] = []

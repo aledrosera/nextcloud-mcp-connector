@@ -22,7 +22,8 @@ UPLOAD_PREFIX = "upload:"
 UPLOAD_TTL_SECONDS = 30 * 60
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 UPLOAD_HOW_TO = (
-    "Upload from your code execution environment: curl -fsS -T <file> <upload_url>. "
+    "Upload from your code execution environment: "
+    "curl --fail-with-body -sS -T <file> <upload_url>. "
     "One completed upload; the target must not exist; missing folders are created."
 )
 _FILE_HINT = "Give the full path of the new file, for example /Docs/report.docx."

@@ -43,7 +43,7 @@ async def test_link_is_issued_for_a_free_path(tmp_path):
     assert card["expires_at"] == "1970-01-01T00:46:40+00:00"  # 1000 + 1800
     assert card["single_use"] is True
     assert card["max_bytes"] == 104857600
-    assert "curl -fsS -T" in card["how_to"]
+    assert "curl --fail-with-body" in card["how_to"]
     token = card["upload_url"].rsplit("/", 1)[-1]
     ticket = await tickets.claim(token, now=1001)
     assert ticket is not None
