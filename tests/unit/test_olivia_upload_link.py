@@ -26,6 +26,8 @@ def test_ticket_path_round_trip():
     assert upload.parse_upload_path("/a/b.pdf") is None
     assert upload.parse_upload_path("mail:1/2") is None
     assert upload.parse_upload_path("upload:relative.pdf") is None
+    assert upload.parse_upload_path("upload:/") is None
+    assert upload.parse_upload_path("upload:/a/b/") is None
 
 
 async def test_link_is_issued_for_a_free_path(tmp_path):

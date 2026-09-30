@@ -321,14 +321,19 @@ _._decode_payload
 # above it does.
 
 # --- The upload link issuer of the olivia fork, task 1 ---------------------------------
-# downloads.upload.issue_upload_link and parse_upload_path were built in task 1, parked here
-# until task 3 (the /ul route handler) calls them. Wired in Task 3/5.
+# downloads.upload.issue_upload_link was built in task 1, parked here until task 5 wires it
+# into a tool that calls it. parse_upload_path left this list with task 3, which added the
+# /ul route handler (downloads/upload_route.py) as its caller.
 issue_upload_link
-parse_upload_path
 
 # --- The WebDAV helpers of the olivia fork, task 2 of docs/olivia/plan.md ----------------
-# ensure_folders and put_new_stream were built in task 2, parked here until task 3 (the /ul
-# route handler) calls them. ensure_folders creates missing parent folders top-down with MKCOL;
-# put_new_stream uploads a file body as a stream with create-only semantics (If-None-Match: *).
-ensure_folders
-put_new_stream
+# Empty on purpose, and that is the rule of this file at work rather than an omission.
+# ensure_folders and put_new_stream were built in task 2, parked here until task 3 called
+# them. Task 3 added the /ul route handler (downloads/upload_route.py), which calls both
+# (MKCOL top-down, then the create-only streamed PUT), so both left the list with it.
+
+# --- The /ul route factory of the olivia fork, task 3 ------------------------------------
+# upload_route.upload_routes was built and tested in task 3, one task before its wiring:
+# task 4 mounts it into entry_exapp.py next to download_routes, the same split as the /dl
+# route (built in task 4, wired in task 7 of the base olivia plan). Parked here until then.
+upload_routes

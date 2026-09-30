@@ -295,6 +295,26 @@ def test_control_characters_in_the_filename_are_stripped_from_the_fallback(world
     assert "filename*=UTF-8''a%01b.pdf" in disposition
 
 
+def test_an_upload_ticket_on_the_download_route_is_404_and_stays_usable(world):
+    _, tickets, client = world
+    token, _ = run(
+        tickets.issue(
+            auth_id="auth-1",
+            nc_user="alice",
+            path="upload:/Docs/a.pdf",
+            name="a.pdf",
+            content_type="",
+            size=0,
+            ttl_seconds=600,
+        )
+    )
+    head = client.head(f"/dl/{token}")
+    assert (head.status_code, head.content) == (404, b"")
+    get = client.get(f"/dl/{token}")
+    assert (get.status_code, get.text) == (404, "Not found")
+    assert run(tickets.peek(token)) is not None
+
+
 def test_an_unexpected_error_after_claim_fails_hard_and_returns_the_ticket(tmp_path):
     tickets = dl_store.TicketStore(tmp_path / dl_store.TICKETS_FILENAME)
     token = issue(tickets)

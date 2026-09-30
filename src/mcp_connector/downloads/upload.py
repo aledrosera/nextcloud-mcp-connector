@@ -34,11 +34,17 @@ def upload_ticket_path(path: str) -> str:
 
 
 def parse_upload_path(ticket_path: str) -> str | None:
-    """The target path of an upload ticket, or ``None`` when the ticket is not one."""
+    """The target path of an upload ticket, or ``None`` when the ticket is not one.
+
+    Also rejects the bare root (``upload:/``) and anything ending in ``/``: neither names a
+    file, and the create-only PUT downstream has no folder semantics to fall back on.
+    """
     if not ticket_path.startswith(UPLOAD_PREFIX):
         return None
     path = ticket_path[len(UPLOAD_PREFIX) :]
-    return path if path.startswith("/") else None
+    if not path.startswith("/") or path == "/" or path.endswith("/"):
+        return None
+    return path
 
 
 async def issue_upload_link(

@@ -27,7 +27,7 @@ from ..nextcloud.http import shared_client
 from ..oauth.crypto import DecryptionRejected
 from ..oauth.principal import login_name_of, principal_of
 from ..oauth.store import StoreProvider
-from . import mail_attachment
+from . import mail_attachment, upload
 from .store import Ticket, TicketStore, ticket_store
 
 logger = logging.getLogger(__name__)
@@ -70,9 +70,10 @@ def _masked(token: str) -> str:
     return f"{token[:4]}…"
 
 
-async def _credentials(
+async def rebuild_credentials(
     env: Mapping[str, str] | None, oauth_store: StoreProvider, ticket: Ticket
 ) -> Credentials | None:
+    """Rebuild the credentials of a ticket's issuer; shared by the download and the upload route."""
     settings = config.exapp_settings(env)
     store = await oauth_store()
     if ticket.auth_id:
@@ -116,7 +117,9 @@ def download_routes(
         store = tickets if tickets is not None else ticket_store(env)
         if request.method == "HEAD":
             ticket = await store.peek(token)
-            if ticket is None or await _credentials(env, oauth_store, ticket) is None:
+            if ticket is None or ticket.path.startswith(upload.UPLOAD_PREFIX):
+                return _not_found()
+            if await rebuild_credentials(env, oauth_store, ticket) is None:
                 return _not_found()
             return Response(status_code=200, headers=_headers(ticket, str(ticket.size)))
 
@@ -128,7 +131,12 @@ def download_routes(
         # handler below, which releases it so a client can retry instead of losing the link
         # to an error it never caused.
         try:
-            creds = await _credentials(env, oauth_store, ticket)
+            # An upload ticket (fork olivia): the download route never serves it, and the
+            # link goes back unburned so a client that guessed wrong is not the one paying.
+            if ticket.path.startswith(upload.UPLOAD_PREFIX):
+                await store.release(token)
+                return _not_found()
+            creds = await rebuild_credentials(env, oauth_store, ticket)
             if creds is None:
                 await store.release(token)
                 return _not_found()
