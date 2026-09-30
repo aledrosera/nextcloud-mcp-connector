@@ -40,33 +40,19 @@ def _too_large() -> Response:
     return _json(413, {"error": "too_large", "max_bytes": MAX_UPLOAD_BYTES})
 
 
-async def _drain(request: Request, *, started: bool = False, consumed: bool = False) -> None:
+async def _drain(request: Request, *, consumed: bool = False) -> None:
     """Read and discard whatever of the body is still unread before an error answer.
 
     Verified live 2026-09-30: an error answered here without first draining the body left
     bytes unread when uvicorn closed the connection; HaRP saw that as a truncated response,
     so Cloudflare surfaced a 502 to the client instead of the intended 404/409/etc. nginx
     buffers the whole body before forwarding it (proxy_request_buffering), so reading and
-    discarding it here only costs local loopback traffic, never a round trip to the client.
-
-    ``started``/``consumed`` describe how far ``request.stream()`` had already gotten: never
-    touched, or touched but not exhausted (``request.stream()`` cannot be restarted once
-    begun, and a plain ``receive()`` after exhaustion would hang waiting for a disconnect that
-    is never coming, so each state reads the rest a different way).
+    discarding it here only costs local traffic. ``consumed`` means the last body message
+    was already received: one more ``receive()`` would wait for a disconnect, so it stops.
     """
-    if consumed:
-        return
-    try:
-        if not started:
-            async for _ in request.stream():
-                pass
-        else:
-            while True:
-                message = await request.receive()
-                if message["type"] == "http.disconnect" or not message.get("more_body", False):
-                    break
-    except ClientDisconnect:
-        pass
+    while not consumed:
+        message = await request.receive()
+        consumed = message["type"] == "http.disconnect" or not message.get("more_body", False)
 
 
 def upload_routes(
@@ -96,20 +82,22 @@ def upload_routes(
                 return _not_found()
 
             received = 0
-            body_started = False
             body_consumed = False
 
             async def body() -> AsyncIterator[bytes]:
-                nonlocal received, body_started, body_consumed
-                body_started = True
-                async for chunk in request.stream():
+                # Read the ASGI messages directly rather than through ``request.stream()``:
+                # the route has to know exactly when the last body message arrived, so that
+                # ``_drain`` never asks for one more (see its docstring).
+                nonlocal received, body_consumed
+                while not body_consumed:
+                    message = await request.receive()
+                    if message["type"] == "http.disconnect":
+                        raise ClientDisconnect
+                    body_consumed = not message.get("more_body", False)
+                    chunk = message.get("body", b"")
+                    if not chunk:
+                        continue
                     received += len(chunk)
-                    # Starlette flips this before yielding the chunk that carried
-                    # ``more_body: false``, so even a chunk that goes on to blow the size
-                    # limit below has already emptied the ASGI receive channel; marking
-                    # "consumed" only after the loop would miss that and make ``_drain``
-                    # call ``receive()`` one time too many, which hangs (round 2 review).
-                    body_consumed = request._stream_consumed
                     if received > MAX_UPLOAD_BYTES:
                         raise _TooLarge
                     yield chunk
@@ -125,25 +113,25 @@ def upload_routes(
                     if mkcol_status is not None:
                         if mkcol_status == 401:
                             await store.finish(token)
-                            await _drain(request, started=body_started, consumed=body_consumed)
+                            await _drain(request, consumed=body_consumed)
                             return _not_found()
                         if mkcol_status == 403:
                             await store.finish(token)
-                            await _drain(request, started=body_started, consumed=body_consumed)
+                            await _drain(request, consumed=body_consumed)
                             return _json(403, {"error": "forbidden", "path": target})
                         if mkcol_status == 409:
                             await store.finish(token)
-                            await _drain(request, started=body_started, consumed=body_consumed)
+                            await _drain(request, consumed=body_consumed)
                             return _json(409, {"error": "conflict", "path": target})
                         await store.release(token)
-                        await _drain(request, started=body_started, consumed=body_consumed)
+                        await _drain(request, consumed=body_consumed)
                         return _bad_gateway()
                 status = await dav.put_new_stream(
                     shared_client(), creds, target, body(), content_length=declared_length
                 )
             except _TooLarge:
                 await store.release(token)
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _too_large()
             except ClientDisconnect:
                 # The client is already gone: nothing left to drain, and a read here would
@@ -152,7 +140,7 @@ def upload_routes(
                 return Response(status_code=400)
             except httpx.HTTPError:
                 await store.release(token)
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _bad_gateway()
 
             if status == 201:
@@ -167,33 +155,33 @@ def upload_routes(
                 return _json(201, {"path": target, "size": received})
             if status == 401:
                 await store.finish(token)
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _not_found()
             if status == 403:
                 await store.finish(token)
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _json(403, {"error": "forbidden", "path": target})
             if status == 400:
                 await store.finish(token)
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _json(400, {"error": "invalid_name", "path": target})
             if status in (405, 412):
                 await store.finish(token)
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _json(409, {"error": "exists", "path": target})
             if status in (404, 409):
                 await store.finish(token)
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _json(409, {"error": "conflict", "path": target})
             if status in (200, 204):
                 await store.finish(token)
                 logger.error(
                     "upload of %r replaced a file: this instance ignored If-None-Match", target
                 )
-                await _drain(request, started=body_started, consumed=body_consumed)
+                await _drain(request, consumed=body_consumed)
                 return _json(502, {"error": "precondition_ignored"})
             await store.release(token)
-            await _drain(request, started=body_started, consumed=body_consumed)
+            await _drain(request, consumed=body_consumed)
             return _too_large() if status == 413 else _bad_gateway()
         except BaseException:
             # A cancellation (the client disconnecting, the server shutting down) is what
