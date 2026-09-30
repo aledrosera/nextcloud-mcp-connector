@@ -43,13 +43,22 @@ from ..errors import ToolError
 from ..nextcloud import NcClients, capabilities
 from ..nextcloud.clients import dav
 from ..nextcloud.clients import tables as tables_client
+from ..nextcloud.clients import talk as talk_client
 from . import marks, withhold
+from . import talk as talk_tools
 
 APP = "tables"
 
 #: The ``providerId`` of a link cell that points at a Nextcloud file (D-28-18, measured in
-#: 28-01). Every other provider (a web address, a contact) names no file and stays untouched.
+#: 28-01). A link of any other provider counts as a file link as well when its value carries
+#: a ``/f/<fileid>`` segment (review WR-03 of phase 28): a pasted web address of a file, or a
+#: comment link, names the file just as well.
 _FILES_PROVIDER = "files"
+
+#: The ``providerId`` of a link cell that points at a Talk conversation. The conversation of a
+#: file carries the file name as its name (D-28-21), so such a cell is decided against the
+#: conversation list like the ``talk-conversations`` hits of the unified search (WR-03).
+_ROOMS_PROVIDER = "talk-conversations"
 
 #: The three navigation levels of ``tables_browse``, in the order a model walks them.
 LEVELS = ("tables", "columns", "rows")
@@ -463,27 +472,59 @@ async def screen_links(clients: NcClients, payload: list[list[Any]]) -> LinkScre
         ``dav.paths_of_fileids`` call. An id that does not resolve is withheld, and a failing
         lookup withholds every file link like the ``unverifiable`` state does.
     *   A file link whose id cannot be read is withheld while a tag is active.
+    *   A Talk conversation link (review WR-03 of phase 28) is decided against the
+        conversation list, read once and only when such a cell exists and something is
+        tagged: a file conversation counts as a link to its file, a conversation without a
+        file stays, a token the list does not carry is withheld. A list that cannot be read,
+        and the ``unverifiable`` state, withhold every conversation link with ``unavailable``.
 
     Tables gets no sandbox of its own, only the tag, like Talk: ``NC_MCP_FILES_ROOT`` does
     not filter link cells, and it only shapes the path lookup when a folder carries the tag
     (an id outside the root then does not resolve and is withheld). Noted for phase 29.
     """
     found: dict[tuple[int, int], str] = {}
+    rooms: dict[tuple[int, int], str] = {}
     for row_index, values in enumerate(payload[1:], start=1):
         if not isinstance(values, list):
             continue
         for column_index, cell in enumerate(values):
+            token = _linked_room(cell)
+            if token is not None:
+                rooms[(row_index, column_index)] = token
+                continue
             fileid = _linked_fileid(cell)
             if fileid is not None:
                 found[(row_index, column_index)] = fileid
-    if not found:
+    if not found and not rooms:
         return LinkScreenResult(payload, unavailable=False)
 
     scope = await clients.exclusion.scope(clients)
     if scope.state == "untagged":
         return LinkScreenResult(payload, unavailable=False)
     if scope.state == "unverifiable":
-        return LinkScreenResult(_blank(payload, found), unavailable=True)
+        return LinkScreenResult(_blank(payload, found.keys() | rooms.keys()), unavailable=True)
+    if rooms:
+        # A conversation link stands for its file when the conversation is a file
+        # conversation (talk.room_fileid). A token this account does not list, or a list that
+        # cannot be read, withholds the cell while anything is tagged (fail-closed, D-28-21).
+        try:
+            listed = await talk_client.get_rooms(
+                clients.client, clients.creds, include_last_message=False
+            )
+        except (ToolError, httpx.HTTPError):
+            return LinkScreenResult(_blank(payload, found.keys() | rooms.keys()), unavailable=True)
+        by_token = {
+            str(room.get("token") or "").strip(): talk_tools.room_fileid(room)
+            for room in listed
+            if isinstance(room, dict)
+        }
+        for position, token in rooms.items():
+            if not token or token not in by_token:
+                found[position] = ""
+                continue
+            room_file = by_token[token]
+            if room_file is not None:
+                found[position] = "" if room_file == "-" else room_file
 
     resolved: dict[str, str] = {}
     if scope.has_folders:
@@ -516,9 +557,49 @@ def _linked_fileid(value: Any) -> str | None:
     The form is the one measured in 28-01 (D-28-18): a JSON string ``{"title": <name>,
     "value": "<url>/f/<fileid>", "providerId": "files"}``, with the slashes PHP-escaped on
     the wire. An object of the same shape counts as well. Anything else is not a file link:
-    ``null``, free text that happens to contain ``/f/123``, a link of another provider. The
-    file id is read by ``provider_map.file_id``, the one reader of ``/f/<fileid>`` there is.
+    ``null`` and free text that happens to contain ``/f/123`` are not. A link object of another
+    provider is a file link when its value carries ``/f/<fileid>`` (review WR-03 of phase 28):
+    a web address pasted as ``https://host/f/<id>`` or a comment link names the file as well.
+    The file id is read by ``provider_map.file_id``, the one reader of ``/f/<fileid>`` there is.
     """
+    link = _link_object(value)
+    if link is None:
+        return None
+    target = link.get("value")
+    fileid = (
+        provider_map.file_id({}, target.replace("\\/", "/").strip())
+        if isinstance(target, str)
+        else ""
+    )
+    if str(link.get("providerId") or "").strip() == _FILES_PROVIDER:
+        return fileid
+    return fileid or None
+
+
+def _linked_room(value: Any) -> str | None:
+    """The token of a Talk conversation link cell, ``""`` for one without a token, else ``None``.
+
+    The link picker of Tables stores the hit of the ``talk-conversations`` search provider,
+    so the value is its ``/call/<token>`` link (the fragment is not part of the path).
+    """
+    link = _link_object(value)
+    if link is None or str(link.get("providerId") or "").strip() != _ROOMS_PROVIDER:
+        return None
+    target = link.get("value")
+    if not isinstance(target, str):
+        return ""
+    try:
+        segments = httpx.URL(target.replace("\\/", "/").strip()).path.split("/")
+    except (httpx.InvalidURL, ValueError):
+        return ""
+    for index, segment in enumerate(segments[:-1]):
+        if segment == "call" and segments[index + 1]:
+            return segments[index + 1]
+    return ""
+
+
+def _link_object(value: Any) -> dict[str, Any] | None:
+    """A link cell as its object: a JSON object string or an object, else ``None``."""
     link: Any = value
     if isinstance(value, str):
         if not value.lstrip().startswith("{"):
@@ -527,14 +608,7 @@ def _linked_fileid(value: Any) -> str | None:
             link = json.loads(value)
         except ValueError:
             return None
-    if not isinstance(link, dict):
-        return None
-    if str(link.get("providerId") or "").strip() != _FILES_PROVIDER:
-        return None
-    target = link.get("value")
-    if not isinstance(target, str):
-        return ""
-    return provider_map.file_id({}, target.replace("\\/", "/").strip())
+    return link if isinstance(link, dict) else None
 
 
 def _blank(payload: list[list[Any]], positions: Collection[tuple[int, int]]) -> list[list[Any]]:

@@ -282,7 +282,9 @@ async def test_an_unanswered_check_withholds_every_file_link_and_says_so(outage:
 
 @pytest.mark.anyio
 async def test_foreign_text_and_other_providers_are_not_link_cells() -> None:
-    web = link("Webseite", "123", provider="url")
+    web = json.dumps(
+        {"title": "Webseite", "value": "https://example.org/budget", "providerId": "url"}
+    )
     rows = [HEADER, ["Siehe /f/123", "http://nc.test/f/123"], ["x", web]]
     answer, (listing, report) = await browse_rows(rows, guard_routes.unverifiable)
 
@@ -291,6 +293,132 @@ async def test_foreign_text_and_other_providers_are_not_link_cells() -> None:
     assert answer["results"][0] == {"Aufgabe": "Siehe /f/123", "Verweis": "http://nc.test/f/123"}
     assert json.loads(answer["results"][1]["Verweis"])["providerId"] == "url"
     assert "degraded" not in answer
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("provider", ["url", "comments", "fulltextsearch"])
+async def test_a_link_of_another_provider_to_a_tagged_file_is_withheld(provider: str) -> None:
+    """Review WR-03: a /f/<id> value names the file whatever provider picked the link."""
+    rows = [
+        HEADER,
+        ["a", link(OPEN_NAME, OPEN_ID, provider=provider)],
+        ["b", link(SECRET_NAME, SECRET_ID, provider=provider)],
+    ]
+    answer, _ = await browse_rows(
+        rows, lambda m: guard_routes.active(m, ("Docs/geheim.txt", SECRET_ID, False))
+    )
+
+    assert json.loads(answer["results"][0]["Verweis"])["title"] == OPEN_NAME
+    assert answer["results"][1]["Verweis"] is None
+    assert_nothing_of_the_secret(answer)
+
+
+@pytest.mark.anyio
+async def test_a_pasted_file_address_is_withheld_in_an_outage() -> None:
+    rows = [HEADER, ["a", link(SECRET_NAME, SECRET_ID, provider="url")]]
+    answer, _ = await browse_rows(rows, guard_routes.unverifiable)
+
+    assert answer["results"][0]["Verweis"] is None
+    assert answer["degraded"] == DEGRADED
+    assert_nothing_of_the_secret(answer)
+
+
+# --- Talk conversation links (review WR-03, the rule of D-28-21) ----------------------------
+
+ROOM_URL = f"{BASE}/ocs/v2.php/apps/spreed/api/v4/room"
+
+
+def room_link(token: str, title: str) -> str:
+    return json.dumps(
+        {"title": title, "value": f"{BASE}/call/{token}", "providerId": "talk-conversations"}
+    )
+
+
+def rooms_answer(*rooms: tuple[str, str, str | None]) -> httpx.Response:
+    data = [
+        {
+            "token": token,
+            "displayName": name,
+            "objectType": "file" if fileid else "",
+            "objectId": fileid or "",
+        }
+        for token, name, fileid in rooms
+    ]
+    return httpx.Response(200, json=envelope(data))
+
+
+ROOM_ROWS = [
+    HEADER,
+    ["a", room_link("tagroom1", SECRET_NAME)],
+    ["b", room_link("freeroom", OPEN_NAME)],
+    ["c", room_link("teamroom", "Team")],
+    ["d", room_link("ghostroom", "x.txt")],
+]
+LISTED = (
+    ("tagroom1", SECRET_NAME, SECRET_ID),
+    ("freeroom", OPEN_NAME, OPEN_ID),
+    ("teamroom", "Team", None),
+)
+
+
+@pytest.mark.anyio
+async def test_a_link_to_the_conversation_of_a_tagged_file_is_withheld() -> None:
+    def setup(mock: respx.MockRouter) -> respx.Route:
+        guard_routes.active(mock, ("Docs/geheim.txt", SECRET_ID, False))
+        return mock.get(ROOM_URL).mock(return_value=rooms_answer(*LISTED))
+
+    answer, rooms = await browse_rows(ROOM_ROWS, setup)
+
+    assert rooms.call_count == 1
+    cells = [row["Verweis"] for row in answer["results"]]
+    assert cells[0] is None, "the file conversation of the tagged file"
+    assert json.loads(cells[1])["title"] == OPEN_NAME
+    assert json.loads(cells[2])["title"] == "Team"
+    assert cells[3] is None, "a token the list does not carry is withheld"
+    assert "degraded" not in answer
+    assert SECRET_NAME not in dump(answer)
+    assert "tagroom1" not in dump(answer)
+
+
+@pytest.mark.anyio
+async def test_untagged_keeps_conversation_links_without_reading_the_list() -> None:
+    def setup(mock: respx.MockRouter) -> respx.Route:
+        guard_routes.untagged(mock)
+        return mock.get(ROOM_URL).mock(return_value=rooms_answer(*LISTED))
+
+    answer, rooms = await browse_rows(ROOM_ROWS, setup)
+
+    assert rooms.call_count == 0
+    assert all(row["Verweis"] is not None for row in answer["results"])
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", ["list", "unverifiable"])
+async def test_conversation_links_are_withheld_when_nothing_can_be_checked(failure: str) -> None:
+    def setup(mock: respx.MockRouter) -> None:
+        if failure == "list":
+            guard_routes.active(mock, ("Docs/geheim.txt", SECRET_ID, False))
+        else:
+            guard_routes.unverifiable(mock)
+        mock.get(ROOM_URL).mock(return_value=httpx.Response(500))
+
+    answer, _ = await browse_rows(ROOM_ROWS, setup)
+
+    assert [row["Verweis"] for row in answer["results"]] == [None, None, None, None]
+    assert answer["degraded"] == DEGRADED
+    assert SECRET_NAME not in dump(answer)
+
+
+@pytest.mark.anyio
+async def test_fetch_table_withholds_a_link_to_a_tagged_file_conversation() -> None:
+    def setup(mock: respx.MockRouter) -> None:
+        guard_routes.active(mock, ("Docs/geheim.txt", SECRET_ID, False))
+        mock.get(ROOM_URL).mock(return_value=rooms_answer(*LISTED))
+
+    result, _ = await fetch_table([HEADER, ["a", room_link("tagroom1", SECRET_NAME)]], setup)
+
+    assert SECRET_NAME not in dump(result)
+    assert "tagroom1" not in dump(result)
 
 
 @pytest.mark.anyio
