@@ -165,12 +165,16 @@ async def search(
             "note": SEARCH_NOTE,
             "degraded": [withhold.degraded_entry("source")],
         }
-    # D-28-19: a tagged folder does not exist as a search root. It answers with the 404 of
-    # an invented root, from the same factory and before the SEARCH outcome is read.
-    if tags.excludes(path=target_folder):
-        raise dav.not_found(search_scope)
+    # D-28-17: the error of the SEARCH answers first, so a 5xx or a timeout reads alike for
+    # a tagged and an invented root (review WR-01 of phase 28). An invented root never gets
+    # past this line, because SEARCH itself answers it with a 404; a tagged root exists and
+    # arrives here with its 207.
     if isinstance(first, BaseException):
         raise first
+    # D-28-19: a tagged folder does not exist as a search root. It answers with the 404 of
+    # an invented root, from the same factory.
+    if tags.excludes(path=target_folder):
+        raise dav.not_found(search_scope)
     hits, at_ceiling = await _visible_hits(clients, tags, search_scope, term, needed, first)
 
     window = hits[offset : offset + capped]

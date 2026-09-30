@@ -458,6 +458,40 @@ async def test_files_search_answers_a_tagged_folder_like_an_invented_one(
         _assert_equal(tagged, unknown, mode, NOT_FOUND)
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", ["500", "503", "timeout"])
+async def test_files_search_answers_a_failing_search_alike(
+    failure: str, unexpected: list[str]
+) -> None:
+    """D-28-17 (review WR-01): a failing SEARCH answers a tagged and an invented root alike.
+
+    The error of the SEARCH is read before the tag decides, so the outage of the neighbour
+    request does not tell a tagged root (``File not found``) from an invented one.
+    """
+
+    def failing(mock: respx.MockRouter) -> None:
+        route = mock.route(method="SEARCH", url=DAV_ROOT)
+        if failure == "timeout":
+            route.mock(side_effect=httpx.ReadTimeout("slow"))
+        else:
+            route.mock(return_value=httpx.Response(int(failure)))
+
+    tagged, unknown = await pair(
+        "files_search",
+        {"query": "budget", "folder": "/Projekt"},
+        {"query": "budget", "folder": "/erfunden-1"},
+        ("/Projekt", f"/files/{USER}/Projekt"),
+        ("/erfunden-1", f"/files/{USER}/erfunden-1"),
+        failing,
+        failing,
+        "active",
+        unexpected,
+    )
+    assert tagged == unknown, f"tagged:  {tagged}\nunknown: {unknown}"
+    assert NOT_FOUND not in tagged, "the error of the SEARCH answers, not a missing root"
+    assert '"isError": true' in tagged
+
+
 # --- files_upload: text and the first binary chunk ------------------------------------------
 
 INVENTED_FOLDER = "/erfunden-1"
