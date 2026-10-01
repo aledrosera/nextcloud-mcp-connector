@@ -463,8 +463,8 @@ def test_other_and_similar_tags_are_never_counted(router: respx.MockRouter) -> N
 
     assert not similar.called
     assert not other.called
-    assert [entry["kind"] for entry in payload["tags"]] == ["exact", "similar"]
-    assert payload["tags"][1]["assigned"] is None
+    kinds = {entry["name"]: (entry["kind"], entry["assigned"]) for entry in payload["tags"]}
+    assert kinds == {"kein-ki": ("exact", 1), "kein-kai": ("similar", None)}
 
 
 def test_no_tag_with_a_confirmed_administrator_is_a_hint(router: respx.MockRouter) -> None:
@@ -725,7 +725,7 @@ def test_an_incomplete_deploy_environment_is_a_named_result(
     router: respx.MockRouter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def missing(env: object = None) -> object:
-        raise ToolError(message="NEXTCLOUD_URL is not set.")
+        raise ToolError(message="NEXTCLOUD_URL is not set.", hint="set it")
 
     monkeypatch.setattr(exclusion_check, "_guard", lambda request, env: "")
     monkeypatch.setattr(exclusion_check.config, "exapp_settings", missing)
