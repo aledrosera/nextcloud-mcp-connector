@@ -110,7 +110,7 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
  (completed 2026-09-28)
 
 - [x] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate (completed 2026-09-28)
-- [ ] **Phase 29: Prüfkommando und Doku** - `occ mcp_connector:exclusion:check` meldet wirkungslose Konfigurationen, die dreisprachige Doku sagt das Gemessene samt ehrlicher Grenzen
+- [x] **Phase 29: Prüfkommando und Doku** - `occ mcp_connector:exclusion:check` meldet wirkungslose Konfigurationen, die dreisprachige Doku sagt das Gemessene samt ehrlicher Grenzen (completed 2026-10-01)
 
 ## Phase Details
 
@@ -325,7 +325,7 @@ Plans:
 
 **Wave 8**
 
-- [ ] 29-09-PLAN.md , Store-Texte-Pin mit leerem Diff, alle Gates, Owner-Abnahme des Wortlauts
+- [x] 29-09-PLAN.md , Store-Texte-Pin mit leerem Diff, alle Gates, Owner-Abnahme des Wortlauts
 
 ## Progress
 
@@ -359,7 +359,7 @@ Plans:
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
 | 28. Gates und Beweise | v1.7 | 12/12 | Complete    | 2026-10-01 |
-| 29. Prüfkommando und Doku | v1.7 | 8/9 | In Progress|  |
+| 29. Prüfkommando und Doku | v1.7 | 9/9 | Complete   | 2026-10-01 |
 
 ## Coverage v1.7
 

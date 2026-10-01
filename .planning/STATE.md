@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: executing
-stopped_at: Completed 29-08-PLAN.md
-last_updated: "2026-10-01T07:30:41.000Z"
+status: verifying
+stopped_at: Completed 29-09-PLAN.md
+last_updated: "2026-10-01T10:23:35.122Z"
 last_activity: 2026-10-01
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 38
-  completed_plans: 37
-  percent: 80
+  completed_plans: 38
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-09-26)
 ## Current Position
 
 Phase: 29
-Plan: 9 of 9 (29-01 bis 29-08 fertig)
-Status: Ready to execute
+Plan: 9 of 9 (29-01 bis 29-09 fertig)
+Status: Phase complete, ready for verification
 Last activity: 2026-10-01
 
-Progress: [██████████] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -216,6 +216,7 @@ Progress: [██████████] 97%
 | Phase 29 P01 | 25min | 2 tasks | 2 files |
 | Phase 29 P03 | 25min | 2 tasks | 4 files |
 | Phase 29 P04 | 35min | 2 tasks | 3 files |
+| Phase 29 P09 | 60min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -773,6 +774,7 @@ Recent decisions affecting current work:
 - [Phase 29]: 29-07: Hinweis ohne --admin in der Doku aus NO_VISIBLE_TAG_SENTENCE (f016f8f) zitiert, nicht aus dem 29-06-Livetext; M4-Zählgrenze (instanzweit, Papierkorb) im Abschnitt check-command
 - [Phase 29]: 29-07: Doku-Wahrheitstest prüft Link-Auflösung ohne die Schwester-Sprachseiten (eigener Test plus Existenztest), damit EN/DE vor FR grün sind
 - [Phase 29]: 29-08: FR-Seite mit Menüpfad "Paramètres d'administration > Paramètres de base > Étiquettes collaboratives" (M9); README-Abschnitt je Sprache vier Zeilen vor der Sicherheits-Überschrift; DOC-03 erst mit 29-09 abhaken
+- [Phase 29]: 29-09: Store-Texte per SHA-256 seit ca157b4 gepinnt; Doku-Wortlaut nach vier Owner-Korrekturen am 2026-10-01 freigegeben (a9ec7ad)
 
 ### Pending Todos
 
@@ -828,9 +830,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T07:30:41.000Z
-Stopped at: Completed 29-08-PLAN.md
-Nächster Schritt: 29-09 (OPS-01, DOC-03); Doku-Wahrheitstest vollständig grün (39 Fälle)
+Last session: 2026-10-01T10:23:22.167Z
+Stopped at: Completed 29-09-PLAN.md
+Nächster Schritt: code-review 29, verify 29, secure-phase 29, Push-Entscheid durch den Owner (Doku-Wortlaut am 2026-10-01 freigegeben)
 Resume file: None
 
 ## Operator Next Steps
