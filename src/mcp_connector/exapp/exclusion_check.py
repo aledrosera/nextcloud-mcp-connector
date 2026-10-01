@@ -61,8 +61,10 @@ from ..nextcloud.exclusion_audit import (
     KIND_EXACT,
     KIND_SIMILAR,
     KIND_VARIANT,
+    MODE_NONE,
     MODE_ORGANISATION,
     MODE_SELF_SERVICE,
+    OUTCOME_SKIPPED,
     STEP_ADMIN_IDENTITY,
     STEP_ASSIGNMENT_COUNT,
     STEP_NO_VARIANTS,
@@ -70,6 +72,7 @@ from ..nextcloud.exclusion_audit import (
     STEP_TAG_EXISTS,
     STEP_TAG_LISTING_READABLE,
     STEP_TAG_VISIBLE,
+    STEPS,
     AuditResult,
     AuditStep,
     TagFacts,
@@ -273,7 +276,7 @@ def exclusion_check_routes(
             logger.error("the exclusion check could not run: %s", type(exc).__name__)
             if as_json:
                 return json_response(
-                    {"checked": False, "passed": False, "error": type(exc).__name__}
+                    _machine_readable(_NOTHING_CHECKED, reason=None, error=type(exc).__name__)
                 )
             return _text(f"the exclusion check could not run: {type(exc).__name__}\n")
         return answer
@@ -404,9 +407,26 @@ async def _facts(
     )
 
 
+#: The verdict of a run that ended before any read: every step skipped, nothing checked.
+_NOTHING_CHECKED: Final[AuditResult] = AuditResult(
+    checked=False,
+    passed=False,
+    mode=MODE_NONE,
+    assigned=None,
+    unprotected=None,
+    admin_checked=False,
+    steps=tuple(AuditStep(step, OUTCOME_SKIPPED) for step in STEPS),
+    tags=(),
+)
+
+
 def _refusal(sentence: str) -> tuple[dict[str, Any], str]:
-    """A run that ended before any read: nothing checked, the reason named."""
-    return {"checked": False, "passed": False, "reason": sentence}, sentence + "\n"
+    """A run that ended before any read: nothing checked, the reason named.
+
+    The JSON carries every key of a checked run (29-REVIEW IN-01), so a script that reads
+    ``mode`` or walks ``steps`` gets ``null`` and seven skipped steps, never a KeyError.
+    """
+    return _machine_readable(_NOTHING_CHECKED, reason=sentence), sentence + "\n"
 
 
 def _finish(
@@ -511,11 +531,15 @@ def _line(step: AuditStep) -> str:
     return line
 
 
-def _machine_readable(result: AuditResult, *, reason: str | None) -> dict[str, Any]:
+def _machine_readable(
+    result: AuditResult, *, reason: str | None, error: str | None = None
+) -> dict[str, Any]:
     """The same verdict for a script; ``passed`` is what it watches, the exit code is 0.
 
     ``mode`` is ``None`` for a run that checked nothing, so a failure can never be read as
-    "no tag" (T-29-16). Tags carry name, access, groups, count and kind, never an id.
+    "no tag" (T-29-16). Tags carry name, access, groups, count and kind, never an id. Every
+    path answers with the same keys; ``error`` names the exception type of a run that could
+    not complete and is ``None`` otherwise.
     """
     return {
         "checked": result.checked,
@@ -525,6 +549,7 @@ def _machine_readable(result: AuditResult, *, reason: str | None) -> dict[str, A
         "unprotected": result.unprotected,
         "admin_checked": result.admin_checked,
         "reason": reason,
+        "error": error,
         "steps": [
             {
                 "step": step.step,

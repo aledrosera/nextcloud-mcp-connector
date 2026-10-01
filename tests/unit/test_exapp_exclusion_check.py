@@ -96,6 +96,23 @@ ADMIN_NO = {"ocs": {"meta": {"status": "failure", "statuscode": 403, "message": 
 
 WRITE_METHODS = ("PROPPATCH", "POST", "PUT", "DELETE", "MKCOL", "MOVE", "COPY", "REPORT")
 
+#: The keys every JSON answer carries, on every path (29-REVIEW IN-01).
+JSON_KEYS = frozenset(
+    {
+        "checked",
+        "passed",
+        "mode",
+        "assigned",
+        "unprotected",
+        "admin_checked",
+        "reason",
+        "error",
+        "steps",
+        "tags",
+        "limit",
+    }
+)
+
 
 # --- fixtures and helpers -----------------------------------------------------------------
 
@@ -815,9 +832,42 @@ def test_an_exception_is_reported_by_type_and_never_by_message(
 
     assert response.status_code == 200
     assert "RuntimeError" in response.text
-    assert payload == {"checked": False, "passed": False, "error": "RuntimeError"}
+    assert payload["checked"] is False
+    assert payload["passed"] is False
+    assert payload["error"] == "RuntimeError"
+    assert payload["mode"] is None
+    assert set(payload) == JSON_KEYS
     for body in (response.text, json.dumps(payload), caplog.text):
         assert "geheim" not in body
+
+
+def test_every_path_answers_with_the_same_json_keys(
+    router: respx.MockRouter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """IN-01: a refusal, an exception and a checked run share one schema."""
+    admin_proof(router, ADMIN_YES)
+    tag_listing(router, listing(tag("195", "kein-ki", groups="")))
+    tag_count(router, "195", 1)
+
+    checked = call(admin=ADMIN_UID, as_json=True).json()
+    refused = call(admin="chk\x00adm", as_json=True).json()
+
+    def missing(env: object = None) -> object:
+        raise ToolError(message="NEXTCLOUD_URL is not set.", hint="set it")
+
+    monkeypatch.setattr(exclusion_check, "_guard", lambda request, env: "")
+    monkeypatch.setattr(exclusion_check.config, "exapp_settings", missing)
+    deploy = call(admin=ADMIN_UID, as_json=True).json()
+
+    for payload in (checked, refused, deploy):
+        assert set(payload) == JSON_KEYS
+    for payload in (refused, deploy):
+        assert payload["mode"] is None
+        assert payload["error"] is None
+        assert payload["tags"] == []
+        assert [entry["step"] for entry in payload["steps"]] == list(exclusion_audit.STEPS)
+        assert {entry["outcome"] for entry in payload["steps"]} == {"skipped"}
+    assert checked["error"] is None
 
 
 def test_an_incomplete_deploy_environment_is_a_named_result(
