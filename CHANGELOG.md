@@ -9,6 +9,13 @@ All notable changes to this app are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Fork olivia
+
+- 0.4.0-olivia.1 (2026-10-01): merges upstream 0.4.0. `files_read_as_markdown` is not offered
+  (not registered, and the image carries no `documents` extra); Office and PDF files go out as
+  download links. The `kein-ki` tag also covers the fork's own paths: download links and their
+  /dl route, upload links and their /ul route, and Nextcloud files attached to a mail draft.
+
 ## [Unreleased]
 
 ## [0.4.0] - 2026-10-01

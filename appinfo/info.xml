@@ -185,7 +185,7 @@ Prérequis :
 			  -
 			  - Upstream the tag follows the version. In the olivia fork it does not: the version
 			  - element stays the upstream number, which AppAPI validates, and the image tag
-			  - carries the fork counter (0.3.2-olivia.N), because AppAPI pulls exactly the tag
+			  - carries the fork counter (0.4.0-olivia.N), because AppAPI pulls exactly the tag
 			  - named here. The fork's release workflow refuses a tag push whose tag, without
 			  - the leading v, disagrees with this image tag, and tests/unit/test_exapp_env_setup.py
 			  - accepts exactly that one deviation from the version element.
@@ -197,7 +197,7 @@ Prérequis :
 			-->
 			<registry>ghcr.io</registry>
 			<image>street1983nk/mcp_connector</image>
-			<image-tag>0.3.2-olivia.4</image-tag>
+			<image-tag>0.4.0-olivia.1</image-tag>
 		</docker-install>
 		<!--
 		  - Exactly fifteen routes, and they are the whole external attack surface of this app.

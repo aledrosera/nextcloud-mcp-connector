@@ -33,7 +33,9 @@ COPY src ./src
 # --no-dev leaves pytest, ruff, pyright and vulture out.
 # --no-editable installs the package itself into the environment, so the runtime stage
 # needs the virtual environment alone and never a copy of src.
-RUN uv sync --frozen --no-dev --no-editable --extra documents
+# No --extra documents (fork olivia): files_read_as_markdown is not registered, so the
+# Office and PDF parsers would only be dead weight and attack surface in the image.
+RUN uv sync --frozen --no-dev --no-editable
 
 # --------------------------------------------------------------------------------------
 # Runtime stage
