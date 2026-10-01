@@ -1387,6 +1387,12 @@ ensure_talk_room alice "${ALICE_PASSWORD}" "${TALK_ROOM_LOCKED_KEY}" "${TALK_ROO
 if [ "${DISABLE_BRUTEFORCE}" -eq 1 ]; then
   occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean >/dev/null
   echo "bruteforce protection: disabled (test instance)"
+  # The per-user rate limits of the OCS routes are a second, separate guard. The canary
+  # world creates and removes shares in four modes within a minute, and on the first CI
+  # run on 35.0.1 (run 36810316714) the share creation answered 429 after the second
+  # mode. Same reasoning, same scope: test instance only.
+  occ config:system:set ratelimit.protection.enabled --value=false --type=boolean >/dev/null
+  echo "rate limit protection: disabled (test instance)"
 else
   echo "bruteforce protection: left enabled (public instance)"
 fi
