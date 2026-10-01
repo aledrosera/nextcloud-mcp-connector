@@ -1,0 +1,671 @@
+
+==============================================================================
+LAUF 29-01 exclusion_evidence measure 2026-10-01T05:09:17Z
+git HEAD cf7a581
+konten: admin=admin nutzer=alice nutzer2=bob
+$ php occ status
+  - installed: true
+    - version: 35.0.0.10
+    - versionstring: 35.0.0
+    - edition: 
+    - maintenance: false
+    - needsDbUpgrade: false
+    - productname: Nextcloud
+    - extendedSupport: false
+  [exit 0]
+
+== M1 ==
+PROPFIND Depth 1 /systemtags/ leerer Nutzer: status 401
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\NotAuthenticated</s:exception>
+    <s:message>No public access to this resource., AppAPIAuth has not passed, This request is not for a federated calendar, No 'Authorization: Basic' header found. Either the client didn't send one, or the server is misconfigured, No 'Authorization: Bearer' header found. Either the client didn't send one, or the server is mis-configured, No 'Authorization: Basic' header found. Either the client didn't send one, or the server is misconfigured</s:message>
+  </d:error>
+BEFUND M1 leerer AppAPI-Nutzer: status=401
+
+== M1b ==
+GET app_api users (leerer Nutzer): status 200
+  {"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":["admin","alice","bob"]}}
+PROPFIND Depth 1 als alice: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M1b nutzerliste status=200 anzahl=3; liste als alice status=207 tags=-
+
+== M1c ==
+$ php occ user:disable bob
+  The specified user is disabled
+  [exit 0]
+PROPFIND Depth 1 als deaktiviertes bob: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response></d:multistatus>
+$ php occ user:enable bob
+  The specified user is enabled
+  [exit 0]
+$ php occ user:info bob
+  - user_id: bob
+    - display_name: bob
+    - email: 
+    - cloud_id: bob@http://127.0.0.1:8082
+    - enabled: true
+    - groups:
+    - quota: none
+    - storage:
+      - free: 930421932032
+      - used: 64982036
+      - total: 930486914068
+      - relative: 0.01
+      - quota: -3
+    - first_seen: 2026-09-16T18:33:25+00:00
+    - last_seen: 2026-09-26T17:30:21+00:00
+    - user_directory: /var/www/html/data/bob
+    - backend: Database
+  [exit 0]
+CLEANUP konto-m1c: reaktiviert
+BEFUND M1c deaktiviertes Konto impersoniert: status=207
+
+== M2 ==
+$ php occ tag:add kein-ki-m2 invisible --output=json
+  {"id":"182","name":"kein-ki-m2","access":"invisible"}
+  [exit 0]
+$ php occ tag:add kein-ki-m2r restricted --output=json
+  {"id":"183","name":"kein-ki-m2r","access":"restricted"}
+  [exit 0]
+$ php occ group:add ki-m2
+  Created group "ki-m2"
+  [exit 0]
+PROPPATCH oc:groups=ki-m2 auf kein-ki-m2r (Basic admin): status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/183</d:href><d:propstat><d:prop><oc:groups/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+PROPFIND Depth 1 als admin: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/><oc:groups/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/182/</d:href><d:propstat><d:prop><oc:id>182</oc:id><oc:display-name>kein-ki-m2</oc:display-name><oc:user-visible>false</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/183/</d:href><d:propstat><d:prop><oc:id>183</oc:id><oc:display-name>kein-ki-m2r</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-m2</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+  TAG 'kein-ki-m2' visible=false assignable=false groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m2r' visible=true assignable=false groups='ki-m2' groups-status='HTTP/1.1 200 OK'
+PROPFIND Depth 1 als alice: status 403
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\Forbidden</s:exception>
+    <s:message/>
+  </d:error>
+BEFUND M2 admin status=207 sieht-unsichtbar=ja gids=ja ('ki-m2'); alice status=403 unsichtbar-gelistet=nein groups-propstat='-'
+
+== M2b ==
+GET /ocs/v2.php/cloud/groups/admin/users als admin: status 200
+  {"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":{"users":["admin"]}}}
+GET /ocs/v2.php/cloud/groups/admin/users als alice: status 403
+  {"ocs":{"meta":{"status":"failure","statuscode":403,"message":""},"data":[]}}
+BEFUND M2b admin status=200 ocs=200; alice status=403 ocs=403
+
+== M3 ==
+PUT /remote.php/dav/files/alice/m3-alice.txt (Basic alice): status 201
+PUT /remote.php/dav/files/bob/m3-bob.txt (Basic bob): status 201
+$ php occ tag:add kein-ki-m3 public --output=json
+  {"id":"184","name":"kein-ki-m3","access":"public"}
+  [exit 0]
+$ php occ tag:files:add alice/files/m3-alice.txt kein-ki-m3 public
+  public tag named kein-ki-m3 added.
+  [exit 0]
+$ php occ tag:files:add bob/files/m3-bob.txt kein-ki-m3 public
+  public tag named kein-ki-m3 added.
+  [exit 0]
+PROPFIND Depth 0 kein-ki-m3 als admin: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/184/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M3 files-object-ids als admin=0 status=207 pfadform=alice:user/files/pfad:exit0,bob:user/files/pfad:exit0
+
+== M3b ==
+PROPFIND Depth 0 kein-ki-m3 als alice: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/184/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M3b als alice status=207 files=0
+
+== M4 ==
+vor dem Löschen: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/184/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+DELETE /remote.php/dav/files/alice/m3-alice.txt (Basic): status 204
+im Papierkorb: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/184/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+$ php occ trashbin:cleanup alice
+  Remove deleted files of   alice
+  [exit 0]
+nach trashbin:cleanup: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/184/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M4 vor=0 papierkorb=0 endgültig-gelöscht=0
+
+== M6 ==
+$ php occ tag:add "Kein KI" public --output=json
+  {"id":"185","name":"Kein KI","access":"public"}
+  [exit 0]
+$ php occ tag:add keinki public --output=json
+  {"id":"186","name":"keinki","access":"public"}
+  [exit 0]
+$ php occ tag:add "kein\u2013ki" public --output=json
+  {"id":"187","name":"kein\u2013ki","access":"public"}
+  [exit 0]
+$ php occ tag:add kein-ki-m6 public --output=json
+  {"id":"188","name":"kein-ki-m6","access":"public"}
+  [exit 0]
+$ php occ tag:add KEIN-KI-M6 public --output=json
+  Tag KEIN-KI-M6 already exists
+  [exit 2]
+$ php occ tag:list --output=json
+  {"185":{"name":"Kein KI","access":"public"},"182":{"name":"kein-ki-m2","access":"invisible"},"183":{"name":"kein-ki-m2r","access":"restricted"},"184":{"name":"kein-ki-m3","access":"public"},"188":{"name":"kein-ki-m6","access":"public"},"186":{"name":"keinki","access":"public"},"187":{"name":"kein\u2013ki","access":"public"}}
+  [exit 0]
+BEFUND M6 'Kein KI' angelegt=ja gespeichert='Kein KI'; 'keinki' angelegt=ja gespeichert='keinki'; 'kein\u2013ki' angelegt=ja gespeichert='kein\u2013ki'; 'kein-ki-m6' angelegt=ja gespeichert='kein-ki-m6'; 'KEIN-KI-M6' angelegt=nein gespeichert=-
+
+== M7 ==
+$ php occ tag:add kein-ki public --output=json
+  {"id":"189","name":"kein-ki","access":"public"}
+  [exit 0]
+MKCOL /remote.php/dav/files/alice/KI-frei (Basic): status 201
+$ php occ tag:files:add alice/files/KI-frei kein-ki public
+  public tag named kein-ki added.
+  [exit 0]
+PROPFIND nc:system-tags auf KI-frei (Basic alice): status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/files/alice/KI-frei/</d:href><d:propstat><d:prop><nc:system-tags><nc:system-tag oc:can-assign="true" oc:id="189" oc:user-assignable="true" oc:user-visible="true" nc:color="">kein-ki</nc:system-tag></nc:system-tags></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M7 id=189 tag:files:add exit=0 ausgabe='public tag named kein-ki added.' tag-am-ordner-sichtbar=ja
+$ php occ tag:delete 189
+  The specified tag was deleted
+  [exit 0]
+
+== M8 ==
+$ php occ group:add ki-verantwortung
+  Created group "ki-verantwortung"
+  [exit 0]
+$ php occ group:adduser ki-verantwortung alice
+  user alice added
+  [exit 0]
+$ php occ tag:add kein-ki restricted --output=json
+  {"id":"190","name":"kein-ki","access":"restricted"}
+  [exit 0]
+$ curl -u admin:<passwort> -X PROPPATCH "http://127.0.0.1:8082/remote.php/dav/systemtags/190" -H "Content-Type: application/xml" --data '<?xml version="1.0"?><d:propertyupdate xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:set><d:prop><oc:groups>ki-verantwortung</oc:groups></d:prop></d:set></d:propertyupdate>'
+  status 207 [curl exit 0]
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/190</d:href><d:propstat><d:prop><oc:groups/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+$ curl -u admin:<passwort> -X POST "http://127.0.0.1:8082/remote.php/dav/systemtags/" -H "Content-Type: application/json" -d '{"name":"kein-ki-m8b","userVisible":true,"userAssignable":false,"groups":"ki-verantwortung"}'
+  status 201 [curl exit 0]
+PROPFIND Depth 1 als admin (Rücklesen): status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/><oc:groups/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/185/</d:href><d:propstat><d:prop><oc:id>185</oc:id><oc:display-name>Kein KI</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/190/</d:href><d:propstat><d:prop><oc:id>190</oc:id><oc:display-name>kein-ki</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-verantwortung</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/182/</d:href><d:propstat><d:prop><oc:id>182</oc:id><oc:display-name>kein-ki-m2</oc:display-name><oc:user-visible>false</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/183/</d:href><d:propstat><d:prop><oc:id>183</oc:id><oc:display-name>kein-ki-m2r</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-m2</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/184/</d:href><d:propstat><d:prop><oc:id>184</oc:id><oc:display-name>kein-ki-m3</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/188/</d:href><d:propstat><d:prop><oc:id>188</oc:id><oc:display-name>kein-ki-m6</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/191/</d:href><d:propstat><d:prop><oc:id>191</oc:id><oc:display-name>kein-ki-m8b</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-verantwortung</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/186/</d:href><d:propstat><d:prop><oc:id>186</oc:id><oc:display-name>keinki</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/187/</d:href><d:propstat><d:prop><oc:id>187</oc:id><oc:display-name>kein\u2013ki</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+  TAG 'Kein KI' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki' visible=true assignable=false groups='ki-verantwortung' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m2' visible=false assignable=false groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m2r' visible=true assignable=false groups='ki-m2' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m3' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m6' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m8b' visible=true assignable=false groups='ki-verantwortung' groups-status='HTTP/1.1 200 OK'
+  TAG 'keinki' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein\u2013ki' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+PUT systemtags-relations/files/<fileid>/190 als alice: status 201
+PUT systemtags-relations/files/<fileid>/190 als bob: status 403
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\Forbidden</s:exception>
+    <s:message>No permission to assign tag 190</s:message>
+  </d:error>
+POST /systemtags/ kein-ki-m8c als bob (vor): status 201
+$ php occ config:app:set systemtags restrict_creation_to_admin --value=true --type=boolean
+  Config value 'restrict_creation_to_admin' for app 'systemtags' is now set to '1', stored as boolean in fast cache
+  [exit 0]
+$ php occ config:app:get systemtags restrict_creation_to_admin
+  1
+  [exit 0]
+POST /systemtags/ kein-ki-m8d als bob (nach): status 403
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\Forbidden</s:exception>
+    <s:message>You don’t have permissions to create tags</s:message>
+  </d:error>
+$ php occ config:app:delete systemtags restrict_creation_to_admin
+  Config value restrict_creation_to_admin of app systemtags deleted
+  [exit 0]
+$ php occ config:app:get systemtags restrict_creation_to_admin
+  [exit 1]
+CLEANUP config restrict_creation_to_admin: entfernt
+BEFUND M8 group:add exit=0; group:adduser exit=0; tag:add restricted id=190; PROPPATCH=207; POST=201; gids[kein-ki]='ki-verantwortung'; gids[kein-ki-m8b]='ki-verantwortung'; zuweisen[alice]=201; zuweisen[bob]=403; anlegen[bob,ohne-schalter]=201; config:app:set exit=0; anlegen[bob,mit-schalter]=403; config:app:get-nach-delete exit=1
+
+== M9 ==
+$ grep -n -A2 '<admin>' apps/systemtags/appinfo/info.xml
+  34:		<admin>OCA\SystemTags\Settings\Admin</admin>
+  35-	</settings>
+  36-
+$ grep -n -A2 getSection apps/systemtags/lib/Settings/Admin.php
+  44:	public function getSection() {
+  45-		return 'server';
+  46-	}
+$ l10n apps/systemtags/l10n/de.json ['Collaborative tags'] -> 'Kollaborative Schlagworte'
+$ l10n lib/l10n/de.json ['Basic settings'] -> None
+$ l10n lib/l10n/de.json ['Administration settings'] -> 'Administrationseinstellungen'
+$ l10n core/l10n/de.json ['Administration settings'] -> None
+$ l10n apps/systemtags/l10n/de_DE.json ['Collaborative tags'] -> 'Kollaborative Schlagworte'
+$ l10n lib/l10n/de_DE.json ['Basic settings'] -> None
+$ l10n lib/l10n/de_DE.json ['Administration settings'] -> 'Administrationseinstellungen'
+$ l10n core/l10n/de_DE.json ['Administration settings'] -> None
+$ l10n apps/systemtags/l10n/fr.json ['Collaborative tags'] -> 'Étiquettes collaboratives '
+$ l10n lib/l10n/fr.json ['Basic settings'] -> None
+$ l10n lib/l10n/fr.json ['Administration settings'] -> "Paramètres d'administration"
+$ l10n core/l10n/fr.json ['Administration settings'] -> None
+BEFUND M9 menüpfad EN='Administration settings > Basic settings > Collaborative tags'; DE='Administrationseinstellungen > ? > Kollaborative Schlagworte'; DE_Sie='Administrationseinstellungen > ? > Kollaborative Schlagworte'; FR='Paramètres d'administration > ? > Étiquettes collaboratives '
+
+== CLEANUP ==
+$ php occ tag:delete 182
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 183
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 184
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 185
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 186
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 187
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 188
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 190
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 191
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 192
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:list --output=json
+  []
+  [exit 0]
+CLEANUP tag 'kein-ki-m2': entfernt
+CLEANUP tag 'kein-ki-m2r': entfernt
+CLEANUP tag 'kein-ki-m3': entfernt
+CLEANUP tag 'Kein KI': entfernt
+CLEANUP tag 'keinki': entfernt
+CLEANUP tag 'kein\u2013ki': entfernt
+CLEANUP tag 'kein-ki-m6': entfernt
+CLEANUP tag 'kein-ki': entfernt
+CLEANUP tag 'kein-ki-m8b': entfernt
+CLEANUP tag 'kein-ki-m8c': entfernt
+$ php occ group:delete ki-m2
+  Group "ki-m2" was removed
+  [exit 0]
+CLEANUP gruppe ki-m2: entfernt
+$ php occ group:delete ki-verantwortung
+  Group "ki-verantwortung" was removed
+  [exit 0]
+CLEANUP gruppe ki-verantwortung: entfernt
+DELETE /remote.php/dav/files/bob/m3-bob.txt: status 204
+DELETE /remote.php/dav/files/alice/KI-frei: status 204
+$ php occ trashbin:cleanup alice
+  Remove deleted files of   alice
+  [exit 0]
+$ php occ trashbin:cleanup bob
+  Remove deleted files of   bob
+  [exit 0]
+CLEANUP datei bob/m3-bob.txt: 404
+CLEANUP datei alice/KI-frei: 404
+ENDE LAUF 29-01 2026-10-01T05:09:50Z fehlgeschlagen=-
+
+==============================================================================
+LAUF 29-01 exclusion_evidence measure 2026-10-01T05:10:59Z
+git HEAD c14ee6a
+konten: admin=admin nutzer=alice nutzer2=bob
+$ php occ status
+  - installed: true
+    - version: 35.0.0.10
+    - versionstring: 35.0.0
+    - edition: 
+    - maintenance: false
+    - needsDbUpgrade: false
+    - productname: Nextcloud
+    - extendedSupport: false
+  [exit 0]
+
+== M1 ==
+PROPFIND Depth 1 /systemtags/ leerer Nutzer: status 401
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\NotAuthenticated</s:exception>
+    <s:message>No public access to this resource., AppAPIAuth has not passed, This request is not for a federated calendar, No 'Authorization: Basic' header found. Either the client didn't send one, or the server is misconfigured, No 'Authorization: Bearer' header found. Either the client didn't send one, or the server is mis-configured, No 'Authorization: Basic' header found. Either the client didn't send one, or the server is misconfigured</s:message>
+  </d:error>
+BEFUND M1 leerer AppAPI-Nutzer: status=401
+
+== M1c ==
+$ php occ user:disable bob
+  The specified user is disabled
+  [exit 0]
+PROPFIND Depth 1 als deaktiviertes bob: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response></d:multistatus>
+$ php occ user:enable bob
+  The specified user is enabled
+  [exit 0]
+$ php occ user:info bob
+  - user_id: bob
+    - display_name: bob
+    - email: 
+    - cloud_id: bob@http://127.0.0.1:8082
+    - enabled: true
+    - groups:
+    - quota: none
+    - storage:
+      - free: 930430140416
+      - used: 64982036
+      - total: 930495122452
+      - relative: 0.01
+      - quota: -3
+    - first_seen: 2026-09-16T18:33:25+00:00
+    - last_seen: 2026-10-01T05:09:27+00:00
+    - user_directory: /var/www/html/data/bob
+    - backend: Database
+  [exit 0]
+CLEANUP konto-m1c: reaktiviert
+BEFUND M1c deaktiviertes Konto impersoniert: status=207
+
+== M2 ==
+$ php occ tag:add kein-ki-m2 invisible --output=json
+  {"id":"193","name":"kein-ki-m2","access":"invisible"}
+  [exit 0]
+$ php occ tag:add kein-ki-m2r restricted --output=json
+  {"id":"194","name":"kein-ki-m2r","access":"restricted"}
+  [exit 0]
+$ php occ group:add ki-m2
+  Created group "ki-m2"
+  [exit 0]
+PROPPATCH oc:groups=ki-m2 auf kein-ki-m2r (Basic admin): status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/194</d:href><d:propstat><d:prop><oc:groups/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+PROPFIND Depth 1 als admin: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/><oc:groups/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/193/</d:href><d:propstat><d:prop><oc:id>193</oc:id><oc:display-name>kein-ki-m2</oc:display-name><oc:user-visible>false</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/194/</d:href><d:propstat><d:prop><oc:id>194</oc:id><oc:display-name>kein-ki-m2r</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-m2</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+  TAG 'kein-ki-m2' visible=false assignable=false groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m2r' visible=true assignable=false groups='ki-m2' groups-status='HTTP/1.1 200 OK'
+PROPFIND Depth 1 als alice: status 403
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\Forbidden</s:exception>
+    <s:message/>
+  </d:error>
+BEFUND M2 admin status=207 sieht-unsichtbar=ja gids=ja ('ki-m2'); alice status=403 unsichtbar-gelistet=nein groups-propstat='-'
+
+== M2b ==
+GET /ocs/v2.php/cloud/groups/admin/users als admin: status 200
+  {"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":{"users":["admin"]}}}
+GET /ocs/v2.php/cloud/groups/admin/users als alice: status 403
+  {"ocs":{"meta":{"status":"failure","statuscode":403,"message":""},"data":[]}}
+BEFUND M2b admin status=200 ocs=200; alice status=403 ocs=403
+
+== M3 ==
+PUT /remote.php/dav/files/alice/m3-alice.txt (Basic alice): status 201
+PUT /remote.php/dav/files/bob/m3-bob.txt (Basic bob): status 201
+$ php occ tag:add kein-ki-m3 public --output=json
+  {"id":"195","name":"kein-ki-m3","access":"public"}
+  [exit 0]
+$ php occ tag:files:add alice/files/m3-alice.txt kein-ki-m3 public
+  public tag named kein-ki-m3 added.
+  [exit 0]
+$ php occ tag:files:add bob/files/m3-bob.txt kein-ki-m3 public
+  public tag named kein-ki-m3 added.
+  [exit 0]
+PROPFIND Depth 0 kein-ki-m3 als admin: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/195/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M3 files-object-ids als admin=2 status=207 pfadform=alice:user/files/pfad:exit0,bob:user/files/pfad:exit0
+
+== M1b ==
+GET app_api users (leerer Nutzer): status 200
+  {"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":["admin","alice","bob"]}}
+PROPFIND Depth 1 als alice: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/194/</d:href><d:propstat><d:prop><oc:id>194</oc:id><oc:display-name>kein-ki-m2r</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/195/</d:href><d:propstat><d:prop><oc:id>195</oc:id><oc:display-name>kein-ki-m3</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+  TAG 'kein-ki-m2r' visible=true assignable=false groups='-' groups-status='-'
+  TAG 'kein-ki-m3' visible=true assignable=true groups='-' groups-status='-'
+BEFUND M1b nutzerliste status=200 anzahl=3; liste als alice status=207 tags='kein-ki-m2r','kein-ki-m3'
+
+== M3b ==
+PROPFIND Depth 0 kein-ki-m3 als alice: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/195/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M3b als alice status=207 files=2
+
+== M4 ==
+vor dem Löschen: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/195/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+DELETE /remote.php/dav/files/alice/m3-alice.txt (Basic): status 204
+im Papierkorb: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/195/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+$ php occ trashbin:cleanup alice
+  Remove deleted files of   alice
+  [exit 0]
+nach trashbin:cleanup: status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/195/</d:href><d:propstat><d:prop><oc:display-name>kein-ki-m3</oc:display-name><nc:object-ids><nc:object-ids><nc:id>0</nc:id><nc:type>files</nc:type></nc:object-ids><nc:object-ids><nc:id>1</nc:id><nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M4 vor=2 papierkorb=2 endgültig-gelöscht=2
+
+== M6 ==
+$ php occ tag:add "Kein KI" public --output=json
+  {"id":"196","name":"Kein KI","access":"public"}
+  [exit 0]
+$ php occ tag:add keinki public --output=json
+  {"id":"197","name":"keinki","access":"public"}
+  [exit 0]
+$ php occ tag:add "kein\u2013ki" public --output=json
+  {"id":"198","name":"kein\u2013ki","access":"public"}
+  [exit 0]
+$ php occ tag:add kein-ki-m6 public --output=json
+  {"id":"199","name":"kein-ki-m6","access":"public"}
+  [exit 0]
+$ php occ tag:add KEIN-KI-M6 public --output=json
+  Tag KEIN-KI-M6 already exists
+  [exit 2]
+$ php occ tag:list --output=json
+  {"196":{"name":"Kein KI","access":"public"},"193":{"name":"kein-ki-m2","access":"invisible"},"194":{"name":"kein-ki-m2r","access":"restricted"},"195":{"name":"kein-ki-m3","access":"public"},"199":{"name":"kein-ki-m6","access":"public"},"197":{"name":"keinki","access":"public"},"198":{"name":"kein\u2013ki","access":"public"}}
+  [exit 0]
+BEFUND M6 'Kein KI' angelegt=ja gespeichert='Kein KI'; 'keinki' angelegt=ja gespeichert='keinki'; 'kein\u2013ki' angelegt=ja gespeichert='kein\u2013ki'; 'kein-ki-m6' angelegt=ja gespeichert='kein-ki-m6'; 'KEIN-KI-M6' angelegt=nein gespeichert=-
+
+== M7 ==
+$ php occ tag:add kein-ki public --output=json
+  {"id":"200","name":"kein-ki","access":"public"}
+  [exit 0]
+MKCOL /remote.php/dav/files/alice/KI-frei (Basic): status 201
+$ php occ tag:files:add alice/files/KI-frei kein-ki public
+  public tag named kein-ki added.
+  [exit 0]
+PROPFIND nc:system-tags auf KI-frei (Basic alice): status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/files/alice/KI-frei/</d:href><d:propstat><d:prop><nc:system-tags><nc:system-tag oc:can-assign="true" oc:id="200" oc:user-assignable="true" oc:user-visible="true" nc:color="">kein-ki</nc:system-tag></nc:system-tags></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+BEFUND M7 id=200 tag:files:add exit=0 ausgabe='public tag named kein-ki added.' tag-am-ordner-sichtbar=ja
+$ php occ tag:delete 200
+  The specified tag was deleted
+  [exit 0]
+
+== M8 ==
+$ php occ group:add ki-verantwortung
+  Created group "ki-verantwortung"
+  [exit 0]
+$ php occ group:adduser ki-verantwortung alice
+  user alice added
+  [exit 0]
+$ php occ tag:add kein-ki restricted --output=json
+  {"id":"201","name":"kein-ki","access":"restricted"}
+  [exit 0]
+$ curl -u admin:<passwort> -X PROPPATCH "http://127.0.0.1:8082/remote.php/dav/systemtags/201" -H "Content-Type: application/xml" --data '<?xml version="1.0"?><d:propertyupdate xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:set><d:prop><oc:groups>ki-verantwortung</oc:groups></d:prop></d:set></d:propertyupdate>'
+  status 207 [curl exit 0]
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/201</d:href><d:propstat><d:prop><oc:groups/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+$ curl -u admin:<passwort> -X POST "http://127.0.0.1:8082/remote.php/dav/systemtags/" -H "Content-Type: application/json" -d '{"name":"kein-ki-m8b","userVisible":true,"userAssignable":false,"groups":"ki-verantwortung"}'
+  status 201 [curl exit 0]
+PROPFIND Depth 1 als admin (Rücklesen): status 207
+  <?xml version="1.0"?>
+  <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/systemtags/</d:href><d:propstat><d:prop><oc:id/><oc:display-name/><oc:user-visible/><oc:user-assignable/><oc:groups/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/196/</d:href><d:propstat><d:prop><oc:id>196</oc:id><oc:display-name>Kein KI</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/201/</d:href><d:propstat><d:prop><oc:id>201</oc:id><oc:display-name>kein-ki</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-verantwortung</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/193/</d:href><d:propstat><d:prop><oc:id>193</oc:id><oc:display-name>kein-ki-m2</oc:display-name><oc:user-visible>false</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/194/</d:href><d:propstat><d:prop><oc:id>194</oc:id><oc:display-name>kein-ki-m2r</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-m2</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/195/</d:href><d:propstat><d:prop><oc:id>195</oc:id><oc:display-name>kein-ki-m3</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/199/</d:href><d:propstat><d:prop><oc:id>199</oc:id><oc:display-name>kein-ki-m6</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/202/</d:href><d:propstat><d:prop><oc:id>202</oc:id><oc:display-name>kein-ki-m8b</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>false</oc:user-assignable><oc:groups>ki-verantwortung</oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/197/</d:href><d:propstat><d:prop><oc:id>197</oc:id><oc:display-name>keinki</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/systemtags/198/</d:href><d:propstat><d:prop><oc:id>198</oc:id><oc:display-name>kein\u2013ki</oc:display-name><oc:user-visible>true</oc:user-visible><oc:user-assignable>true</oc:user-assignable><oc:groups></oc:groups></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>
+  TAG 'Kein KI' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki' visible=true assignable=false groups='ki-verantwortung' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m2' visible=false assignable=false groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m2r' visible=true assignable=false groups='ki-m2' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m3' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m6' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein-ki-m8b' visible=true assignable=false groups='ki-verantwortung' groups-status='HTTP/1.1 200 OK'
+  TAG 'keinki' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+  TAG 'kein\u2013ki' visible=true assignable=true groups='' groups-status='HTTP/1.1 200 OK'
+PUT systemtags-relations/files/<fileid>/201 als alice: status 201
+PUT systemtags-relations/files/<fileid>/201 als bob: status 403
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\Forbidden</s:exception>
+    <s:message>No permission to assign tag 201</s:message>
+  </d:error>
+POST /systemtags/ kein-ki-m8c als bob (vor): status 201
+$ php occ config:app:set systemtags restrict_creation_to_admin --value=true --type=boolean
+  Config value 'restrict_creation_to_admin' for app 'systemtags' is now set to '1', stored as boolean in fast cache
+  [exit 0]
+$ php occ config:app:get systemtags restrict_creation_to_admin
+  1
+  [exit 0]
+POST /systemtags/ kein-ki-m8d als bob (nach): status 403
+  <?xml version="1.0" encoding="utf-8"?>
+  <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+    <s:exception>Sabre\DAV\Exception\Forbidden</s:exception>
+    <s:message>You don’t have permissions to create tags</s:message>
+  </d:error>
+$ php occ config:app:delete systemtags restrict_creation_to_admin
+  Config value restrict_creation_to_admin of app systemtags deleted
+  [exit 0]
+$ php occ config:app:get systemtags restrict_creation_to_admin
+  [exit 1]
+CLEANUP config restrict_creation_to_admin: entfernt
+BEFUND M8 group:add exit=0; group:adduser exit=0; tag:add restricted id=201; PROPPATCH=207; POST=201; gids[kein-ki]='ki-verantwortung'; gids[kein-ki-m8b]='ki-verantwortung'; zuweisen[alice]=201; zuweisen[bob]=403; anlegen[bob,ohne-schalter]=201; config:app:set exit=0; anlegen[bob,mit-schalter]=403; config:app:get-nach-delete exit=1
+
+== M9 ==
+$ grep -n -A2 '<admin>' apps/systemtags/appinfo/info.xml
+  34:		<admin>OCA\SystemTags\Settings\Admin</admin>
+  35-	</settings>
+  36-
+$ grep -n -A2 getSection apps/systemtags/lib/Settings/Admin.php
+  44:	public function getSection() {
+  45-		return 'server';
+  46-	}
+$ l10n apps/systemtags/l10n/de.json ['Collaborative tags'] -> 'Kollaborative Schlagworte'
+$ l10n apps/settings/l10n/de.json ['Basic settings'] -> 'Grundeinstellungen'
+$ l10n lib/l10n/de.json ['Administration settings'] -> 'Administrationseinstellungen'
+$ l10n core/l10n/de.json ['Administration settings'] -> None
+$ l10n apps/systemtags/l10n/de_DE.json ['Collaborative tags'] -> 'Kollaborative Schlagworte'
+$ l10n apps/settings/l10n/de_DE.json ['Basic settings'] -> 'Grundeinstellungen'
+$ l10n lib/l10n/de_DE.json ['Administration settings'] -> 'Administrationseinstellungen'
+$ l10n core/l10n/de_DE.json ['Administration settings'] -> None
+$ l10n apps/systemtags/l10n/fr.json ['Collaborative tags'] -> 'Étiquettes collaboratives '
+$ l10n apps/settings/l10n/fr.json ['Basic settings'] -> 'Paramètres de base'
+$ l10n lib/l10n/fr.json ['Administration settings'] -> "Paramètres d'administration"
+$ l10n core/l10n/fr.json ['Administration settings'] -> None
+BEFUND M9 menüpfad EN='Administration settings > Basic settings > Collaborative tags'; DE='Administrationseinstellungen > Grundeinstellungen > Kollaborative Schlagworte'; DE_Sie='Administrationseinstellungen > Grundeinstellungen > Kollaborative Schlagworte'; FR='Paramètres d'administration > Paramètres de base > Étiquettes collaboratives '
+
+== CLEANUP ==
+$ php occ tag:delete 193
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 194
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 195
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 196
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 197
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 198
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 199
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 201
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 202
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:delete 203
+  The specified tag was deleted
+  [exit 0]
+$ php occ tag:list --output=json
+  []
+  [exit 0]
+CLEANUP tag 'kein-ki-m2': entfernt
+CLEANUP tag 'kein-ki-m2r': entfernt
+CLEANUP tag 'kein-ki-m3': entfernt
+CLEANUP tag 'Kein KI': entfernt
+CLEANUP tag 'keinki': entfernt
+CLEANUP tag 'kein\u2013ki': entfernt
+CLEANUP tag 'kein-ki-m6': entfernt
+CLEANUP tag 'kein-ki': entfernt
+CLEANUP tag 'kein-ki-m8b': entfernt
+CLEANUP tag 'kein-ki-m8c': entfernt
+$ php occ group:delete ki-m2
+  Group "ki-m2" was removed
+  [exit 0]
+CLEANUP gruppe ki-m2: entfernt
+$ php occ group:delete ki-verantwortung
+  Group "ki-verantwortung" was removed
+  [exit 0]
+CLEANUP gruppe ki-verantwortung: entfernt
+DELETE /remote.php/dav/files/bob/m3-bob.txt: status 204
+DELETE /remote.php/dav/files/alice/KI-frei: status 204
+$ php occ trashbin:cleanup alice
+  Remove deleted files of   alice
+  [exit 0]
+$ php occ trashbin:cleanup bob
+  Remove deleted files of   bob
+  [exit 0]
+CLEANUP datei bob/m3-bob.txt: 404
+CLEANUP datei alice/KI-frei: 404
+ENDE LAUF 29-01 2026-10-01T05:11:33Z fehlgeschlagen=-
+
+==============================================================================
+ZUSAMMENFASSUNG 29-01 (von Hand, 2026-10-01)
+
+Maßgeblich ist Lauf 2 (Commit c14ee6a). Lauf 1 (Commit cf7a581) bleibt als Rohbeleg stehen:
+dort zählte das Skript nc:object-id statt der tatsächlich gelieferten inneren nc:object-ids
+und meldete deshalb M3, M3b und M4 mit 0; M1b lief vor der Tag-Anlage und sah darum kein Tag.
+
+A1 bestätigt: PROPFIND /systemtags/ mit leerem AppAPI-Nutzer antwortet 401 (M1, beide Läufe).
+A2 bestätigt: impersonierter admin sieht das unsichtbare Tag (user-visible=false) und liefert gids ('ki-m2') mit Propstat 200 (M2).
+A3 bestätigt: cloud/groups/admin/users als admin 200 (ocs 200, users ["admin"]), als alice 403 (ocs 403) (M2b).
+A4 bestätigt und erweitert: nc:object-ids zählt die Datei im Papierkorb weiter (2 vor, 2 im Papierkorb) und auch nach occ trashbin:cleanup noch (2) (M4).
+A5 bestätigt: occ config:app:set systemtags restrict_creation_to_admin --value=true --type=boolean, Exit 0, "stored as boolean"; danach legt bob kein Tag mehr an (403, vorher 201) (M8).
+A6 bestätigt: occ tag:files:add alice/files/<pfad> kein-ki-m3 public, Exit 0, "public tag named kein-ki-m3 added." (Form ohne führenden Schrägstrich; die Form mit Schrägstrich wurde nicht gebraucht und nicht gemessen) (M3, M7).
+A7 bestätigt: Admin-Formular der systemtags-App liegt im Abschnitt "server" (Admin.php getSection), Menüpfad siehe DOKU (M9).
+A8 bestätigt: occ group:add ki-verantwortung und occ group:adduser ki-verantwortung alice, beide Exit 0 (M8).
+
+Neue Befunde, die 29-03 beachten muss:
+- P2 tritt ein: fordert ein Nicht-Admin (alice) in der Listing-PROPFIND oc:groups an, kippt die GANZE Antwort auf 403 (Sabre Forbidden), nicht nur das Propstat (M2). Ohne Admin-Nachweis darf der Handler oc:groups nie anfordern.
+- Serialisierung von nc:object-ids: jede Zuordnung ist ein inneres <nc:object-ids> mit <nc:id> und <nc:type>files</nc:type>; nc:id ist ein laufender Index (0, 1), keine fileid (M3). Zählen = innere nc:object-ids mit nc:type=files.
+- Ein mit occ user:disable deaktiviertes Konto antwortet unter AppAPI-Impersonation weiter mit 207 (M1c). Eine Überspringregel "401 = deaktiviert" greift also nicht; deaktivierte Konten liefern eine normale Nutzersicht.
+- Die AppAPI-Nutzerliste mit leerem Nutzer liefert 200 und 3 Konten (admin, alice, bob) (M1b); alice sieht public (kein-ki-m3, assignable=true) und restricted (kein-ki-m2r, assignable=false), nicht das unsichtbare kein-ki-m2 (M1b), und zählt auf dem public-Tag dieselbe instanzweite Zahl wie admin (2) (M3b).
+
+ENTSCHEID admin-nachweis=b: GET /ocs/v2.php/cloud/groups/admin/users unter Impersonation der genannten uid; 200 = Admin, 403 (ocs 403) = kein Admin. b trennt sauber und entscheidet auch auf einer Instanz ohne Tag. Kandidat a scheidet aus, weil oc:groups beim Nicht-Admin die ganze PROPFIND auf 403 kippt (M2), also kein Propstat-Urteil möglich ist.
+ENTSCHEID ohne-admin=erstes Konto (sortiert) der AppAPI-Nutzerliste, das die Tag-Liste mit 207 beantwortet (höchstens 5 Versuche, Konten mit anderem Status werden übersprungen); nur user-visible=true wird ausgewertet, oc:groups wird nicht angefordert, der Kontoname erscheint nie in der Ausgabe. Gemessene Einschränkung: auch deaktivierte Konten antworten mit 207 (M1c), das ist unschädlich, weil die Zählung über nc:object-ids instanzweit und nicht nutzergefiltert ist (M3b = M3 = 2); ist das erste Konto ein Admin, filtert die Auswertung auf user-visible=true, damit die Ausgabe ohne --admin nie unsichtbare Tags nennt.
+
+DOKU papierkorb: Die Zahl zählt Zuordnungen, auch von Dateien im Papierkorb, und auf nc35 sogar nach dem endgültigen Löschen per occ trashbin:cleanup weiter (gemessen 2 vor, 2 im Papierkorb, 2 danach).
+DOKU gross-klein: Nextcloud lehnt ein neues Tag ab, das sich nur in Groß/Klein von einem bestehenden unterscheidet ("Tag KEIN-KI-M6 already exists", Exit 2).
+DOKU varianten: "Kein KI", "keinki" und "kein" mit Halbgeviertstrich (U+2013) und "ki" lassen sich neben "kein-ki" als eigene Tags anlegen und werden unverändert gespeichert (M6).
+DOKU menüpfad: EN "Administration settings > Basic settings > Collaborative tags"; DE (du und Sie) "Administrationseinstellungen > Grundeinstellungen > Kollaborative Schlagworte"; FR "Paramètres d'administration > Paramètres de base > Étiquettes collaboratives" (l10n-Dateien nc35, M9; Screenshot nicht erstellt).
+DOKU public: Ein public-Tag ist für alice sichtbar und zuweisbar (assignable=true, M1b); dass jeder Nutzer mit Zugriff auf die Datei es auch wieder entfernen kann, folgt aus dem Quelltext (canUserAssignTag), in 29-01 nicht gemessen.
+DOKU restricted: Bei restricted mit Gruppe ki-verantwortung weist alice (Mitglied) zu (201), bob (kein Mitglied) nicht (403) (M8). Gruppen-Delegation per curl PROPPATCH (207) oder POST mit "groups" (201), gids danach als admin zurückgelesen.
+DOKU restrict_creation_to_admin: ohne Schalter legt ein normales Konto (bob) Tags an (201), mit Schalter nicht (403) (M8).
+DOKU gruppen-cli: Es gibt kein occ-Kommando für die Gruppen-Delegation; Weg ist Web-UI (Menüpfad oben) oder WebDAV als Admin (curl-Zeilen in M8).
+
+Testinstanz zurückgebaut: alle Tags, beide Gruppen, die Dateien und der Konfigschlüssel sind entfernt und zurückgelesen (CLEANUP-Zeilen beider Läufe); bob ist reaktiviert.
+STATUS: nicht BLOCKED (A2 bestätigt, Kandidat b trennt).
