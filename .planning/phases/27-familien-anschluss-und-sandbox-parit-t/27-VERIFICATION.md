@@ -1,8 +1,8 @@
 ---
 phase: 27-familien-anschluss-und-sandbox-parit-t
 verified: 2026-09-28T12:00:00Z
-status: human_needed
-score: 11/12 must-haves verified (1 davon PASSED per Owner-Abnahme, 1 offen als Human-Verification)
+status: passed
+score: 12/12 must-haves verified (1 davon PASSED per Owner-Abnahme, SBX-01 per CI-Lauf 36861555478)
 overrides_applied: 1
 overrides:
   - must_have: "Die Wanduhr von prepare_context liegt gemessen im Rahmen der Phase-25-Referenz (Roadmap-Erfolgskriterium 2; Median ≤ 0,88 s short / ≤ 0,97 s full, je 5 Läufe, frisches NcClients je Aufruf)"
@@ -141,3 +141,7 @@ Offen bleibt allein der CI-Nachweis für den Findling-Teil (SBX-01), deshalb hum
 
 _Verified: 2026-09-28_
 _Verifier: Claude (gsd-verifier)_
+
+## Nachtrag 2026-10-01
+
+Offener Punkt erledigt: CI-Lauf 36861555478 auf 5a89219 (Push nach Owner-Freigabe), Job `exapp`, Schritt "Findling hits run through sandbox and exclusion (SBX-01)" success, pytest meldet `1 passed in 13.15s`, kein Skip. Damit ist SBX-01 auch im Findling-Teil gegen einen echten Findling belegt. Status human_needed -> passed.
