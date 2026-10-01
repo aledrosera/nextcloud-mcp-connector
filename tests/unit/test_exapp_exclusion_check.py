@@ -26,6 +26,7 @@ Every Nextcloud answer comes from respx; the bodies follow the nc35 measurements
 with a word the answer has to contain, such as "admin" or "administrators".
 """
 
+import asyncio
 import base64
 import json
 from collections.abc import Iterator
@@ -973,22 +974,44 @@ def test_the_handler_writes_no_audit_entry(
     assert "audit.store" not in source
 
 
-def test_the_client_provider_is_the_one_used(router: respx.MockRouter) -> None:
+def test_the_client_provider_is_the_one_used() -> None:
+    """IN-06: every Nextcloud request of a run goes through the provided client's transport.
+
+    No respx here on purpose: respx patches every httpx transport, so a handler that ignored
+    the provider and used the shared client would pass a respx based test unnoticed.
+    """
+    seen: list[tuple[str, str]] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.method == "GET" and str(request.url).startswith(ADMIN_USERS):
+            return httpx.Response(200, json=ADMIN_YES)
+        if request.method == "PROPFIND" and str(request.url) == TAGS:
+            return multistatus(listing())
+        return httpx.Response(599)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(answer))
     provided: list[httpx.AsyncClient] = []
 
     def provider() -> httpx.AsyncClient:
-        client = httpx.AsyncClient()
         provided.append(client)
         return client
 
-    admin_proof(router, ADMIN_YES)
-    tag_listing(router, listing())
     routes = exclusion_check.exclusion_check_routes(ENV, client_provider=provider)
     payload = {"occ": {"options": {"admin": ADMIN_UID, "json": True}}}
+    try:
+        response = TestClient(Starlette(routes=routes)).post(
+            exclusion_check.EXCLUSION_CHECK_PATH, json=payload, headers=appapi_headers()
+        )
+    finally:
+        asyncio.run(client.aclose())
 
-    response = TestClient(Starlette(routes=routes)).post(
-        exclusion_check.EXCLUSION_CHECK_PATH, json=payload, headers=appapi_headers()
-    )
-
-    assert response.json()["checked"] is True
-    assert provided
+    document = response.json()
+    assert document["checked"] is True
+    assert document["admin_checked"] is True
+    assert provided == [client]
+    assert seen == [
+        ("GET", "/ocs/v2.php/cloud/groups/admin/users"),
+        ("PROPFIND", "/remote.php/dav/systemtags/"),
+    ]
+    assert client.is_closed
