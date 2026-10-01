@@ -15,7 +15,7 @@ You bring the model, and no content leaves your server.
 
 ## What it does
 
-- 22 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
+- 23 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
   Mail and cloud wide search
 - OAuth 2.1 to the MCP authorization specification: dynamic client registration, PKCE S256,
   audience bound tokens, refresh rotation with reuse detection and immediate revocation.
@@ -58,6 +58,7 @@ the live registry and fails if a name or a level disagrees with it.
 | `files_list` | read | The direct children of a folder, with size and modification time |
 | `files_read` | read | The content of one file |
 | `files_download` | read | Any-size file as bounded embedded-resource chunks |
+| `files_read_as_markdown` | read | A DOCX, XLSX, PPTX or PDF file converted to Markdown, in slices |
 | `files_upload` | create-only | A new text file or any-size binary upload in base64 chunks; an existing path is refused, never overwritten |
 | `calendar_list_events` | read | Events in an explicit time range, with an explicit time zone |
 | `calendar_create_event` | create-only | A new event; existing events are never changed |

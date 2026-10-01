@@ -18,7 +18,7 @@ jobs:
         with:
           enable-cache: true
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --frozen --extra documents
       # ruff runs over the whole repository, not over src: a lint gate that only sees the
       # package lets scripts, tests and the whitelist rot.
       - name: Lint
@@ -192,7 +192,7 @@ jobs:
           docker compose -f compose.exapp.yml exec -T --user www-data nextcloud             php occ app_api:app:list | tee exapp-list.txt
           grep -E 'mcp_connector .*\[enabled\]' exapp-list.txt
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --frozen --extra documents
       - name: Canary and pair proofs of the kein-ki exclusion (GATE-02, GATE-03)
         # Every tool of the registry is called against a canary tagged kein-ki, in the normal
         # state and in three forced outages of the tag REPORT, and no answer may carry its
@@ -259,7 +259,7 @@ jobs:
       - name: Bootstrap apps, users, calendar and address book
         run: bash scripts/bootstrap_test_nc.sh
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --frozen --extra documents
       - name: Integration tests against Nextcloud
         run: |
           set -a && . ./.env.test && set +a

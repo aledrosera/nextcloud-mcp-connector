@@ -58,6 +58,7 @@ TAGS = (TAGGED_FILE, TAGGED_FOLDER)
 COVERED = {
     ("files_read", "path"),
     ("files_download", "path"),
+    ("files_read_as_markdown", "path"),
     ("files_list", "folder"),
     ("files_search", "folder"),
     ("files_upload", "text"),
@@ -285,6 +286,30 @@ async def test_files_read_answers_a_tagged_path_like_a_missing_one(
         )
         _assert_equal(tagged, unknown, mode, NOT_FOUND)
         assert '"isError": true' in tagged
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", GUARD_MODES)
+async def test_files_read_as_markdown_answers_a_tagged_path_like_a_missing_one(
+    mode: str, unexpected: list[str]
+) -> None:
+    # The mocked file is text/plain, which the converter refuses for an untagged path; a
+    # tagged one must answer "not found" before its type is ever looked at.
+    for path, fileid in TAGGED_READ_TARGETS:
+        tagged, unknown = await pair(
+            "files_read_as_markdown",
+            {"path": path},
+            {"path": UNKNOWN_PATH},
+            path,
+            UNKNOWN_PATH,
+            _existing_file(path, fileid),
+            _missing(UNKNOWN_PATH),
+            mode,
+            unexpected,
+        )
+        _assert_equal(tagged, unknown, mode, NOT_FOUND)
+        assert '"isError": true' in tagged
+        assert "text already" not in tagged
 
 
 @pytest.mark.anyio

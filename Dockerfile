@@ -33,7 +33,7 @@ COPY src ./src
 # --no-dev leaves pytest, ruff, pyright and vulture out.
 # --no-editable installs the package itself into the environment, so the runtime stage
 # needs the virtual environment alone and never a copy of src.
-RUN uv sync --frozen --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-editable --extra documents
 
 # --------------------------------------------------------------------------------------
 # Runtime stage

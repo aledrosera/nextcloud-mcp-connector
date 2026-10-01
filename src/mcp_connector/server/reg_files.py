@@ -69,6 +69,18 @@ async def files_read(
 
 @mcp.tool(annotations=READ_ONLY, structured_output=False)
 @graceful
+async def files_read_as_markdown(
+    path: Annotated[str, Field(description="Path of the document, e.g. /Docs/policy.docx")],
+    offset: Annotated[int, Field(ge=0, description="Character offset for a continued read")] = 0,
+    ctx: Context | None = None,
+) -> str:
+    """Read a DOCX, XLSX, PPTX or PDF file as Markdown, truncated with a next offset when long."""
+    clients = deps.resolve_clients(ctx)
+    return compact(await files_tools.read_as_markdown(clients, path=path, offset=offset))
+
+
+@mcp.tool(annotations=READ_ONLY, structured_output=False)
+@graceful
 async def files_download(
     path: Annotated[str, Field(description="Path of the file to download, e.g. /Docs/scan.pdf")],
     offset: Annotated[

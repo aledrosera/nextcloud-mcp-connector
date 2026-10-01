@@ -33,7 +33,10 @@ Tool = Callable[[NcClients, str], Awaitable[dict[str, Any]]]
 TOOLS: dict[str, Tool] = {
     "read": lambda clients, path: files_tools.read(clients, path=path),
     "download": lambda clients, path: files_tools.download(clients, path=path),
+    "read_as_markdown": lambda clients, path: files_tools.read_as_markdown(clients, path=path),
 }
+#: The three readers of one path; every refusal pair below holds for each of them.
+READERS = ["read", "download", "read_as_markdown"]
 
 
 @pytest.fixture(autouse=True)
@@ -128,7 +131,7 @@ async def test_untagged_answers_as_before_and_sends_no_report(name: str) -> None
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("name", ["read", "download"])
+@pytest.mark.parametrize("name", READERS)
 async def test_a_tagged_file_answers_like_a_missing_one(name: str) -> None:
     tool = TOOLS[name]
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
@@ -150,7 +153,12 @@ async def test_a_tagged_file_answers_like_a_missing_one(name: str) -> None:
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    ("name", "path"), [("read", "/Projekt/a.txt"), ("download", "/Projekt/a.pdf")]
+    ("name", "path"),
+    [
+        ("read", "/Projekt/a.txt"),
+        ("download", "/Projekt/a.pdf"),
+        ("read_as_markdown", "/Projekt/a.docx"),
+    ],
 )
 async def test_a_file_below_a_tagged_folder_answers_like_a_missing_one(
     name: str, path: str
@@ -172,7 +180,7 @@ async def test_a_file_below_a_tagged_folder_answers_like_a_missing_one(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("name", ["read", "download"])
+@pytest.mark.parametrize("name", READERS)
 async def test_a_tagged_folder_is_not_reported_as_a_folder(name: str) -> None:
     """No form check runs before the tag: "is a folder" would confirm the folder exists."""
     tool = TOOLS[name]
@@ -207,6 +215,23 @@ async def test_a_tagged_binary_file_is_not_reported_as_not_text() -> None:
 
 
 @pytest.mark.anyio
+async def test_a_tagged_text_file_is_not_reported_as_text_already() -> None:
+    """The mirror image for files_read_as_markdown: its type refusal must not come first."""
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        _stat_route(mock, "/Docs/geheim.txt", fileid="901")
+        tagged = await _refusal(TOOLS["read_as_markdown"], "/Docs/geheim.txt")
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
+        guard_routes.active(mock, ("Docs/geheim.txt", "901", False))
+        _missing_route(mock, "/Docs/geheim.txt")
+        missing = await _refusal(TOOLS["read_as_markdown"], "/Docs/geheim.txt")
+
+    assert "text already" not in tagged.message
+    assert _tuple(tagged) == _tuple(missing)
+
+
+@pytest.mark.anyio
 async def test_a_tagged_file_offset_is_not_checked_first() -> None:
     """An offset past the end would tell the size of a withheld file."""
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
@@ -219,7 +244,7 @@ async def test_a_tagged_file_offset_is_not_checked_first() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("name", ["read", "download"])
+@pytest.mark.parametrize("name", READERS)
 async def test_the_fileid_decides_when_the_spelling_differs(name: str) -> None:
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:
         guard_routes.active(mock, ("docs/Geheim.txt", "901", False))
@@ -232,7 +257,7 @@ async def test_the_fileid_decides_when_the_spelling_differs(name: str) -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("name", ["read", "download"])
+@pytest.mark.parametrize("name", READERS)
 async def test_unverifiable_refuses_existing_and_missing_paths_alike(name: str) -> None:
     tool = TOOLS[name]
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as mock:

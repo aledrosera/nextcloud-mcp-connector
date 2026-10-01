@@ -162,6 +162,9 @@ CASES: dict[tuple[str, str], Callable[[cw.World], Pair]] = {
     ("files_download", "path"): lambda w: _path_pair(
         "files_download", w.locked_file, f"{_missing(w)}/inhalt.txt"
     ),
+    ("files_read_as_markdown", "path"): lambda w: _path_pair(
+        "files_read_as_markdown", w.locked_doc, f"{_missing(w)}/inhalt.docx"
+    ),
     ("files_list", "folder"): lambda w: _path_pair("files_list", w.locked_dir, _missing(w)),
     ("files_search", "folder"): _files_search,
     ("files_upload", "text"): lambda w: _path_pair(

@@ -24,8 +24,9 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
-from .. import config, ids, paging
-from ..errors import ToolError
+from .. import config, documents, ids, paging
+from ..documents import detect as document_detect
+from ..errors import REASON_GUARD_TRIPPED, ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
 from ..nextcloud.exclusion import TagScope
@@ -33,6 +34,11 @@ from . import withhold
 
 DEFAULT_MAX_BYTES = 512 * 1024
 HARD_MAX_BYTES = 2 * 1024 * 1024
+
+#: Slices of files_read_as_markdown are counted in characters of the converted text, because
+#: the source has no useful byte positions. Same two numbers as the byte slices above.
+DEFAULT_MAX_CHARS = 524288
+HARD_MAX_CHARS = 2097152
 
 #: A download is carried inline as an MCP embedded resource. Bound each response, rather
 #: than the total file: callers continue at ``next_offset`` until the whole file is local.
@@ -372,10 +378,11 @@ async def read(
 
     content_type = info["content_type"] or "application/octet-stream"
     if not _is_text(content_type):
-        raise ToolError(
-            message=f"{target} is {content_type} and not text.",
-            hint="Use files_download to retrieve binary files in chunks.",
-        )
+        if document_detect.supported_format(content_type, target) is not None:
+            hint = "Use files_read_as_markdown to read this document as Markdown."
+        else:
+            hint = "Use files_download to retrieve binary files in chunks."
+        raise ToolError(message=f"{target} is {content_type} and not text.", hint=hint)
 
     size = info["size"]
     if offset > 0 and offset >= size:
@@ -415,6 +422,95 @@ async def read(
     }
     if result["truncated"]:
         result["next_offset"] = offset + used
+    return result
+
+
+def _source_too_large(target: str, size: int | None) -> ToolError:
+    """The size-cap refusal. ``None`` means the body was cut at the cap, so no size is known."""
+    shown = "larger than" if size is None else f"{size} bytes, above"
+    return ToolError(
+        message=f"{target} is {shown} the {documents.MAX_SOURCE_BYTES} byte cap.",
+        hint="Use files_download to retrieve the raw file in chunks.",
+        reason=REASON_GUARD_TRIPPED,
+    )
+
+
+async def read_as_markdown(
+    clients: NcClients,
+    path: str,
+    offset: int = 0,
+    max_chars: int = DEFAULT_MAX_CHARS,
+) -> dict:
+    """Convert one DOCX, XLSX, PPTX or PDF file to Markdown and answer a slice of it.
+
+    Same continuation contract as :func:`read`: ``truncated`` says whether the answer stops
+    early and ``next_offset`` is present only then. Offsets count characters of the Markdown.
+    The whole file is downloaded and converted on every call; the server holds nothing between
+    calls (D-20), and the caps in :mod:`mcp_connector.documents` bound the work.
+
+    The ``kein-ki`` guard is asked alongside the stat, exactly as in :func:`read`: a tagged
+    document answers like a path that does not exist, before its type is looked at (EXCL-01).
+    """
+    if offset < 0:
+        raise ToolError(
+            message=f"offset must not be negative (got {offset}).",
+            hint="Start at offset 0 and follow the next_offset from each answer.",
+        )
+    if max_chars < 1 or max_chars > HARD_MAX_CHARS:
+        raise ToolError(
+            message=f"max_chars must be between 1 and {HARD_MAX_CHARS} (got {max_chars}).",
+            hint=_SLICE_HINT,
+        )
+
+    target = dav.safe_path(path)
+    info = await _visible_stat(clients, target)
+    if info["is_collection"]:
+        raise ToolError(
+            message=f"{target} is a folder, not a file.",
+            hint="Use files_list to see what is inside a folder.",
+        )
+    content_type = info["content_type"] or "application/octet-stream"
+    if _is_text(content_type):
+        raise ToolError(
+            message=f"{target} is {content_type}, which is text already.",
+            hint="Use files_read for text files.",
+        )
+    # Detect before download: an unsupported type costs one PROPFIND and no GET.
+    document_detect.detect(content_type, target)
+    size = int(info["size"])
+    if size > documents.MAX_SOURCE_BYTES:
+        raise _source_too_large(target, size)
+
+    # The slot is taken before the GET: it bounds the worker processes and the bytes held
+    # for them, so a burst of calls queues here instead of buffering a file per call.
+    async with documents.slot():
+        # The stat size is a claim, not a limit: the file can grow between PROPFIND and
+        # GET. Ask for one byte more than the cap, so a body above it is visible and refused.
+        data = await dav.get_range(
+            clients.client, clients.creds, target, limit=documents.MAX_SOURCE_BYTES + 1
+        )
+        if len(data) > documents.MAX_SOURCE_BYTES:
+            raise _source_too_large(target, None)
+        converted = await documents.convert(data, content_type, target)
+    markdown = converted.markdown
+    length = len(markdown)
+    if offset > 0 and offset >= length:
+        raise ToolError(
+            message=f"offset {offset} is at or past the end of the text ({length} characters).",
+            hint="Read from a smaller offset, or stop: the document has no more content.",
+        )
+    content = markdown[offset : offset + max_chars]
+    result: dict = {
+        "path": target,
+        "content": content,
+        "content_type": content_type,
+        "format": converted.format,
+        "size": size,
+        "markdown_length": length,
+        "truncated": offset + len(content) < length,
+    }
+    if result["truncated"]:
+        result["next_offset"] = offset + len(content)
     return result
 
 

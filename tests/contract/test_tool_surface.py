@@ -42,6 +42,7 @@ EXPECTED_TOOLS = {
     "files_list",
     "files_read",
     "files_download",
+    "files_read_as_markdown",
     "files_upload",
     "calendar_list_events",
     "calendar_create_event",
@@ -141,16 +142,26 @@ async def test_files_upload_is_annotated_as_create_only() -> None:
 
 
 @pytest.mark.anyio
-async def test_the_five_file_tools_are_complete_and_read_first() -> None:
-    """D-03: search, list, read, download and upload, and only the last one writes."""
+async def test_the_six_file_tools_are_complete_and_read_first() -> None:
+    """D-03 and TOOL-14: search, list, read, read_as_markdown, download and upload.
+
+    Only upload writes.
+    """
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    for name in ("files_search", "files_list", "files_read", "files_download", "files_upload"):
+    readers = (
+        "files_search",
+        "files_list",
+        "files_read",
+        "files_read_as_markdown",
+        "files_download",
+    )
+    for name in (*readers, "files_upload"):
         assert name in tools, f"{name} is part of the curated file set (D-03)"
         assert tools[name].output_schema is None, "structured_output=False (schema diet)"
 
-    for name in ("files_search", "files_list", "files_read", "files_download"):
+    for name in readers:
         annotations = tools[name].annotations
         assert annotations is not None
         assert annotations.read_only_hint is True, f"{name} only reads"
@@ -530,12 +541,12 @@ async def test_prepare_context_is_listed_as_a_bundling_read() -> None:
 
 @pytest.mark.anyio
 async def test_the_curated_set_is_complete_and_only_the_chatgpt_profile_has_a_schema() -> None:
-    """The whole surface in one assertion: 22 tools, and the diet holds for 20 of them."""
+    """The whole surface in one assertion: 23 tools, and the diet holds for 21 of them."""
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
     assert set(tools) == EXPECTED_TOOLS
-    assert len(tools) == 22, "the curated set is twenty-two tools, no more and no fewer"
+    assert len(tools) == 23, "the curated set is twenty-three tools, no more and no fewer"
 
     with_schema = {name for name, tool in tools.items() if tool.output_schema is not None}
     assert with_schema == STRUCTURED_TOOLS, (
@@ -735,7 +746,7 @@ async def test_no_input_schema_accepts_a_user_parameter() -> None:
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    assert set(tools) == EXPECTED_TOOLS, "the confused deputy check must cover all 22 schemas"
+    assert set(tools) == EXPECTED_TOOLS, "the confused deputy check must cover all 23 schemas"
 
     findings: list[str] = []
     for name, tool in sorted(tools.items()):
@@ -805,3 +816,16 @@ def _counted_tools(text: str) -> Iterator[tuple[int, str]]:
     for line in text.splitlines():
         for match in counts.finditer(line):
             yield int(match.group(1) or match.group(2)), line
+
+
+@pytest.mark.anyio
+async def test_files_read_as_markdown_names_its_formats_and_is_read_only() -> None:
+    """TOOL-14: a client that reads descriptions learns which four formats to send."""
+    async with Client(mcp, raise_exceptions=True) as client:
+        tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+    tool = tools["files_read_as_markdown"]
+    for fmt in ("DOCX", "XLSX", "PPTX", "PDF"):
+        assert fmt in (tool.description or ""), f"the description must name {fmt}"
+    assert tool.annotations is not None
+    assert tool.annotations.read_only_hint is True
+    assert set(tool.input_schema["properties"]) == {"path", "offset"}

@@ -864,3 +864,9 @@ called at all: check the tool list in the client first.
 Remember what the tools cannot do. Nothing here deletes, overwrites, moves or re-shares
 anything, and `files_search` matches names, not the text inside documents. See the
 "What this server cannot do" section of the [README](../README.md).
+
+For a Word, Excel, PowerPoint or PDF file, ask for its content and check that the assistant
+called `files_read_as_markdown`. `files_read` refuses those types and its hint names the right
+tool; `files_download` answers raw bytes and is the wrong tool for reading. A standalone
+install needs the optional extra, `pip install "nextcloud-mcp-connector[documents]"`, and
+says so in the refusal when it is missing. The ExApp image carries it.

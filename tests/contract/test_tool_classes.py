@@ -15,7 +15,7 @@ from mcp.types import Tool
 from mcp_connector.server import mcp
 
 # D-28-14: tables_browse became a reader, which gives 12 / 3 / 7.
-TOTAL = 22
+TOTAL = 23
 
 
 async def _tools() -> dict[str, Tool]:
@@ -29,7 +29,9 @@ async def test_every_registered_tool_has_exactly_one_class_and_a_reason() -> Non
 
     findings = tool_classes.freeze_findings(names)
     assert findings == [], "\n".join(findings)
-    assert len(names) == TOTAL, f"{len(names)} tools; the split 12/3/7 is D-28-14"
+    assert len(names) == TOTAL, (
+        f"{len(names)} tools; the split 13/3/7 is D-28-14 plus files_read_as_markdown"
+    )
 
 
 @pytest.mark.anyio
@@ -97,7 +99,7 @@ async def test_readers_are_read_only_and_writers_are_not() -> None:
 
 
 def test_the_three_classes_add_up_to_the_frozen_surface() -> None:
-    """The frozen number is named once; a twenty-third tool must pass this door on purpose."""
+    """The frozen number is named once; a twenty-fourth tool must pass this door on purpose."""
     total = (
         len(tool_classes.FILE_READERS)
         + len(tool_classes.FILE_WRITERS)
@@ -108,4 +110,4 @@ def test_the_three_classes_add_up_to_the_frozen_surface() -> None:
         len(tool_classes.FILE_READERS),
         len(tool_classes.FILE_WRITERS),
         len(tool_classes.UNAFFECTED),
-    ) == (12, 3, 7)
+    ) == (13, 3, 7)

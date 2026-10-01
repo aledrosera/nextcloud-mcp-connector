@@ -85,6 +85,10 @@ from mcp_connector.server import mcp
 # raising the ceiling. A future tool or a description that grows into a paragraph still has
 # to fit this gate or justify a new measurement and budget here, so a regression stays
 # attributable.
+#
+#   Measurement 2026-09-30, all 23 curated tools registered (files_read_as_markdown of
+#               TOOL-14): 17763 bytes
+#   Budget      unchanged at 18000, because the measurement fits below it
 BUDGET_BYTES = 18_000
 
 # The second claim, and the one that actually reports a regression. A total with headroom

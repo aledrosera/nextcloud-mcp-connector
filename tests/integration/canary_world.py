@@ -21,11 +21,13 @@ receives tool results and raw answers of the instance (T-28-04).
 
 import contextlib
 import dataclasses
+import io
 import json
 import os
 import shutil
 import subprocess
 import uuid
+import zipfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, NoReturn
@@ -830,6 +832,14 @@ class World:
         return f"/{self.stamm}/{self.stamm}-kontrolle-{self.control_marker}.txt"
 
     @property
+    def locked_doc(self) -> str:
+        return f"{self.locked_dir}/inhalt-{self.h}.docx"
+
+    @property
+    def control_doc(self) -> str:
+        return f"/{self.stamm}/{self.stamm}-kontrolle-{self.control_marker}.docx"
+
+    @property
     def control_name(self) -> str:
         return self.control_file.rsplit("/", 1)[-1]
 
@@ -972,6 +982,33 @@ def _event_ics(world: World, uid: str, tagged_fileid: str) -> bytes:
     return ("\r\n".join(_fold(line) for line in lines) + "\r\n").encode("utf-8")
 
 
+def minimal_docx(text: str) -> bytes:
+    """The smallest Word file python-docx opens: one paragraph, no styles part."""
+    wp = "application/vnd.openxmlformats-officedocument.wordprocessingml."
+    rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+    body = (
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>"
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.'
+            'relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+            f'<Override PartName="/word/document.xml" ContentType="{wp}document.main+xml"/>'
+            "</Types>",
+        )
+        archive.writestr(
+            "_rels/.rels",
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rel}" Target="word/document.xml"/></Relationships>',
+        )
+        archive.writestr("word/document.xml", body)
+    return buffer.getvalue()
+
+
 def _build_files(world: World, cleanup: Cleanup) -> None:
     harness, marker = world.harness, world.marker
     harness.mkcol(world.root)
@@ -980,12 +1017,18 @@ def _build_files(world: World, cleanup: Cleanup) -> None:
     harness.mkcol(world.locked_dir)
     harness.put(world.locked_file, f"gesperrt {world.stamm} {marker}\n".encode())
     harness.put(world.control_file, f"kontrolle {world.stamm} {world.control_marker}\n".encode())
+    # The same pair for files_read_as_markdown: a Word file below the locked folder and an
+    # untagged one whose text carries the control marker.
+    harness.put(world.locked_doc, minimal_docx(f"gesperrt {world.stamm} {marker}"))
+    harness.put(world.control_doc, minimal_docx(f"kontrolle {world.stamm} {world.control_marker}"))
     for key, path in (
         ("root", world.root),
         ("tagged_file", world.tagged_file),
         ("locked_dir", world.locked_dir),
         ("locked_file", world.locked_file),
         ("control_file", world.control_file),
+        ("locked_doc", world.locked_doc),
+        ("control_doc", world.control_doc),
     ):
         world.fileids[key] = harness.fileid(path)
     world.proof["dateien"] = "PROPFIND 207 " + " ".join(

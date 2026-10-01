@@ -52,6 +52,7 @@ PARAM_ALLOWLIST: Mapping[str, frozenset[str]] = {
     "files_download": frozenset({"chunk_bytes", "offset", "path"}),
     "files_list": frozenset({"cursor", "limit", "path"}),
     "files_read": frozenset({"offset", "path"}),
+    "files_read_as_markdown": frozenset({"offset", "path"}),
     "files_search": frozenset({"cursor", "folder", "limit", "query"}),
     "files_upload": frozenset(
         {"chunk_index", "content_type", "final", "path", "total_bytes", "upload_id"}

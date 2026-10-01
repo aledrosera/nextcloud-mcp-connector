@@ -619,11 +619,13 @@ async def test_sc1_read_and_download(world: World) -> None:
     async with live(world) as fresh:
         missing_read = await refusal(files_tools.read(fresh(), missing_path))
         missing_download = await refusal(files_tools.download(fresh(), missing_path))
+        missing_markdown = await refusal(files_tools.read_as_markdown(fresh(), missing_path))
         for key in ("geheim", "a", "b", "scan", "projekt"):
             path = world.paths[key]
             for tool, call, reference in (
                 ("files_read", files_tools.read, missing_read),
                 ("files_download", files_tools.download, missing_download),
+                ("files_read_as_markdown", files_tools.read_as_markdown, missing_markdown),
             ):
                 refused = await refusal(call(fresh(), path))
                 check(
@@ -633,6 +635,7 @@ async def test_sc1_read_and_download(world: World) -> None:
                     shape(refused, (path, "<P>")) == shape(reference, (missing_path, "<P>"))
                     and exact(refused) == exact(dav.not_found(path))
                     and "not text" not in refused.message
+                    and "text already" not in refused.message
                     and "is a folder" not in refused.message,
                     f"{refused.message!r}",
                 )

@@ -33,6 +33,10 @@ FILE_READERS: dict[str, str] = {
     "files_download": (
         "Answers the bytes of one file by path as an embedded resource (tools/files.py:408-481)."
     ),
+    "files_read_as_markdown": (
+        "Answers the content of one Office or PDF file by path as Markdown, guarded in "
+        "_visible_stat (tools/files.py:438-515, :837)."
+    ),
     "notes_search": (
         "Notes are files and a note id is a fileid, so a hit names a file (tools/notes.py:71)."
     ),
@@ -118,6 +122,7 @@ MIN_REASON = 20
 PAIR_CASES: dict[tuple[str, str], str] = {
     ("files_read", "path"): "files",
     ("files_download", "path"): "files",
+    ("files_read_as_markdown", "path"): "files",
     ("files_list", "folder"): "files",
     ("files_search", "folder"): "files",
     ("files_upload", "text"): "files",

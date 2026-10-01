@@ -13,7 +13,7 @@ Four rules make a green run mean something:
 *   **The marker is never an argument (D-28-06).** Every argument set is asserted free of the
     marker before its call, so a marker in an answer can only come from the instance.
 *   **The registry is the plan.** ``set(PLAN) == registry`` against ``list_tools()``, and the
-    output says ``KANARIE <mode> geprüft <n> von <registry>`` with ``n == 22``.
+    output says ``KANARIE <mode> geprüft <n> von <registry>`` with ``n == 23``.
 *   **The control marker must show.** The untagged control file and note carry a second
     marker; in the normal state every reader answer that has to show them must show it, or an
     empty index or a wrong container would end in a green canary (T-28-101).
@@ -60,7 +60,7 @@ from mcp_connector.tools import withhold
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
 RAW = cw.RAW_DIR / "28-10-canary.txt"
-EXPECTED_TOOLS = 22
+EXPECTED_TOOLS = 23
 MAX_PAGES = 50
 COMMAND = (
     "PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_canary.py "
@@ -157,6 +157,7 @@ def plan(world: cw.World) -> dict[str, list[dict[str, Any]]]:
         "files_list": [{"path": world.root}, {"path": world.locked_dir}],
         "files_read": [{"path": world.locked_file}, {"path": world.control_file}],
         "files_download": [{"path": world.locked_file}],
+        "files_read_as_markdown": [{"path": world.locked_doc}, {"path": world.control_doc}],
         "files_upload": [{"path": f"{world.locked_dir}/neu-{world.h}.txt", "content": "x"}],
         "notes_search": [{"query": world.stamm}],
         "notes_read": [
@@ -230,6 +231,8 @@ def control_expected(world: cw.World, tool: str, args: dict[str, Any]) -> bool:
         return args.get("path") == world.root
     if tool == "files_read":
         return args.get("path") == world.control_file
+    if tool == "files_read_as_markdown":
+        return args.get("path") == world.control_doc
     if tool == "notes_read":
         return args.get("note_id") == f"note:{world.control_note_id}"
     if tool == "tables_browse":

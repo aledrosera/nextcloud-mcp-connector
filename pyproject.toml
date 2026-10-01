@@ -24,6 +24,17 @@ dependencies = [
     "tzdata>=2025.2",
 ]
 
+[project.optional-dependencies]
+# Office and PDF to Markdown for files_read_as_markdown (TOOL-14). Optional for standalone
+# installs; the ExApp image always carries it. All four are MIT or BSD-3 licensed;
+# python-pptx pulls in Pillow and XlsxWriter.
+documents = [
+    "python-docx>=1.2,<2",
+    "openpyxl>=3.1,<4",
+    "python-pptx>=1.0,<2",
+    "pypdf>=6.19,<7",
+]
+
 [project.scripts]
 nc-mcp = "mcp_connector.entry_stdio:main"
 nc-mcp-exapp = "mcp_connector.entry_exapp:main"
