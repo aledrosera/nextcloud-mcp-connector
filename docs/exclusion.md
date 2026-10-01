@@ -136,6 +136,12 @@ The command runs without a user session, only reads and changes nothing: in the 
 tables `systemtag`, `systemtag_object_mapping`, `systemtag_group` and the `systemtags` app
 configuration were equal before and after each of 20 calls
 ([raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt)).
+Without `--admin` it reads as real accounts of the instance, so the repeat run of 2026-10-01
+also compared the account tables `preferences`, `storages`, `mounts` and `filecache`: equal
+before and after each of 20 calls, and equal around a run whose first reader was a freshly
+created account that had never logged in
+([raw/29-REVIEW-FIX-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live-beweis.txt),
+[raw/29-REVIEW-FIX-live.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live.txt), WR-04).
 Its output names counts, tag names and delegation groups, never a file, a path or an account.
 
 It checks seven steps in this order:

@@ -318,6 +318,22 @@ def test_the_page_quotes_the_steps_and_the_budget_of_the_code(lang: str) -> None
     assert missing == [], f"{PAGES[lang].name} does not quote {missing}"
 
 
+#: The account tables the live proof dumps around every call (29-REVIEW WR-04).
+ACCOUNT_TABLES = ("preferences", "storages", "mounts", "filecache")
+LIVE_PROOF = ROOT / "tests" / "integration" / "test_exclusion_check_live.py"
+
+
+@page_params
+def test_the_change_nothing_claim_names_the_account_tables_the_proof_compares(lang: str) -> None:
+    """WR-04: "changes nothing" must rest on more than the tag tables, in page and proof."""
+    text = read(PAGES[lang])
+    proof = LIVE_PROOF.read_text(encoding="utf-8")
+
+    for table in ACCOUNT_TABLES:
+        assert f"`{table}`" in text, f"{PAGES[lang].name} does not name the table {table}"
+        assert f"'{table}'" in proof, f"the live proof does not dump {table}"
+
+
 @page_params
 def test_the_page_says_the_exit_code_is_zero(lang: str) -> None:
     """D-29-04: over AppAPI the exit code is always 0; monitoring reads ``passed``."""

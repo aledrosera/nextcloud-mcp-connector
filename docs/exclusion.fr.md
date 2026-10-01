@@ -141,6 +141,12 @@ preuve en conditions réelles, les tables `systemtag`, `systemtag_object_mapping
 `systemtag_group` et la configuration de l'application `systemtags` étaient identiques avant et
 après chacun des 20 appels
 ([raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt)).
+Sans `--admin`, elle lit en tant que comptes réels de l'instance ; la reprise du 2026-10-01 a donc
+aussi comparé les tables de compte `preferences`, `storages`, `mounts` et `filecache` :
+identiques avant et après chacun des 20 appels, et identiques autour d'une exécution dont le
+premier compte lecteur venait d'être créé et ne s'était jamais connecté
+([raw/29-REVIEW-FIX-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live-beweis.txt),
+[raw/29-REVIEW-FIX-live.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live.txt), WR-04).
 Sa sortie indique des nombres, des noms d'étiquettes et des groupes de délégation, jamais un
 fichier, un chemin ou un compte.
 

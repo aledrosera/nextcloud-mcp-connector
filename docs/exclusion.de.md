@@ -137,6 +137,12 @@ Das Kommando läuft ohne Nutzersitzung, liest nur und ändert nichts: Im Live-Be
 Tabellen `systemtag`, `systemtag_object_mapping`, `systemtag_group` und die Konfiguration der
 App `systemtags` vor und nach jedem der 20 Aufrufe gleich
 ([raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt)).
+Ohne `--admin` liest es als echte Konten der Instanz, deshalb verglich der Wiederholungslauf vom
+2026-10-01 auch die Kontotabellen `preferences`, `storages`, `mounts` und `filecache`: gleich vor
+und nach jedem der 20 Aufrufe, und gleich um einen Lauf, dessen erstes lesendes Konto frisch
+angelegt und nie angemeldet war
+([raw/29-REVIEW-FIX-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live-beweis.txt),
+[raw/29-REVIEW-FIX-live.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live.txt), WR-04).
 Die Ausgabe nennt Anzahlen, Tag-Namen und Delegationsgruppen, nie eine Datei, einen Pfad oder
 ein Konto.
 

@@ -6,8 +6,11 @@ changes nothing. This module builds each case with ``occ`` and WebDAV (the harne
 ``src/`` never writes a tag, EXCL-07), runs the command once as text and once with
 ``--json``, and around every single invocation dumps the four tables a tag lives in:
 ``systemtag``, ``systemtag_object_mapping``, ``systemtag_group`` and the ``appconfig`` rows
-of the ``systemtags`` app. Each dump carries the row count and a SHA-256 of the sorted rows;
-a difference is written as a unified diff and fails the case (T-29-21).
+of the ``systemtags`` app, plus the account state an impersonated read could touch:
+``preferences`` (last seen, last login), ``storages``, ``mounts`` and ``filecache``
+(29-REVIEW WR-04; without ``--admin`` the reads run as real accounts of the instance). Each
+dump carries the row count and a SHA-256 of the sorted rows; a difference is written as a
+unified diff and fails the case (T-29-21).
 
 The command runs without a user session: it is plain ``occ`` inside
 :data:`topology.NC_CONTAINER`, no login, no app password. The module creates its own
@@ -48,26 +51,39 @@ from mcp_connector.nextcloud import exclusion_audit
 
 pytestmark = [pytest.mark.integration]
 
-RAW = (
+RAW_DIR = (
     Path(__file__).resolve().parents[2]
     / ".planning"
     / "phases"
     / "29-pr-fkommando-und-doku"
     / "raw"
-    / "29-06-live-beweis.txt"
 )
+
+#: Appended, never overwritten. ``NC_MCP_EXCLUSION_LIVE_RAW`` names another file in the raw
+#: directory, so a later run (29-REVIEW WR-05) leaves the evidence of an earlier one as it was.
+RAW = RAW_DIR / (os.environ.get("NC_MCP_EXCLUSION_LIVE_RAW", "").strip() or "29-06-live-beweis.txt")
 COMMAND = "mcp_connector:exclusion:check"
 TAG = exclusion_audit.EXCLUDE_TAG
-TABLES = ("systemtag", "systemtag_object_mapping", "systemtag_group", "appconfig")
+TABLES = (
+    "systemtag",
+    "systemtag_object_mapping",
+    "systemtag_group",
+    "appconfig",
+    "preferences",
+    "storages",
+    "mounts",
+    "filecache",
+)
 
-#: Reads the four tables through the query builder and prints one JSON document: per table
+#: Reads the eight tables through the query builder and prints one JSON document: per table
 #: the row count, a SHA-256 over the rows sorted by all columns, and the rows themselves.
 #: Bootstraps Nextcloud the way ``scripts/tag_spike.py`` does (``_PHP_BOOT``, copied).
 PHP_DUMP_TABLES = r"""<?php
 require_once '/var/www/html/lib/base.php';
 $db = \OCP\Server::get(\OCP\IDBConnection::class);
 $out = [];
-foreach (['systemtag', 'systemtag_object_mapping', 'systemtag_group', 'appconfig'] as $t) {
+foreach (['systemtag', 'systemtag_object_mapping', 'systemtag_group', 'appconfig',
+          'preferences', 'storages', 'mounts', 'filecache'] as $t) {
     $qb = $db->getQueryBuilder();
     $qb->select('*')->from($t);
     if ($t === 'appconfig') {
@@ -115,7 +131,7 @@ def _json_of(output: str) -> Any:
 
 
 def dump_tables() -> dict[str, Any]:
-    """The four tables as :data:`PHP_DUMP_TABLES` prints them."""
+    """The eight tables as :data:`PHP_DUMP_TABLES` prints them."""
     finished = subprocess.run(  # noqa: S603 - fixed argv, test harness
         [  # noqa: S607
             "docker",
