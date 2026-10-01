@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: ready_to_plan
-stopped_at: Phase 28 complete (12/12) — ready to discuss Phase 29
-last_updated: 2026-10-01T03:37:23.353Z
-last_activity: 2026-09-28 -- Phase 28 execution started
+status: planning
+stopped_at: Phase 29 context gathered
+last_updated: "2026-10-01T04:05:50.307Z"
+last_activity: 2026-10-01
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 29
   completed_plans: 29
-  percent: 60
+  percent: 80
 ---
 
 # Project State
@@ -818,10 +818,10 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-28T09:42:07.727Z
-Stopped at: Phase 28 context gathered
+Last session: 2026-10-01T04:05:50.288Z
+Stopped at: Phase 29 context gathered
 Nächster Schritt: /gsd:execute-phase 28 (12 Pläne, 5 Wellen; Owner-Checkpoints in 28-01 und 28-12)
-Resume file: .planning/phases/28-gates-und-beweise/28-CONTEXT.md
+Resume file: .planning/phases/29-pr-fkommando-und-doku/29-CONTEXT.md
 
 ## Operator Next Steps
 
