@@ -231,24 +231,6 @@ def _quote(arg: str) -> str:
     return '"' + arg.replace('"', '\\"') + '"'
 
 
-def php(cfg: Settings, snippet: str, *args: str) -> str:
-    """Run one PHP snippet through stdin inside the Nextcloud container."""
-    _code, output = docker(
-        "exec",
-        "-i",
-        "-u",
-        "www-data",
-        "-w",
-        "/var/www/html",
-        cfg.nc,
-        "php",
-        "--",
-        *args,
-        stdin=snippet,
-    )
-    return output.strip()
-
-
 def read_env_file(path: Path) -> dict[str, str]:
     """``KEY=value`` lines of an env file as a mapping. Never printed."""
     values: dict[str, str] = {}
@@ -296,6 +278,8 @@ def exapp(
         "ocs": ocs,
     }
     arg = base64.b64encode(json.dumps(spec).encode()).decode()
+    if APPAPI_HEADER not in EXAPP_DAV_PROGRAM:
+        raise RunFailed("the ExApp program lost its AppAPI header")
     code, output = docker(
         "exec", "-i", cfg.exapp, "/app/.venv/bin/python", "-", arg, stdin=EXAPP_DAV_PROGRAM
     )
@@ -404,16 +388,23 @@ def parse_listing(body: str) -> list[TagRow]:
 
 
 def count_files(body: str) -> int | None:
-    """Number of ``nc:object-id`` entries of type files in a Depth 0 answer."""
+    """Number of object entries of type files in a Depth 0 ``nc:object-ids`` answer.
+
+    Measured on nc35 (run 1 of 29-01): Nextcloud serialises each entry as an inner
+    ``nc:object-ids`` element (not ``nc:object-id``) with ``nc:id`` and ``nc:type``
+    children, nested inside the outer ``nc:object-ids`` property.
+    """
     if not body.strip().startswith("<"):
         return None
     parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)
     tree = etree.fromstring(body.encode("utf-8"), parser=parser)
-    return sum(
-        1
-        for obj in tree.iter(f"{{{NC}}}object-id")
-        if (obj.findtext(f"{{{NC}}}type") or "").strip() == "files"
-    )
+    entries = [
+        el
+        for name in ("object-ids", "object-id")
+        for el in tree.iter(f"{{{NC}}}{name}")
+        if el.find(f"{{{NC}}}type") is not None
+    ]
+    return sum(1 for el in entries if (el.findtext(f"{{{NC}}}type") or "").strip() == "files")
 
 
 def find(rows: Sequence[TagRow], name: str) -> TagRow | None:
@@ -861,7 +852,7 @@ def m9(cfg: Settings, _ledger: Ledger) -> None:
         labels[lang] = {}
         for key, path in (
             ("Collaborative tags", f"apps/systemtags/l10n/{lang}.json"),
-            ("Basic settings", f"lib/l10n/{lang}.json"),
+            ("Basic settings", f"apps/settings/l10n/{lang}.json"),
             ("Administration settings", f"lib/l10n/{lang}.json"),
             ("Administration settings", f"core/l10n/{lang}.json"),
         ):
@@ -899,11 +890,11 @@ def m9(cfg: Settings, _ledger: Ledger) -> None:
 
 BLOCKS: tuple[tuple[str, Callable[[Settings, Ledger], None]], ...] = (
     ("M1", m1),
-    ("M1b", m1b),
     ("M1c", m1c),
     ("M2", m2),
     ("M2b", m2b),
     ("M3", m3),
+    ("M1b", m1b),
     ("M3b", m3b),
     ("M4", m4),
     ("M6", m6),
