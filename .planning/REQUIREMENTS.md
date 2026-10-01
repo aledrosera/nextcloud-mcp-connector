@@ -38,7 +38,7 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 
 ### Betrieb und Doku
 
-- [ ] **OPS-01**: `occ mcp_connector:exclusion:check` prueft Tag-Existenz, Sichtbarkeit und gleichnamige Varianten gegen die Instanz und benennt je Pruefschritt das Ergebnis, ohne Sitzung und ohne Nextcloud-Zustandsaenderung (Muster exchange:check)
+- [x] **OPS-01**: `occ mcp_connector:exclusion:check` prueft Tag-Existenz, Sichtbarkeit und gleichnamige Varianten gegen die Instanz und benennt je Pruefschritt das Ergebnis, ohne Sitzung und ohne Nextcloud-Zustandsaenderung (Muster exchange:check)
 - [ ] **DOC-03**: Eine dreisprachige Doku (docs/ + README-Erwaehnung) beschreibt Einrichtung und ehrliche Grenzen: Freigabe-Grenze (Tag oberhalb der Freigabe-Wurzel wirkt beim Empfaenger nicht), unsichtbares Tag wirkt nicht, App-aus-Verhalten, Betriebsarten Selbstbedienung (kollaborativ) vs. Organisationsmodus (eingeschraenktes Tag per Gruppen-Delegation)
 
 ## Future Requirements (deferred)
@@ -76,7 +76,7 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 | GATE-01 | Phase 28 | Complete |
 | GATE-02 | Phase 28 | Complete |
 | GATE-03 | Phase 28 | Complete |
-| OPS-01 | Phase 29 | Pending |
+| OPS-01 | Phase 29 | Complete |
 | DOC-03 | Phase 29 | Pending |
 
 **Coverage:** 14/14 v1-Requirements zugeordnet, keine Waisen, keine Doppelungen. Phase 25 (Mess-Spike) trägt kein eigenes Requirement, sie liefert die Messvorbedingungen für EXCL-02, EXCL-04 und EXCL-05.
