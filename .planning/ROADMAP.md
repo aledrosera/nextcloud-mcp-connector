@@ -296,7 +296,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 29-01-PLAN.md , Live-Messungen M1 bis M9 gegen nc35 (Impersonation, Admin-Nachweis, Zählung, Anleitungsbefehle) vor jedem Code
+- [x] 29-01-PLAN.md , Live-Messungen M1 bis M9 gegen nc35 (Impersonation, Admin-Nachweis, Zählung, Anleitungsbefehle) vor jedem Code
 - [ ] 29-02-PLAN.md , TDD: reine Urteilslogik exclusion_audit (exakt/Variante/ähnlich, Betriebsart, Urteil)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -359,7 +359,7 @@ Plans:
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
 | 28. Gates und Beweise | v1.7 | 12/12 | Complete    | 2026-10-01 |
-| 29. Prüfkommando und Doku | v1.7 | 0/TBD | Not started | - |
+| 29. Prüfkommando und Doku | v1.7 | 1/9 | In Progress|  |
 
 ## Coverage v1.7
 

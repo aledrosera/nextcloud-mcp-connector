@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: planning
-stopped_at: Phase 29 context gathered
-last_updated: "2026-10-01T04:05:50.307Z"
+status: executing
+stopped_at: Completed 29-01-PLAN.md
+last_updated: "2026-10-01T05:13:21.804Z"
 last_activity: 2026-10-01
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 29
-  completed_plans: 29
-  percent: 80
+  total_plans: 38
+  completed_plans: 30
+  percent: 79
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-09-26)
 ## Current Position
 
 Phase: 29
-Plan: Not started
-Status: Ready to plan
+Plan: 2 of 9 (29-01 fertig)
+Status: Executing
 Last activity: 2026-10-01
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -213,6 +213,7 @@ Progress: [██████░░░░] 60%
 | Phase 21-exchange-verifier P02 | 20 min | 2 tasks | 2 files |
 | Phase 22 P02 | 35 | 3 tasks | 11 files |
 | Phase 22 P03 | 21 min | 2 tasks | 9 files |
+| Phase 29 P01 | 25min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -763,6 +764,8 @@ Recent decisions affecting current work:
 - [Phase 22]: EXCHANGE_LIMIT = 30 als eigenes Limit zwischen FAILURE_LIMIT (10) und PATH_CEILING (200); die Decke der Klasse bleibt PATH_CEILING und wird bewusst nicht angehoben (22-03): eine Ablehnung des Exchange-Pfades kostet eine Signaturpruefung und bei unbekanntem kid einen ausgehenden Abruf, ist also teurer als ein abgelehnter Token-Grant; die Decke ist geteiltes Schicksal, und das ist auf einem Pfad, den ein Fremder ohne Schluessel erreicht, der richtige Handel, weil der bestehende Pfad gar nicht in dieser Klasse liegt
 - [Phase 22]: Die Formbedingung der Drossel steht in chain.exchange_shaped_request und nicht in throttle.py: die Formregel darf es nur einmal geben, sonst driften Weiche und Drossel auseinander; throttle.py bekommt ein Callable hereingereicht und nennt den Exchange-Pfad nirgends, ein grep haelt das fest (22-03)
 - [Phase 22]: Im Aus-Zustand haengt an der MCP-Route gar kein Drossel-Wrapper, nicht einer, der alles durchlaesst: ein solcher waere heute nicht unterscheidbar und morgen ein anderer Codepfad; im bewaffneten Fall sitzt er aussen um die Transportgrenze, weil die gezaehlte Ablehnung der 401 dieser Grenze ist (22-03)
+- [Phase 29]: 29-01: Admin-Nachweis über cloud/groups/admin/users (200/403); oc:groups als Nicht-Admin kippt ganze PROPFIND auf 403
+- [Phase 29]: 29-01: Zählung über innere nc:object-ids mit nc:type=files (nc:id ist Index); ohne --admin erstes AppAPI-Konto mit 207, nur user-visible
 
 ### Pending Todos
 
@@ -818,10 +821,10 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T04:05:50.288Z
-Stopped at: Phase 29 context gathered
-Nächster Schritt: /gsd:execute-phase 28 (12 Pläne, 5 Wellen; Owner-Checkpoints in 28-01 und 28-12)
-Resume file: .planning/phases/29-pr-fkommando-und-doku/29-CONTEXT.md
+Last session: 2026-10-01T05:13:15.930Z
+Stopped at: Completed 29-01-PLAN.md
+Nächster Schritt: 29-02 ff. (execute-phase 29), nc35 vor 29-06 neu starten
+Resume file: None
 
 ## Operator Next Steps
 
