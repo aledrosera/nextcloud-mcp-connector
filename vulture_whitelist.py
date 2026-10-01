@@ -331,3 +331,8 @@ _._decode_payload
 # (plan 27-03), talk.file_screen and the talk list answers call paths_of_fileids and
 # degraded_entry as well (plan 27-05), and unavailable_error is raised by fetch(file) (plan
 # 27-03) and by talk.one_room for a file conversation (plan 27-05).
+
+# --- The verdict of plan 29-02, read by the exclusion:check console of plan 29-04 --------
+# AuditResult.checked is the JSON key "checked" of the console (plan 29-04), which does not
+# exist yet; plan 29-05 empties this section once the handler reads it.
+AuditResult.checked
