@@ -21,6 +21,10 @@ decisions on (T-29-24), so this module holds what can be held mechanically:
     ``oc:groups``, ``restrict_creation_to_admin``) are held as the strings the raw evidence
     of plan 29-01 ran.
 *   **The exit code.** It is always 0 over AppAPI (D-29-04), and each page says so.
+*   **The values the pages quote from this code** (29-REVIEW IN-05). The seven step ids,
+    the step names and the limit sentence of the quoted output blocks, and the tag query
+    budget ``TAG_BUDGET`` in seconds, all read off the constants, so a change of wording or
+    of the budget turns this red until the pages follow.
 *   **The typography.** No U+2013 and no U+2014 in the pages and the READMEs, and no ASCII
     stand-ins for umlauts in German prose (pitfall P6).
 *   **The README sections.** Exactly one section per README links the page of its language,
@@ -43,9 +47,15 @@ from pathlib import Path
 
 import pytest
 
-from mcp_connector.exapp.exclusion_check import ADMIN_OPTION, JSON_OPTION
+from mcp_connector.exapp.exclusion_check import (
+    ADMIN_OPTION,
+    JSON_OPTION,
+    LIMIT_SENTENCE,
+    STEP_NAMES,
+)
 from mcp_connector.exapp.occ import OCC_EXCLUSION_CHECK_COMMAND_NAME
-from mcp_connector.nextcloud.exclusion import EXCLUDE_TAG
+from mcp_connector.nextcloud.exclusion import EXCLUDE_TAG, TAG_BUDGET
+from mcp_connector.nextcloud.exclusion_audit import STEPS
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
@@ -290,6 +300,22 @@ def test_the_manifest_comment_does_not_claim_the_check_always_reads_as_an_admin(
 
     assert "while impersonating an administrator" not in manifest
     assert "impersonating an account of the instance" in manifest
+
+
+@page_params
+def test_the_page_quotes_the_steps_and_the_budget_of_the_code(lang: str) -> None:
+    """IN-05: step ids, step names, the limit sentence and TAG_BUDGET come from the code."""
+    text = read(PAGES[lang])
+    expected = (
+        *(f"`{step}`" for step in STEPS),
+        *STEP_NAMES.values(),
+        LIMIT_SENTENCE,
+        f"{TAG_BUDGET:g} s",
+        "`TAG_BUDGET`",
+    )
+    missing = [needle for needle in expected if needle not in text]
+
+    assert missing == [], f"{PAGES[lang].name} does not quote {missing}"
 
 
 @page_params
