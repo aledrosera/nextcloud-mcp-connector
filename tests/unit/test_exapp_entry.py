@@ -41,7 +41,7 @@ from mcp_connector.audit import record as audit_record
 from mcp_connector.audit import refusals as audit_refusals
 from mcp_connector.audit import store as audit_store_module
 from mcp_connector.errors import IssuerRefused, ToolError
-from mcp_connector.exapp import config_values, exchange_check
+from mcp_connector.exapp import config_values, exchange_check, exclusion_check
 from mcp_connector.exapp.middleware import RequireAppApi
 from mcp_connector.exapp.ui import connections as ui_connections
 from mcp_connector.exapp.ui import strings
@@ -365,6 +365,38 @@ def test_the_dry_run_route_answers_200_through_the_built_application() -> None:
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
     assert response.json()["outcome"] == exchange_check.OUTCOME_NOT_CONFIGURED
+
+
+def test_the_exapp_app_carries_the_route_of_the_exclusion_check() -> None:
+    """OPS-01: the fifth registered command needs its handler in the built application."""
+    assert exclusion_check.EXCLUSION_CHECK_PATH in paths(entry_exapp.build_exapp_app(EXAPP_ENV))
+
+
+def test_the_exclusion_check_route_answers_200_through_the_built_application() -> None:
+    """Reached the way AppAPI reaches it. An unacceptable uid ends before any Nextcloud call,
+    so the route is proven without a network, and the answer is still a 200 with a body."""
+    with TestClient(entry_exapp.build_exapp_app(SERVED_ENV)) as client:
+        response = client.post(
+            exclusion_check.EXCLUSION_CHECK_PATH,
+            json={"occ": {"arguments": None, "options": {"json": True, "admin": "a" * 65}}},
+            headers=appapi_headers(),
+        )
+
+    assert response.status_code == 200
+    assert response.json()["checked"] is False
+    assert response.json()["passed"] is False
+
+
+def test_the_exclusion_check_route_is_refused_on_the_php_proxy_path() -> None:
+    """T-29-12: the proxy attaches valid AppAPI headers itself, so the header decides."""
+    with TestClient(entry_exapp.build_exapp_app(SERVED_ENV)) as client:
+        response = client.post(
+            exclusion_check.EXCLUSION_CHECK_PATH,
+            json={"occ": {"arguments": None, "options": {}}},
+            headers={**appapi_headers(), "x-origin-ip": "203.0.113.7"},
+        )
+
+    assert response.status_code == 404
 
 
 def test_the_dry_run_route_is_refused_on_the_php_proxy_path() -> None:

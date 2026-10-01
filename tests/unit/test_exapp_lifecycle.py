@@ -24,6 +24,7 @@ from mcp_connector import config
 from mcp_connector.exapp import (
     audit_read,
     exchange_check,
+    exclusion_check,
     lifecycle,
     occ,
     settings_form,
@@ -532,7 +533,7 @@ def test_the_dry_run_command_is_the_fourth_scheme_and_derives_its_handler() -> N
     """
     schemes = occ.command_schemes()
 
-    assert len(schemes) == 4
+    assert len(schemes) == 5
     scheme = schemes[3]
     assert occ.OCC_EXCHANGE_CHECK_COMMAND_NAME == "mcp_connector:exchange:check"
     assert scheme["name"] == occ.OCC_EXCHANGE_CHECK_COMMAND_NAME
@@ -548,6 +549,34 @@ def test_the_dry_run_command_is_the_fourth_scheme_and_derives_its_handler() -> N
     # option of this module, which is what the positive list check above holds every scheme to.
     assert scheme["options"][0]["default"] is None
     assert scheme["usages"][0].startswith(occ.OCC_EXCHANGE_CHECK_COMMAND_NAME)
+
+
+def test_the_exclusion_check_is_the_fifth_scheme_and_derives_its_handler() -> None:
+    """The command of OPS-01, held against the handler module it belongs to (T-29-17).
+
+    The name is a literal exactly once and the handler is derived from the path constant, for
+    the reasons the four commands before it give. Both options are spelled as the handler
+    reads them, and every description fits the column AppAPI stores it in (T-29-18).
+    """
+    schemes = occ.command_schemes()
+
+    assert len(schemes) == 5
+    scheme = schemes[4]
+    assert occ.OCC_EXCLUSION_CHECK_COMMAND_NAME == "mcp_connector:exclusion:check"
+    assert scheme["name"] == occ.OCC_EXCLUSION_CHECK_COMMAND_NAME
+    assert exclusion_check.EXCLUSION_CHECK_PATH.removeprefix("/") == occ.OCC_EXCLUSION_CHECK_HANDLER
+    assert scheme["execute_handler"] == occ.OCC_EXCLUSION_CHECK_HANDLER
+    assert f"/{scheme['execute_handler']}" == exclusion_check.EXCLUSION_CHECK_PATH
+    assert scheme["arguments"] == []
+    assert [(option["name"], option["mode"]) for option in scheme["options"]] == [
+        (exclusion_check.ADMIN_OPTION, "optional"),
+        (exclusion_check.JSON_OPTION, "none"),
+    ]
+    assert scheme["options"][0]["default"] is None
+    assert len(scheme["description"]) <= occ.APPAPI_DESCRIPTION_LENGTH
+    for option in scheme["options"]:
+        assert len(option["description"]) <= occ.APPAPI_DESCRIPTION_LENGTH
+    assert scheme["usages"][0] == occ.OCC_EXCLUSION_CHECK_COMMAND_NAME
 
 
 def test_the_token_option_says_that_the_value_stands_in_the_process_list() -> None:
