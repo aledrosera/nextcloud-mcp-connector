@@ -11,8 +11,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-01
+
 ### Added
 
+- Files and folders that carry the collaborative system tag `kein-ki` (any casing, every variant
+  with the same name) no longer appear in any tool answer: not as a hit, content, snippet, digest
+  or file name. A tagged item answers exactly like a missing one. When the tag cannot be checked,
+  the affected answer fails closed with one `degraded` entry. This covers files, unified search
+  and fetch, notes, Talk, Tables, `prepare_context` and the Findling, Notes and comments hits.
+  Limits and evidence: docs/exclusion.md (EXCL-01..07).
+- `occ mcp_connector:exclusion:check [--admin <uid>] [--json]` reports in seven read-only steps
+  whether the exclusion tag is set up so the connector can enforce it. It never writes (OPS-01).
 - `files_read_as_markdown` reads DOCX, XLSX, PPTX and PDF files as Markdown, in slices with a
   next offset like `files_read`. The parsers ship as the optional extra `documents`; the ExApp
   image carries it. An Office file is checked against its own directory listing before anything
@@ -882,7 +892,8 @@ First release, submitted to the Nextcloud App Store.
   never sees more than that user sees in the web interface.
 - A privacy and data flow description, see [docs/privacy.md](docs/privacy.md).
 
-[Unreleased]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.2.1...v0.3.0

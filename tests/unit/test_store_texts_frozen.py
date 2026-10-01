@@ -1,10 +1,10 @@
-"""Pin the App Store texts in appinfo/info.xml to their state at commit ca157b4.
+"""Pin the App Store texts in appinfo/info.xml to their state of release 0.4.0.
 
 EXCL-F02: the store texts (``summary`` and ``description`` in English, German
 and French, the direct children of the root element ``info``) only travel to
-the Nextcloud App Store with the next release. Phase 29 changes code and
-operator docs, not these texts, so they must stay byte-identical to the last
-commit before the phase 29 code (ca157b4).
+the Nextcloud App Store with the next release. Phase 29 kept them byte-identical
+to ca157b4; release 0.4.0 renewed the pin with the owner's decision of 2026-10-01
+(the kein-ki bullet and Office and PDF in the tools bullet, in all three languages).
 
 Why a hash instead of ``git show ca157b4:appinfo/info.xml``: the CI job
 ``unit`` checks out with depth 1, the reference commit is not available there.
@@ -32,8 +32,8 @@ from mcp_connector.nextcloud.clients.xml import hardened_parser
 ROOT = Path(__file__).resolve().parents[2]
 INFO_XML = ROOT / "appinfo" / "info.xml"
 
-FROZEN_AT = "ca157b4"
-EXPECTED_SHA256 = "cddc87fdae70d0b0a7e9e2d59b43c177f8a75368dc9d216397b06c1737c1ba47"
+FROZEN_AT = "release 0.4.0"
+EXPECTED_SHA256 = "0618615199ba8dc370611b9702f84a40f0b0c9a96b29c3d753386cf614e15a50"
 EXPECTED_COUNT = 6
 
 _STORE_TAGS = ("summary", "description")
