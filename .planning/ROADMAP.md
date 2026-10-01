@@ -305,7 +305,7 @@ Plans:
 
 **Wave 3**
 
-- [ ] 29-04-PLAN.md , Handler exapp/exclusion_check.py (Text/--json, --admin, immer 200, nur lesend)
+- [x] 29-04-PLAN.md , Handler exapp/exclusion_check.py (Text/--json, --admin, immer 200, nur lesend)
 
 **Wave 4**
 
@@ -359,7 +359,7 @@ Plans:
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
 | 28. Gates und Beweise | v1.7 | 12/12 | Complete    | 2026-10-01 |
-| 29. Prüfkommando und Doku | v1.7 | 3/9 | In Progress|  |
+| 29. Prüfkommando und Doku | v1.7 | 4/9 | In Progress|  |
 
 ## Coverage v1.7
 

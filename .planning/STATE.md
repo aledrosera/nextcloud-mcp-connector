@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
 status: executing
-stopped_at: Completed 29-03-PLAN.md
-last_updated: "2026-10-01T05:52:46.660Z"
+stopped_at: Completed 29-04-PLAN.md
+last_updated: "2026-10-01T06:11:31.192Z"
 last_activity: 2026-10-01
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 38
-  completed_plans: 32
+  completed_plans: 33
   percent: 80
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-09-26)
 ## Current Position
 
 Phase: 29
-Plan: 4 of 9 (29-01 bis 29-03 fertig)
+Plan: 5 of 9 (29-01 bis 29-04 fertig)
 Status: Ready to execute
 Last activity: 2026-10-01
 
-Progress: [████████░░] 84%
+Progress: [█████████░] 87%
 
 ## Performance Metrics
 
@@ -215,6 +215,7 @@ Progress: [████████░░] 84%
 | Phase 22 P03 | 21 min | 2 tasks | 9 files |
 | Phase 29 P01 | 25min | 2 tasks | 2 files |
 | Phase 29 P03 | 25min | 2 tasks | 4 files |
+| Phase 29 P04 | 35min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -768,6 +769,7 @@ Recent decisions affecting current work:
 - [Phase 29]: 29-01: Admin-Nachweis über cloud/groups/admin/users (200/403); oc:groups als Nicht-Admin kippt ganze PROPFIND auf 403
 - [Phase 29]: 29-01: Zählung über innere nc:object-ids mit nc:type=files (nc:id ist Index); ohne --admin erstes AppAPI-Konto mit 207, nur user-visible
 - [Phase 29]: 29-03: confirm_admin nur Kandidat b (200+OCS 200 True, 403+OCS 403 False, sonst None); Zählung über innere nc:object-ids per sum(), ObjectCount ohne Id-Feld
+- [Phase 29]: 29-04: Handler /exclusion-check; JSON mode null bei checked=false (Ausfall nie als kein Tag lesbar), reason-Schlüssel, confirm_admin None liest als genanntes Konto ohne oc:groups
 
 ### Pending Todos
 
@@ -823,9 +825,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T05:52:35.225Z
-Stopped at: Completed 29-03-PLAN.md
-Nächster Schritt: 29-04 ff. (execute-phase 29; 29-04 leert den vulture-Abschnitt von 29-03), nc35 vor 29-06 neu starten
+Last session: 2026-10-01T06:11:31.173Z
+Stopped at: Completed 29-04-PLAN.md
+Nächster Schritt: 29-05 (occ-Kommando, entry_exapp, info.xml verdrahten), nc35 vor 29-06 neu starten
 Resume file: None
 
 ## Operator Next Steps
