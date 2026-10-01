@@ -166,23 +166,17 @@ graphie comme non exclus.
 le verdict. Un script ou une supervision lit la clé `passed` de la réponse `--json`, jamais le
 code de sortie.
 
-**Sans `--admin`.** La commande lit alors en tant que premier compte (trié) de l'instance capable
-de lire la liste des étiquettes, cinq essais au plus ; les comptes désactivés répondent comme les
-autres. Seules les étiquettes visibles comptent, les étiquettes invisibles et les groupes de
-délégation ne sont pas vérifiés, et la sortie le dit. S'il n'existe aucune étiquette `kein-ki`
-visible, l'indication est : "Hint: no visible kein-ki tag exists; invisible tags were not
-checked. Run again with --admin=<uid> to also check invisible tags; if none exists, create it
-with: php occ tag:add kein-ki public"
-(`NO_VISIBLE_TAG_SENTENCE` dans [exclusion_check.py](../src/mcp_connector/exapp/exclusion_check.py)).
-Un compte nommé avec `--admin` dont il est prouvé qu'il n'est pas administrateur termine
-l'exécution avec `passed` false ; une réponse qui ne tranche rien mène sur la même voie sans la
-vue d'un administrateur, en lisant en tant que compte nommé.
+**Sans `--admin`.** La commande lit alors comme un compte ordinaire et ne voit que les étiquettes
+visibles. Elle ne peut pas vérifier ainsi les étiquettes invisibles ni les groupes de délégation,
+et la sortie le dit. Pour la vérification complète, la lancer avec `--admin=<uid>`.
 
 **Nombres.** Le nombre compte les attributions sur toute l'instance, y compris les fichiers de la
 corbeille ; sur Nextcloud 35, il est même resté après `occ trashbin:cleanup` (mesuré 2 avant,
 2 dans la corbeille, 2 après, M4 dans
 [raw/29-01-messungen.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-01-messungen.txt)).
 Ce n'est donc pas le nombre de fichiers qu'un utilisateur peut atteindre.
+
+La commande répond en anglais ; la ligne "See docs/exclusion.md" renvoie à la page anglaise.
 
 Sortie mesurée, libre-service (preuve en conditions réelles, cas B) :
 
@@ -262,8 +256,8 @@ Source : [25-MESSBERICHT.md, K1](../.planning/phases/25-mess-spike-tag-abfrage/2
 ### Temps de réponse
 
 Un élément étiqueté coûte une requête d'étiquette de plus qu'un élément absent, le temps de
-réponse peut donc les distinguer ; le connecteur n'ajoute aucun délai artificiel (risque
-accepté).
+réponse peut donc les distinguer ; le connecteur n'ajoute aucun délai artificiel (une
+limite connue, assumée délibérément).
 Source : [28-CONTEXT.md, D-28-12](../.planning/phases/28-gates-und-beweise/28-CONTEXT.md),
 [28-SECURITY.md, A-28-06](../.planning/phases/28-gates-und-beweise/28-SECURITY.md).
 
@@ -279,7 +273,7 @@ Source : [28-CONTEXT.md, D-28-13](../.planning/phases/28-gates-und-beweise/28-CO
 ### notes_create
 
 `notes_create` crée une catégorie qui n'existe pas et en refuse une qui est étiquetée, le refus
-montre donc qu'un dossier étiqueté de ce nom existe (accepté, fixé par un test).
+montre donc qu'un dossier étiqueté de ce nom existe (assumé délibérément, fixé par un test).
 Source : [28-CONTEXT.md, D-28-16](../.planning/phases/28-gates-und-beweise/28-CONTEXT.md),
 [28-SECURITY.md, A-28-07](../.planning/phases/28-gates-und-beweise/28-SECURITY.md).
 
@@ -287,8 +281,8 @@ Source : [28-CONTEXT.md, D-28-16](../.planning/phases/28-gates-und-beweise/28-CO
 ### Fournisseurs de recherche d'applications tierces
 
 Un fournisseur de recherche qui nomme des fichiers sans identifiant de fichier, sans chemin ni
-lien `/f/<id>` n'est pas contrôlé et passe par la recherche unifiée (fail-open à l'exécution,
-décision du propriétaire) ; le contrôle en CI ne voit que les fournisseurs de l'instance de CI.
+lien `/f/<id>` n'est pas contrôlé et passe par la recherche unifiée (à l'exécution, le connecteur le laisse
+passer en cas de doute, choix délibéré) ; le contrôle en CI ne voit que les fournisseurs de l'instance de CI.
 Source : [28-REVIEW.md, WR-02 et décisions du propriétaire](../.planning/phases/28-gates-und-beweise/28-REVIEW.md).
 
 <a id="limit-tables-free-text"></a>
@@ -313,10 +307,11 @@ Source : [28-REVIEW.md, IN-02](../.planning/phases/28-gates-und-beweise/28-REVIE
 <a id="tech-sqlite"></a>
 ### SQLite avec de nombreuses attributions d'étiquettes
 
-Sur SQLite, une requête d'étiquette avec un seul résultat a pris 240 298 ms (environ 240 s) pour
-140 005 attributions (Nextcloud 35.0.0, mesuré le 2026-09-26 ; PostgreSQL : médiane de 62 ms
-pour 110 005), sur de telles instances la vérification se termine donc pratiquement toujours
-sans réponse et les entrées porteuses de fichiers sont retenues (fail-closed).
+Mesuré : sur SQLite, une requête d'étiquette avec un seul résultat a pris environ 240 s pour
+140 005 attributions (240 298 ms, Nextcloud 35.0.0, mesuré le 2026-09-26 ; PostgreSQL : médiane
+de 62 ms pour 110 005). Le connecteur attend au plus 15 s une requête d'étiquette (`TAG_BUDGET`
+dans [exclusion.py](../src/mcp_connector/nextcloud/exclusion.py)), la vérification s'y termine donc sans
+réponse, et les entrées porteuses de fichiers sont retenues (fail-closed).
 Source : [25-MESSBERICHT.md, G2 et décision du propriétaire E3](../.planning/phases/25-mess-spike-tag-abfrage/25-MESSBERICHT.md).
 
 <a id="tech-upload-oracle"></a>

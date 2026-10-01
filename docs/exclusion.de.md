@@ -162,22 +162,18 @@ Schreibweise als nicht ausgeschlossen nennt.
 ausfällt. Ein Skript oder Monitoring liest den Schlüssel `passed` der `--json`-Antwort, nie den
 Exit-Code.
 
-**Ohne `--admin`.** Das Kommando liest dann als das erste Konto (sortiert) der Instanz, das die
-Tag-Liste lesen kann, höchstens fünf Versuche; deaktivierte Konten antworten wie alle anderen.
-Nur sichtbare Tags zählen, unsichtbare Tags und Delegationsgruppen werden nicht geprüft, und die
-Ausgabe sagt das. Gibt es kein sichtbares `kein-ki`-Tag, lautet der Hinweis: "Hint: no visible
-kein-ki tag exists; invisible tags were not checked. Run again with --admin=<uid> to also check
-invisible tags; if none exists, create it with: php occ tag:add kein-ki public"
-(`NO_VISIBLE_TAG_SENTENCE` in [exclusion_check.py](../src/mcp_connector/exapp/exclusion_check.py)).
-Ein mit `--admin` genanntes Konto, das nachweislich kein Administrator ist, beendet den Lauf mit
-`passed` false; eine Antwort, die nichts entscheidet, führt auf denselben Weg ohne die Sicht
-eines Administrators, gelesen als das genannte Konto.
+**Ohne `--admin`.** Das Kommando liest dann wie ein gewöhnliches Konto und sieht nur sichtbare
+Tags. Unsichtbare Tags und Delegationsgruppen kann es so nicht prüfen, und die Ausgabe sagt das.
+Für die vollständige Prüfung mit `--admin=<uid>` aufrufen.
 
 **Anzahlen.** Die Zahl zählt Zuordnungen über die ganze Instanz, auch von Dateien im
 Papierkorb; auf Nextcloud 35 blieb sie sogar nach `occ trashbin:cleanup` stehen (gemessen 2
 vorher, 2 im Papierkorb, 2 danach, M4 in
 [raw/29-01-messungen.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-01-messungen.txt)).
 Sie ist also nicht die Zahl der Dateien, die ein Nutzer erreichen kann.
+
+Das Kommando antwortet auf Englisch; die Zeile "See docs/exclusion.md" verweist auf die
+englische Seite.
 
 Gemessene Ausgabe, Selbstbedienung (Live-Beweis, Fall B):
 
@@ -254,8 +250,8 @@ Quelle: [25-MESSBERICHT.md, K1](../.planning/phases/25-mess-spike-tag-abfrage/25
 ### Antwortzeit
 
 Ein getaggtes Objekt kostet eine Tag-Abfrage mehr als ein fehlendes, die Antwortzeit kann die
-beiden also unterscheiden; der Connector fügt keine künstliche Verzögerung ein (akzeptiertes
-Risiko).
+beiden also unterscheiden; der Connector fügt keine künstliche Verzögerung ein (eine
+bekannte, bewusst hingenommene Grenze).
 Quelle: [28-CONTEXT.md, D-28-12](../.planning/phases/28-gates-und-beweise/28-CONTEXT.md),
 [28-SECURITY.md, A-28-06](../.planning/phases/28-gates-und-beweise/28-SECURITY.md).
 
@@ -271,8 +267,8 @@ Quelle: [28-CONTEXT.md, D-28-13](../.planning/phases/28-gates-und-beweise/28-CON
 ### notes_create
 
 `notes_create` legt eine nicht existente Kategorie an und weist eine getaggte ab, die Abweisung
-zeigt also, dass ein getaggter Ordner dieses Namens existiert (akzeptiert, von einem Test
-festgehalten).
+zeigt also, dass ein getaggter Ordner dieses Namens existiert (bewusst hingenommen, von einem
+Test festgehalten).
 Quelle: [28-CONTEXT.md, D-28-16](../.planning/phases/28-gates-und-beweise/28-CONTEXT.md),
 [28-SECURITY.md, A-28-07](../.planning/phases/28-gates-und-beweise/28-SECURITY.md).
 
@@ -280,7 +276,7 @@ Quelle: [28-CONTEXT.md, D-28-16](../.planning/phases/28-gates-und-beweise/28-CON
 ### Suchprovider von Drittanbieter-Apps
 
 Ein Suchprovider, der Dateien ohne fileId, Pfad oder `/f/<id>`-Link nennt, wird nicht geprüft
-und kommt durch die Unified Search (zur Laufzeit fail-open, Owner-Entscheid); das Gate in der CI
+und kommt durch die Unified Search (zur Laufzeit lässt der Connector ihn im Zweifel durch, bewusst so entschieden); das Gate in der CI
 sieht nur die Provider der CI-Instanz.
 Quelle: [28-REVIEW.md, WR-02 und Owner decisions](../.planning/phases/28-gates-und-beweise/28-REVIEW.md).
 
@@ -306,10 +302,11 @@ Quelle: [28-REVIEW.md, IN-02](../.planning/phases/28-gates-und-beweise/28-REVIEW
 <a id="tech-sqlite"></a>
 ### SQLite mit vielen Tag-Zuordnungen
 
-Auf SQLite brauchte eine Tag-Abfrage mit einem einzigen Treffer bei 140.005 Zuordnungen
-240.298 ms, rund 240 s (Nextcloud 35.0.0, gemessen 2026-09-26; PostgreSQL: Median 62 ms bei
-110.005), auf solchen Instanzen endet die Prüfung also praktisch immer als nicht beantwortbar
-und dateitragende Einträge werden zurückgehalten (fail-closed).
+Gemessen: Auf SQLite brauchte eine Tag-Abfrage mit einem einzigen Treffer bei 140.005
+Zuordnungen rund 240 s (240.298 ms, Nextcloud 35.0.0, gemessen 2026-09-26; PostgreSQL: Median
+62 ms bei 110.005). Der Connector wartet höchstens 15 s auf eine Tag-Abfrage (`TAG_BUDGET` in
+[exclusion.py](../src/mcp_connector/nextcloud/exclusion.py)), die Prüfung endet dort also als nicht beantwortbar, und
+dateitragende Einträge werden zurückgehalten (fail-closed).
 Quelle: [25-MESSBERICHT.md, G2 und Owner-Entscheid E3](../.planning/phases/25-mess-spike-tag-abfrage/25-MESSBERICHT.md).
 
 <a id="tech-upload-oracle"></a>

@@ -156,22 +156,17 @@ that names the items under the other spelling as not excluded.
 **Exit code.** Over AppAPI the exit code of the command is always 0, whatever the verdict.
 A script or monitoring reads the key `passed` of the `--json` answer, never the exit code.
 
-**Without `--admin`.** The command then reads as the first account (sorted) of the instance
-that can read the tag listing, at most five tries; disabled accounts answer like any other.
-Only visible tags count, invisible tags and delegation groups are not checked, and the output
-says so. If no visible `kein-ki` tag exists, the hint reads: "Hint: no visible kein-ki tag
-exists; invisible tags were not checked. Run again with --admin=<uid> to also check invisible
-tags; if none exists, create it with: php occ tag:add kein-ki public"
-(`NO_VISIBLE_TAG_SENTENCE` in [exclusion_check.py](../src/mcp_connector/exapp/exclusion_check.py)).
-An account named with `--admin` that is proven not to be an administrator ends the run with
-`passed` false; an answer that decides nothing leads onto the same way without the
-administrator's view, read as the named account.
+**Without `--admin`.** The command then reads like an ordinary account and sees only visible
+tags. It cannot check invisible tags or delegation groups this way, and the output says so.
+Run it with `--admin=<uid>` for the full check.
 
 **Counts.** The number counts assignments across the whole instance, including files in the
 trash bin; on Nextcloud 35 it even stayed after `occ trashbin:cleanup` (measured 2 before,
 2 in the trash bin, 2 after, M4 in
 [raw/29-01-messungen.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-01-messungen.txt)).
 It is therefore not the number of files a user can reach.
+
+The command answers in English; the line "See docs/exclusion.md" points to the English page.
 
 Measured output, self service (live proof, case B):
 
@@ -246,7 +241,8 @@ Source: [25-MESSBERICHT.md, K1](../.planning/phases/25-mess-spike-tag-abfrage/25
 ### Timing
 
 A tagged item costs one tag query more than a missing one, so the response time can tell them
-apart; the connector adds no artificial delay (accepted risk).
+apart; the connector adds no artificial delay (a known limit, deliberately
+accepted).
 Source: [28-CONTEXT.md, D-28-12](../.planning/phases/28-gates-und-beweise/28-CONTEXT.md),
 [28-SECURITY.md, A-28-06](../.planning/phases/28-gates-und-beweise/28-SECURITY.md).
 
@@ -262,7 +258,7 @@ Source: [28-CONTEXT.md, D-28-13](../.planning/phases/28-gates-und-beweise/28-CON
 ### notes_create
 
 `notes_create` creates a category that does not exist and refuses one that is tagged, so the
-refusal shows that a tagged folder of that name exists (accepted, pinned by a test).
+refusal shows that a tagged folder of that name exists (deliberately accepted, pinned by a test).
 Source: [28-CONTEXT.md, D-28-16](../.planning/phases/28-gates-und-beweise/28-CONTEXT.md),
 [28-SECURITY.md, A-28-07](../.planning/phases/28-gates-und-beweise/28-SECURITY.md).
 
@@ -270,7 +266,7 @@ Source: [28-CONTEXT.md, D-28-16](../.planning/phases/28-gates-und-beweise/28-CON
 ### Search providers of third-party apps
 
 A search provider that names files without a file id, a path or a `/f/<id>` link is not
-screened and passes through unified search (fail-open at runtime, owner decision); the gate in
+screened and passes through unified search (at runtime the connector lets it through when in doubt, a deliberate design decision); the gate in
 CI only sees the providers of the CI instance.
 Source: [28-REVIEW.md, WR-02 and owner decisions](../.planning/phases/28-gates-und-beweise/28-REVIEW.md).
 
@@ -296,10 +292,11 @@ Source: [28-REVIEW.md, IN-02](../.planning/phases/28-gates-und-beweise/28-REVIEW
 <a id="tech-sqlite"></a>
 ### SQLite with many tag assignments
 
-On SQLite a tag query with a single hit took 240,298 ms (about 240 s) at 140,005 assignments
-(Nextcloud 35.0.0, measured 2026-09-26; PostgreSQL: 62 ms median at 110,005), so on such
-instances the check practically always ends as not answerable and entries carrying files are
-withheld (fail-closed).
+Measured: on SQLite a tag query with a single hit took about 240 s at 140,005 assignments
+(240,298 ms, Nextcloud 35.0.0, measured 2026-09-26; PostgreSQL: 62 ms median at 110,005).
+The connector waits at most 15 s for a tag query (`TAG_BUDGET` in
+[exclusion.py](../src/mcp_connector/nextcloud/exclusion.py)), so the check ends there as not answerable, and entries
+carrying files are withheld (fail-closed).
 Source: [25-MESSBERICHT.md, G2 and owner decision E3](../.planning/phases/25-mess-spike-tag-abfrage/25-MESSBERICHT.md).
 
 <a id="tech-upload-oracle"></a>
