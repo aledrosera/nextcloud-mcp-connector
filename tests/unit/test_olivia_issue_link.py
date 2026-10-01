@@ -1,3 +1,4 @@
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -11,6 +12,15 @@ from mcp_connector.nextcloud import NcClients
 from mcp_connector.nextcloud.credentials import Credentials
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in test_olivia_exclusion_links.py."""
+    guard_routes.patch_untagged(monkeypatch)
+
+
 BASE = "http://nc.test"
 URL = f"{BASE}/remote.php/dav/files/alice/Docs/scan.pdf"
 ENV = {

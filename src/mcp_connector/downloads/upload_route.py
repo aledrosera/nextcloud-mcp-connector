@@ -16,10 +16,20 @@ from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from ..errors import REASON_GUARD_TRIPPED, ToolError
+from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
 from ..nextcloud.http import shared_client
 from ..oauth.store import StoreProvider
-from .route import TOKEN_PATTERN, _bad_gateway, _masked, _not_found, rebuild_credentials
+from ..tools import files as files_tools
+from .route import (
+    TOKEN_PATTERN,
+    _bad_gateway,
+    _masked,
+    _not_found,
+    _unavailable,
+    rebuild_credentials,
+)
 from .store import TicketStore, ticket_store
 from .upload import MAX_UPLOAD_BYTES, parse_upload_path
 
@@ -80,6 +90,19 @@ def upload_routes(
                 await store.release(token)
                 await _drain(request)
                 return _not_found()
+
+            # kein-ki on redemption: a target that is tagged, or lies below a tagged folder,
+            # gets the answer of a missing parent folder (the PUT's 404/409 row below), and
+            # an unanswered check writes nothing and keeps the link (upstream 0.4.0).
+            try:
+                await files_tools.writable(NcClients(shared_client(), creds), target)
+            except ToolError as exc:
+                await _drain(request)
+                if exc.reason == REASON_GUARD_TRIPPED:
+                    await store.release(token)
+                    return _unavailable()
+                await store.finish(token)
+                return _json(409, {"error": "conflict", "path": target})
 
             received = 0
             body_consumed = False

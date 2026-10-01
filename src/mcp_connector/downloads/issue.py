@@ -10,6 +10,7 @@ from ..deps import TicketOwner
 from ..errors import ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
+from ..tools import files as files_tools
 from .store import TicketStore, ticket_store
 
 HOW_TO = (
@@ -29,7 +30,9 @@ async def issue_link(
     now: float | None = None,
 ) -> dict[str, Any]:
     target = dav.safe_path(path)
-    info = await dav.stat(clients.client, clients.creds, target)
+    # Upstream's kein-ki read check: a tagged file answers like a missing one, and a check
+    # that cannot be answered refuses every path alike (upstream 0.4.0, EXCL-01).
+    info = await files_tools.visible_stat(clients, target)
     if info["is_collection"]:
         raise ToolError(
             message=f"{target} is a folder, not a file.",

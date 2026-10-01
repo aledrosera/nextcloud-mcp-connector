@@ -297,7 +297,6 @@ def link_owner(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
 @pytest.mark.anyio
 @pytest.mark.parametrize("mode", GUARD_MODES)
 @pytest.mark.usefixtures("link_owner")
-@pytest.mark.xfail(strict=True, reason="kein-ki is not wired into the download link yet")
 async def test_files_download_answers_a_tagged_path_like_a_missing_one(
     mode: str, unexpected: list[str]
 ) -> None:

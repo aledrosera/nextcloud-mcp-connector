@@ -32,7 +32,7 @@ FILE_READERS: dict[str, str] = {
     ),
     "files_download": (
         "Answers a single-use download link with name, size and type of one file by path, "
-        "olivia fork (downloads/issue.py:22-50)."
+        "guarded in _visible_stat, olivia fork (downloads/issue.py:23-52)."
     ),
     "notes_search": (
         "Notes are files and a note id is a fileid, so a hit names a file (tools/notes.py:71)."
@@ -66,7 +66,7 @@ FILE_READERS: dict[str, str] = {
 FILE_WRITERS: dict[str, str] = {
     "files_upload": (
         "Creates a text file at a path, or hands out an upload link for one, and checks "
-        "_writable before every write (tools/files.py:502-547, downloads/upload.py:51)."
+        "_writable before every write (tools/files.py:502-547, downloads/upload.py:52-73)."
     ),
     "notes_create": (
         "Creates a note file in a category folder and checks folder and candidate file "
@@ -110,7 +110,7 @@ UNAFFECTED: dict[str, str] = {
     ),
     "mail_draft": (
         "Answers the draft id, account, recipients, subject and the attachment names the caller "
-        "gave itself, olivia fork (tools/drafts.py:174-190)."
+        "gave itself; attachments pass _visible_stat, olivia fork (tools/drafts.py:78-106)."
     ),
 }
 

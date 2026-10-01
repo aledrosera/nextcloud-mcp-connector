@@ -552,6 +552,20 @@ def is_text(content_type: str) -> bool:
     return _is_text(content_type)
 
 
+async def visible_stat(clients: NcClients, target: str) -> dict[str, Any]:
+    """Public face of :func:`_visible_stat`, for the fork's own read paths (fork olivia).
+
+    The download link (downloads/issue.py), its /dl route and the attachments of a mail
+    draft (tools/drafts.py) stat a file through the kein-ki guard exactly as files_read does.
+    """
+    return await _visible_stat(clients, target)
+
+
+async def writable(clients: NcClients, target: str) -> None:
+    """Public face of :func:`_writable`, for the upload link and its /ul route (fork olivia)."""
+    await _writable(clients, target)
+
+
 async def _writable(clients: NcClients, target: str) -> None:
     """Refuse a write into what is tagged ``kein-ki`` like a write into a missing folder.
 

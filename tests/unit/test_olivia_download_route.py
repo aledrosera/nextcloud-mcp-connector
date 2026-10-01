@@ -2,6 +2,7 @@ import asyncio
 import base64
 import logging
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -11,6 +12,7 @@ from starlette.testclient import TestClient
 from mcp_connector import config
 from mcp_connector.downloads import route as dl_route
 from mcp_connector.downloads import store as dl_store
+from mcp_connector.nextcloud.clients import dav
 from mcp_connector.oauth import store as oauth_store_module
 
 BASE = "http://nc.test"
@@ -27,6 +29,19 @@ BODY = b"%PDF-1.7 " + b"y" * 100_000
 
 def run(work):
     return asyncio.run(work)
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests assert the streaming without any kein-ki tag: the guard answers untagged
+    and the stat before the download finds the file, so the GET decides what follows. The
+    guard states are tested in test_olivia_exclusion_links.py."""
+    guard_routes.patch_untagged(monkeypatch)
+
+    async def found(_client: object, _creds: object, path: str) -> dict[str, object]:
+        return {"path": path, "is_collection": False, "content_type": "", "size": 0, "fileid": "1"}
+
+    monkeypatch.setattr(dav, "stat", found)
 
 
 @pytest.fixture

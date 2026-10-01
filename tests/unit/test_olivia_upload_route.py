@@ -1,5 +1,6 @@
 import asyncio
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -26,6 +27,13 @@ FILE_URL = f"{ROOT}/Clienti/Rossi/Preventivo%20%C3%A0%20%231.docx"
 
 def run(work):
     return asyncio.run(work)
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in test_olivia_exclusion_links.py."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 @pytest.fixture

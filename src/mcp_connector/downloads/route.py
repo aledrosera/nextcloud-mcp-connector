@@ -20,13 +20,21 @@ from starlette.responses import PlainTextResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from .. import config
-from ..errors import REASON_PERMISSION_DENIED, REASON_UNKNOWN_ID, ToolError
+from ..errors import (
+    REASON_GUARD_TRIPPED,
+    REASON_PERMISSION_DENIED,
+    REASON_UNKNOWN_ID,
+    ToolError,
+)
+from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
 from ..nextcloud.credentials import MODE_APPAPI, MODE_BASIC, Credentials
 from ..nextcloud.http import shared_client
 from ..oauth.crypto import DecryptionRejected
 from ..oauth.principal import login_name_of, principal_of
 from ..oauth.store import StoreProvider
+from ..tools import files as files_tools
+from ..tools import withhold
 from . import mail_attachment, upload
 from .store import Ticket, TicketStore, ticket_store
 
@@ -43,6 +51,13 @@ def _not_found() -> Response:
 
 def _bad_gateway() -> Response:
     return PlainTextResponse("Bad gateway", status_code=502, headers={"Cache-Control": "no-store"})
+
+
+def _unavailable() -> Response:
+    """The kein-ki check could not be answered: nothing goes out, the link stays usable."""
+    return PlainTextResponse(
+        withhold.EXCLUSION_UNAVAILABLE, status_code=503, headers={"Cache-Control": "no-store"}
+    )
 
 
 def _disposition(name: str) -> str:
@@ -151,6 +166,10 @@ def download_routes(
                         shared_client(), creds, message_id, attachment_id
                     )
                 else:
+                    # kein-ki on redemption: a tag set after the link was issued answers like
+                    # a missing file, and an unanswered check sends nothing (upstream 0.4.0).
+                    # Mail attachments stay outside, as upstream documents mail as not covered.
+                    await files_tools.visible_stat(NcClients(shared_client(), creds), ticket.path)
                     upstream = await dav.open_download(shared_client(), creds, ticket.path)
             except ToolError as exc:
                 if exc.reason == REASON_PERMISSION_DENIED:
@@ -162,7 +181,7 @@ def download_routes(
                     await store.release(token)
                     return _not_found()
                 await store.release(token)
-                return _bad_gateway()
+                return _unavailable() if exc.reason == REASON_GUARD_TRIPPED else _bad_gateway()
             except httpx.HTTPError:
                 await store.release(token)
                 return _bad_gateway()

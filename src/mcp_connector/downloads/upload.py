@@ -16,6 +16,7 @@ from ..deps import TicketOwner
 from ..errors import REASON_UNKNOWN_ID, ConflictError, ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import dav
+from ..tools import files as files_tools
 from .store import TicketStore, ticket_store
 
 UPLOAD_PREFIX = "upload:"
@@ -65,6 +66,10 @@ async def issue_upload_link(
             message="The upload target is the root folder, not a file.",
             hint=_FILE_HINT,
         )
+    # Upstream's kein-ki write check before the existence probe, which would itself tell a
+    # tagged file from a missing one: a tagged target, or one below a tagged folder, gets the
+    # refusal of a missing parent folder (upstream 0.4.0, D-27-01, D-27-02).
+    await files_tools.writable(clients, target)
     try:
         await dav.stat(clients.client, clients.creds, target)
     except ToolError as exc:

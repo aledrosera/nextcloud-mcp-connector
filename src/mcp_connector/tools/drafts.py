@@ -10,6 +10,7 @@ from ..errors import ToolError
 from ..nextcloud import NcClients, capabilities
 from ..nextcloud.clients import dav, mail_drafts
 from ..nextcloud.clients import mail as mail_client
+from . import files as files_tools
 
 APP = "mail"
 MAX_ATTACHMENTS = 10
@@ -84,7 +85,9 @@ async def _checked_attachments(clients: NcClients, paths: Sequence[str]) -> list
     for path in paths:
         target = dav.safe_path(path)
         try:
-            info = await dav.stat(clients.client, clients.creds, target)
+            # kein-ki: a draft is readable through fetch(mail) and its attachment links, so
+            # a tagged file answers like a missing one here too (upstream 0.4.0, EXCL-01).
+            info = await files_tools.visible_stat(clients, target)
         except ToolError as exc:
             raise ToolError(
                 message=f"Attachment {target} cannot be read: {exc.message}", hint=exc.hint
