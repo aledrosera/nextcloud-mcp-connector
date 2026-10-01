@@ -176,3 +176,28 @@ Owner-Entscheid 28.09.2026 am Checkpoint 28-12 zu den zwei Regeln von D-28-21 (w
 Owner-Entscheid 28.09.2026 zu Phase 28 (wörtlich): "Abnehmen (Empfohlen)".
 
 Die vier Erfolgskriterien sind abgenommen. Offen bleiben wie oben aufgeführt: der CI-Nachweis für GATE-02/GATE-03 und SBX-01, der erst nach dem Push durch den Owner läuft (Abschnitt "Offen"), und die Merker für Phase 29 (D-28-12, D-28-13, D-28-16, D-28-20, T-28-44, ExApp/HaRP-Kette). Phase 28 ist damit zur Verifikation frei.
+
+## Neulauf 2026-10-01 nach Review-Fixes
+
+Human-Verification-Punkt 1 aus 28-VERIFICATION.md: Kanarie, Live-Paare und Provider-Live-Gate nach den Review-Fixes (1f9da6b..ad752c5, c358b40) erneut gegen nc35, HEAD 4a91775, mit `NC_MCP_REQUIRE_LIVE=1` (kein Skip möglich).
+
+Kommando: `<Vorspann> NC_MCP_REQUIRE_LIVE=1 uv run pytest tests/integration/test_canary.py tests/integration/test_pair_equality_live.py tests/integration/test_provider_classes_live.py -m integration -s`
+
+Kanarie und Live-Paare rufen `Client(mcp)` im Testprozess auf, laufen also mit dem Code des Arbeitsbaums; das ExApp-Image im Container nc_app_mcp_connector spielt für diese drei Dateien keine Rolle. Die Tests hängen ihre Zeilen an `raw/28-10-canary.txt` und `raw/28-11-pairs-live.txt` an; die angehängten Zeilen sind in eigene Dateien verschoben, die alten Rohdateien sind unverändert.
+
+**Rohdateien:** `raw/28-neulauf-2026-10-01-pytest.txt` (pytest-Ausgabe mit `-s`), `raw/28-neulauf-2026-10-01-canary.txt` (Kanarie, vier Modi), `raw/28-neulauf-2026-10-01-pairs-live.txt` (Live-Paare, vier Modi plus Ausnahme)
+
+| Befund | Rohwert | Deutung | Rohdatei |
+|---|---|---|---|
+| Gesamt | `11 passed in 135.70s (0:02:15)` | alle drei Dateien grün | raw/28-neulauf-2026-10-01-pytest.txt |
+| Kanarie | `KANARIE normal geprüft 22 von 22`, `KANARIE ausfall-500 geprüft 22 von 22`, `KANARIE ausfall-412 geprüft 22 von 22`, `KANARIE ausfall-timeout geprüft 22 von 22` | alle 22 Werkzeuge in allen vier Modi, Marker in keiner Antwort | raw/28-neulauf-2026-10-01-pytest.txt |
+| Ausfälle | `AUSFALL 500 report-route call_count=24`, `AUSFALL 412 report-route call_count=48`, `AUSFALL timeout report-route call_count=24`; je `nicht-prüfbar-antworten=23` | dieselben Zahlen wie im Beweislauf 28-10 | raw/28-neulauf-2026-10-01-canary.txt |
+| Scans | 160 Zeilen `GATE-02 ...` (40 je Modus), 156 Zeilen `AUFRUF ...` (39 je Modus), 0 Zeilen `: nein`, 8 Zeilen `KONTROLLE ...: ja`, 12 Zeilen `ABWEISUNG ...: ja` | jede Seite gescannt, Kontroll-Marker gesehen, drei Schreiber je Modus abgewiesen | raw/28-neulauf-2026-10-01-canary.txt |
+| Datei-Raum-Nachricht (CR-01) | je Modus `CLEANUP talk datei-raum-nachricht 330: 404`, `... 337: 404`, `... 344: 404`, `... 351: 404`; 4 mal `CURSOR provider=talk-message cursor=25 treffer=0` | die Welt baut jetzt eine Nachricht mit dem Stamm im Datei-Raum; kein Scan fand den Marker, die talk-message-Folgeseite liefert keinen Treffer aus dem Datei-Raum; die Nachricht ist gelesen entfernt | raw/28-neulauf-2026-10-01-canary.txt |
+| Aufräumen Kanarie | 4 mal `ZUSAMMENFASSUNG cleanup: 17 Zeilen, 17 gelesen ok, 3 Werkzeug-Einträge` | eine Zeile mehr als 28-10 (16), das ist die Datei-Raum-Nachricht | raw/28-neulauf-2026-10-01-canary.txt |
+| Live-Paare | `PAARE normal verglichen 13 von 14 (ausnahmen 1)`, `PAARE 500 verglichen 14 von 14 (ausnahmen 0)`, `PAARE 412 verglichen 14 von 14 (ausnahmen 0)`, `PAARE timeout verglichen 14 von 14 (ausnahmen 0)` | wie 28-11; einzige Ausnahme `PAAR normal notes_create category: benannte Ausnahme, gemessen als AUSNAHME` (D-28-16) | raw/28-neulauf-2026-10-01-pytest.txt |
+| Paare Auszählung | 56 PAAR-Zeilen, 51 `: gleich`, 4 `fetch table: Zelle leer ja`, 0 mal `ungleich`, 0 Zeilen `: nein`; `AUSFALL 500 report-route call_count=28`, `AUSFALL 412 report-route call_count=56`, `AUSFALL timeout report-route call_count=28` | kein Paar ungleich | raw/28-neulauf-2026-10-01-pairs-live.txt |
+| Aufräumen Paare | 4 mal `ZUSAMMENFASSUNG cleanup: 17 Zeilen, 17 gelesen ok, 0 Werkzeug-Einträge`, 1 mal `ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 1 Werkzeug-Einträge` | alles gelesen entfernt | raw/28-neulauf-2026-10-01-pairs-live.txt |
+| Provider-Live-Gate (WR-02) | `# providers=['appstore', 'circles', 'comments', 'files', 'mail', 'notes', 'search-deck-card-board', 'search-deck-comment', 'settings', 'systemtags', 'tables-search-tables', 'talk-conversations', 'talk-message']`, Test passed | erster Live-Lauf des Gates: alle 13 Provider der Instanz sind klassifiziert, kein Befund | raw/28-neulauf-2026-10-01-pytest.txt |
+
+Damit ist Human-Verification-Punkt 1 erfüllt. Offen bleibt Punkt 2 (erster CI-Lauf nach dem Owner-Push).

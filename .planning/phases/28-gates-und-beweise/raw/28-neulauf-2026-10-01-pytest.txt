@@ -1,0 +1,13 @@
+# Neulauf 2026-10-01 nach Review-Fixes 2026-10-01 04:56:37 +0200 head=4a91775
+# kommando: NC_MCP_REQUIRE_LIVE=1 PYTHONUTF8=1 uv run pytest tests/integration/test_canary.py tests/integration/test_pair_equality_live.py tests/integration/test_provider_classes_live.py -m integration -s
+KANARIE normal geprüft 22 von 22
+.KANARIE ausfall-500 geprüft 22 von 22
+.KANARIE ausfall-412 geprüft 22 von 22
+.KANARIE ausfall-timeout geprüft 22 von 22
+..PAARE normal verglichen 13 von 14 (ausnahmen 1)
+.PAARE 500 verglichen 14 von 14 (ausnahmen 0)
+.PAARE 412 verglichen 14 von 14 (ausnahmen 0)
+.PAARE timeout verglichen 14 von 14 (ausnahmen 0)
+..# providers=['appstore', 'circles', 'comments', 'files', 'mail', 'notes', 'search-deck-card-board', 'search-deck-comment', 'settings', 'systemtags', 'tables-search-tables', 'talk-conversations', 'talk-message']
+.
+11 passed in 135.70s (0:02:15)
