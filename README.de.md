@@ -99,6 +99,13 @@ Satz beantwortet, nie mit einem leeren Ergebnis.
 {"query":"budget","count":2,"results":[{"id":"file:4711","title":"Budget 2026.md","url":"https://cloud.example.org/index.php/f/4711","provider":"files","kind":"file"},{"id":"url:https://cloud.example.org/index.php/call/abc123","title":"Khaled","url":"https://cloud.example.org/index.php/call/abc123","provider":"talk-conversations","kind":"url","resolvable":false}]}
 ```
 
+## Ordner ausnehmen: das Tag kein-ki
+
+Ein Ordner oder eine Datei mit dem kollaborativen Tag `kein-ki` ist für den Assistenten unsichtbar, samt allem darunter.
+Prüfen mit `php occ mcp_connector:exclusion:check --admin=<uid>`.
+Wichtigste Grenze: Ein Tag oberhalb der Wurzel einer Freigabe schützt den geteilten Ordner beim Empfänger nicht, also den Ordner taggen, den man teilt.
+Einrichtung, alle Grenzen und ihre Befunde: [docs/exclusion.de.md](docs/exclusion.de.md).
+
 ## Sicherheit
 
 Dieser Server hält **private Daten**, er nimmt **nicht vertrauenswürdige Inhalte** auf (eine

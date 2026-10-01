@@ -90,6 +90,13 @@ missing app is answered in one sentence, never with an empty result.
 {"query":"budget","count":2,"results":[{"id":"file:4711","title":"Budget 2026.md","url":"https://cloud.example.org/index.php/f/4711","provider":"files","kind":"file"},{"id":"url:https://cloud.example.org/index.php/call/abc123","title":"Khaled","url":"https://cloud.example.org/index.php/call/abc123","provider":"talk-conversations","kind":"url","resolvable":false}]}
 ```
 
+## Excluding folders: the kein-ki tag
+
+Tag a folder or file with the collaborative tag `kein-ki` and the assistant no longer sees it or anything below it.
+Check the setup with `php occ mcp_connector:exclusion:check --admin=<uid>`.
+Most important limit: a tag above the root of a share does not protect the shared folder for the recipient, so tag the folder you share.
+Setup, all limits and the findings they rest on: [docs/exclusion.md](docs/exclusion.md).
+
 ## Security
 
 This server holds **private data**, it takes in **untrusted content** (a mail or a Talk message
