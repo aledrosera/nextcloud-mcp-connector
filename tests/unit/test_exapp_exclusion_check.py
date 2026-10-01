@@ -92,7 +92,20 @@ OUTCOMES = frozenset(
     }
 )
 
-ADMIN_YES = {"ocs": {"meta": {"status": "ok", "statuscode": 200, "message": "OK"}, "data": {}}}
+#: The measured shape of M2b: the member list of the group admin, with the named account in it.
+ADMIN_YES = {
+    "ocs": {
+        "meta": {"status": "ok", "statuscode": 200, "message": "OK"},
+        "data": {"users": ["admin", ADMIN_UID]},
+    }
+}
+#: What a delegated or sub-admin account gets (WR-02): 200 and a list without itself.
+ADMIN_LIST_WITHOUT_ME = {
+    "ocs": {
+        "meta": {"status": "ok", "statuscode": 200, "message": "OK"},
+        "data": {"users": ["admin"]},
+    }
+}
 ADMIN_NO = {"ocs": {"meta": {"status": "failure", "statuscode": 403, "message": ""}, "data": []}}
 
 WRITE_METHODS = ("PROPPATCH", "POST", "PUT", "DELETE", "MKCOL", "MOVE", "COPY", "REPORT")
@@ -647,6 +660,24 @@ def test_a_named_account_that_is_no_administrator_ends_the_run(router: respx.Moc
     assert proof.call_count == 2
     assert not listed.called
     assert len(router.calls) == 2
+
+
+def test_a_delegated_admin_who_may_read_the_admin_list_is_no_administrator(
+    router: respx.MockRouter,
+) -> None:
+    """WR-02: on nc35 the delegated Users setting answers 200 and misses invisible tags."""
+    admin_proof(router, ADMIN_LIST_WITHOUT_ME)
+    listed = router.route(method="PROPFIND")
+
+    payload = call(admin=PLAIN_UID, as_json=True).json()
+    text = call(admin=PLAIN_UID).text
+
+    assert payload["checked"] is False
+    assert payload["passed"] is False
+    assert outcome_of(payload, exclusion_audit.STEP_ADMIN_IDENTITY) == "failed"
+    assert exclusion_check.NOT_ADMIN_SENTENCE in text
+    assert NO_TAG not in text
+    assert not listed.called
 
 
 def test_the_admin_proof_and_the_listing_run_as_the_named_account(router: respx.MockRouter) -> None:

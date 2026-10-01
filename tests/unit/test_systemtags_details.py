@@ -455,6 +455,52 @@ async def test_the_measured_admin_answer_confirms_an_admin(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("user", ["bob", "chkdeleg-member"])
+async def test_a_200_without_the_account_in_the_member_list_denies(
+    client: httpx.AsyncClient, user: str
+) -> None:
+    """WR-02: a delegated Users admin, a sub-admin or a member reads the list with 200."""
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="GET", url=ADMIN_USERS).mock(
+            return_value=httpx.Response(200, content=M2B_ADMIN, headers=JSON_HEADERS)
+        )
+        result = await systemtags.confirm_admin(client, Credentials(BASE, user, "pw"))
+
+    assert result is False
+
+
+@pytest.mark.anyio
+async def test_the_member_comparison_ignores_case(client: httpx.AsyncClient) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="GET", url=ADMIN_USERS).mock(
+            return_value=httpx.Response(200, content=M2B_ADMIN, headers=JSON_HEADERS)
+        )
+        result = await systemtags.confirm_admin(client, Credentials(BASE, "Admin", "pw"))
+
+    assert result is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "data",
+    [b"{}", b'{"users":"admin"}', b'{"users":[1]}', b"[]"],
+)
+async def test_a_200_with_an_unreadable_member_list_is_undecidable(
+    client: httpx.AsyncClient, creds: Credentials, data: bytes
+) -> None:
+    content = (
+        b'{"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":' + data + b"}}"
+    )
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="GET", url=ADMIN_USERS).mock(
+            return_value=httpx.Response(200, content=content, headers=JSON_HEADERS)
+        )
+        result = await systemtags.confirm_admin(client, creds)
+
+    assert result is None
+
+
+@pytest.mark.anyio
 async def test_the_measured_non_admin_answer_denies(
     client: httpx.AsyncClient, creds: Credentials
 ) -> None:

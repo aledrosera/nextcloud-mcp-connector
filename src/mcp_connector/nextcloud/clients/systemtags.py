@@ -427,6 +427,20 @@ def _ocs_statuscode(response: httpx.Response) -> int | None:
     return code if isinstance(code, int) else None
 
 
+def _admin_members(response: httpx.Response) -> list[str] | None:
+    """``ocs.data.users`` of the admin member list, ``None`` when it is not a list of uids."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    envelope = payload.get("ocs") if isinstance(payload, dict) else None
+    data = envelope.get("data") if isinstance(envelope, dict) else None
+    users = data.get("users") if isinstance(data, dict) else None
+    if not isinstance(users, list) or not all(isinstance(uid, str) for uid in users):
+        return None
+    return users
+
+
 async def confirm_admin(client: httpx.AsyncClient, creds: Credentials) -> bool | None:
     """Prove whether the account of ``creds`` is an administrator: True, False or None.
 
@@ -437,10 +451,20 @@ async def confirm_admin(client: httpx.AsyncClient, creds: Credentials) -> bool |
     a non-admin asking for ``oc:groups`` gets a 403 for the whole PROPFIND (M2), so there is
     no propstat to judge; b also decides on an instance without any tag.
 
-    Exactly that pair is True or False. Every other status, a mismatch between HTTP and
-    OCS status, an unreadable body and a timeout are ``None``: not decidable, which the
-    caller treats as "no admin view", never as a failed check. The member list of the
-    admin group is read only to find the status and is never returned or logged.
+    A 200 alone is not the proof, though (29-REVIEW WR-02, measured on nc35 on 2026-10-01,
+    raw/29-REVIEW-FIX-live.txt): Nextcloud's ``GroupsController::getGroupUsers`` also answers
+    200 to an account with the delegated "Users" administration setting, to a sub-admin of
+    the group ``admin`` and to any member. Such a delegated account sees no invisible tag, so
+    taking it for an administrator turned an invisible kein-ki into a green "no tag". The
+    answer therefore counts as True only when the impersonated uid is itself in the member
+    list it carries (compared without case, as Nextcloud keeps uids unique without case); a
+    200 without it is False.
+
+    Exactly those answers are True or False. Every other status, a mismatch between HTTP
+    and OCS status, an unreadable body or member list and a timeout are ``None``: not
+    decidable, which the caller treats as "no admin view", never as a failed check. The
+    member list of the admin group is read only for this comparison and is never returned
+    or logged.
     """
     try:
         response = await ocs.ocs_get(client, creds, ADMIN_USERS_PATH)
@@ -448,7 +472,10 @@ async def confirm_admin(client: httpx.AsyncClient, creds: Credentials) -> bool |
         return None
     code = _ocs_statuscode(response)
     if response.status_code == 200 and code == 200:
-        return True
+        members = _admin_members(response)
+        if members is None:
+            return None
+        return creds.user.casefold() in {uid.casefold() for uid in members}
     if response.status_code == 403 and code == 403:
         return False
     return None
