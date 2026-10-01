@@ -156,7 +156,8 @@ NO_TAG_SENTENCE = (
 )
 NO_VISIBLE_TAG_SENTENCE = (
     "Hint: no visible kein-ki tag exists; invisible tags were not checked. "
-    f"Create it with: {CREATE_COMMAND}"
+    "Run again with --admin=<uid> to also check invisible tags; "
+    f"if none exists, create it with: {CREATE_COMMAND}"
 )
 
 MODE_SENTENCES: Final[dict[str, str]] = {

@@ -77,6 +77,7 @@ NO_TAG = "no kein-ki tag exists, the connector filters nothing"
 NO_VISIBLE_TAG = "no visible kein-ki tag exists"
 NOT_CHECKED = "invisible tags and delegation groups were not checked"
 RUN_AGAIN = "run again with --admin=<uid>"
+ALSO_INVISIBLE = "Run again with --admin=<uid> to also check invisible tags"
 UNCONFIRMED = "administrator could not be confirmed; " + NOT_CHECKED
 
 #: Read off the verdict module, so a new outcome there reaches this file as a failure.
@@ -496,6 +497,7 @@ def test_no_tag_with_an_unconfirmable_administrator_stays_a_hint(router: respx.M
     assert NO_VISIBLE_TAG in text
     assert NO_TAG not in text
     assert CREATE_COMMAND in text
+    assert text.index(ALSO_INVISIBLE) < text.index(CREATE_COMMAND)
     request = listed.calls.last.request
     assert user_of(request) == ADMIN_UID
     assert b"groups" not in request.content
@@ -625,6 +627,7 @@ def test_without_admin_and_without_a_visible_tag_the_hint_says_visible(
     assert NO_VISIBLE_TAG in text
     assert NO_TAG not in text
     assert CREATE_COMMAND in text
+    assert text.index(ALSO_INVISIBLE) < text.index(CREATE_COMMAND)
     assert payload["passed"] is True
     assert payload["admin_checked"] is False
 

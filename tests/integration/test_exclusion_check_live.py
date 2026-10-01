@@ -385,6 +385,8 @@ def test_a_no_tag(env: cw.LiveEnv, admin: Admin) -> None:
         assert anonymous.doc["admin_checked"] is False, anonymous.doc
         assert "no visible kein-ki tag" in anonymous.text
         assert "tag:add kein-ki public" in anonymous.text
+        first = anonymous.text.index("to also check invisible tags")
+        assert first < anonymous.text.index("tag:add kein-ki public")
         fall("A", named.doc)
 
     run_case("A", body)
