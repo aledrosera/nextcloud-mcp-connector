@@ -66,7 +66,10 @@ def test_store_texts_are_the_six_expected_elements() -> None:
 
 def test_store_texts_are_unchanged_since_the_frozen_commit() -> None:
     texts = _store_texts(INFO_XML.read_bytes())
-    digest = hashlib.sha256("\n".join(texts).encode("utf-8")).hexdigest()
+    # The olivia fork renames the app id at release time (scripts/olivia-rename.sh), occ
+    # commands included; the pin reads the source spelling, so it holds on both trees.
+    joined = "\n".join(texts).replace("mcp_connector_olivia:", "mcp_connector:")
+    digest = hashlib.sha256(joined.encode("utf-8")).hexdigest()
     assert digest == EXPECTED_SHA256, (
         f"Store texts in appinfo/info.xml differ from {FROZEN_AT}. They only change "
         "with an owner decision for the next release (EXCL-F02); see the module docstring."
