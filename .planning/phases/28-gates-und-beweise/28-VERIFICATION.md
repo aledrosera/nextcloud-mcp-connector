@@ -1,8 +1,8 @@
 ---
 phase: 28-gates-und-beweise
 verified: 2026-09-30T19:24:37Z
-status: human_needed
-score: 3/4 must-haves verified (SC2 uncertain, live only)
+status: passed
+score: 4/4 must-haves verified (SC2 live belegt: Neulauf nc35 2026-10-01 57f86a6, CI canary-nc35 Lauf 36810967478 auf 35.0.1)
 head: ad752c5
 overrides_applied: 1
 overrides:
@@ -115,3 +115,9 @@ Keine blockierenden Lücken im Code: Freeze, Nadeln und Paartests sind substanzi
 
 _Verified: 2026-09-30T19:24:37Z_
 _Verifier: Claude (gsd-verifier)_
+
+## Human verification resolved (2026-10-01)
+
+1. Live re-run after the review fixes against nc35: 11 passed, KANARIE 22/22 in all four modes including `datei-raum-nachricht`, PAARE 13/14 normal (D-28-16) and 14/14 in 500/412/timeout, provider gate green with 13 classified providers (57f86a6, raw/28-neulauf-2026-10-01-*).
+2. First CI run of the gate step: job `canary-nc35` on Nextcloud 35.0.1 (versionstring checked), run 36810967478 green with the same numbers, 11 passed. The first attempt (run 36810316714) failed on 429 from the OCS share rate limit in the test world, fixed in ca6ecf2 (rate limit off on test instances only).
+3. WR-02: owner decided 2026-09-30 to keep the runtime default fail-open and name the residual risk in the phase 29 docs (28-REVIEW.md, Owner decisions).

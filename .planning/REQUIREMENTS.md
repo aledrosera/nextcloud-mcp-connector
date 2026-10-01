@@ -23,7 +23,7 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 - [x] **EXCL-04**: Fail-closed mit drei Zustaenden: kein Tag vorhanden = kein Filter; Menge ermittelt = Filter aktiv; Pruefung nicht beantwortbar = betroffene Eintraege zurueckgehalten und die Degradation benannt (nur dann); Erfolgsantworten sind byte-gleich zu "existiert nicht". Massgeblich ist der Erfolg des REPORT, nicht die systemtags-Capability
 - [x] **EXCL-05**: Notes respektieren den Tag (Notizen sind Dateien); Bedingung: der Mess-Spike belegt den Weg Notiz-Id zu fileid; bei negativem Befund wird der Notes-Anschluss dokumentiert vertagt und die Doku nennt die Luecke
 - [x] **EXCL-06**: talk_browse setzt keine Dateinamen getaggter Dateien mehr in den Nachrichtentext ein
-- [ ] **EXCL-07**: Die Tag-Schreibpfade (systemtags-relations) stehen als Nadel im AST-Gate gegen destruktive Aufrufe: der Connector kann den Tag konstruktionsbedingt nie setzen oder entfernen
+- [x] **EXCL-07**: Die Tag-Schreibpfade (systemtags-relations) stehen als Nadel im AST-Gate gegen destruktive Aufrufe: der Connector kann den Tag konstruktionsbedingt nie setzen oder entfernen
 
 ### Sandbox-Paritaet (SBX)
 
@@ -32,9 +32,9 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 
 ### Gates und Beweise (GATE)
 
-- [ ] **GATE-01**: Klassifikations-Freeze ueber die aktive Registry: jedes Tool ist als betroffen oder nicht betroffen eingetragen, ein neues Tool ohne Eintrag macht das Gate rot (deckt auch ein kuenftiges files_update aus dem Community-PR)
-- [ ] **GATE-02**: Kanarien-Integrationstest: eine getaggte Datei mit eindeutigem Marker in Name und Inhalt; der Marker taucht in keiner Antwort und keinem Fehlertext irgendeines Tools der aktiven Registry auf
-- [ ] **GATE-03**: Byte-gleiche Paartests "getaggt gegen nicht existent" fuer Einzelzugriffe, auch im Ausfallfall der Pruefung
+- [x] **GATE-01**: Klassifikations-Freeze ueber die aktive Registry: jedes Tool ist als betroffen oder nicht betroffen eingetragen, ein neues Tool ohne Eintrag macht das Gate rot (deckt auch ein kuenftiges files_update aus dem Community-PR)
+- [x] **GATE-02**: Kanarien-Integrationstest: eine getaggte Datei mit eindeutigem Marker in Name und Inhalt; der Marker taucht in keiner Antwort und keinem Fehlertext irgendeines Tools der aktiven Registry auf
+- [x] **GATE-03**: Byte-gleiche Paartests "getaggt gegen nicht existent" fuer Einzelzugriffe, auch im Ausfallfall der Pruefung
 
 ### Betrieb und Doku
 
@@ -70,12 +70,12 @@ Extern getaktet, kein Blocker: nichts. Der Milestone ist vollstaendig ohne fremd
 | EXCL-04 | Phase 26 | Complete |
 | EXCL-05 | Phase 27 (Messbedingung aus Phase 25) | Complete |
 | EXCL-06 | Phase 27 | Complete |
-| EXCL-07 | Phase 28 | Pending |
+| EXCL-07 | Phase 28 | Complete |
 | SBX-01 | Phase 27 | Pending (Code fertig und SECURED, CI-Schritt SBX-01 erst nach Push grün, ohne Skip) |
 | SBX-02 | Phase 27 | Complete |
-| GATE-01 | Phase 28 | Pending |
-| GATE-02 | Phase 28 | Pending |
-| GATE-03 | Phase 28 | Pending |
+| GATE-01 | Phase 28 | Complete |
+| GATE-02 | Phase 28 | Complete |
+| GATE-03 | Phase 28 | Complete |
 | OPS-01 | Phase 29 | Pending |
 | DOC-03 | Phase 29 | Pending |
 
