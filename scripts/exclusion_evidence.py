@@ -14,8 +14,9 @@ Run it with the environment of the topology loaded::
 **What the run writes on the test instance.** Tags, two groups, a handful of files and the
 app config key ``systemtags restrict_creation_to_admin``. Everything is removed again in a
 ``finally`` block and read back; each removal ends in one ``CLEANUP`` line. A tag or group
-that already carries one of the names of this run stops the run before the first change
-(exit 2), so data the run did not create is never touched.
+that already carries one of the names of this run, an already set config key or an already
+disabled second account stops the run before the first change (exit 2), so data and state
+the run did not create are never touched.
 
 **What the protocol never carries.** Request headers, the APP_SECRET of the ExApp and any
 password. Programs that run inside the ExApp container print the status and the response
@@ -963,7 +964,13 @@ def cleanup(cfg: Settings, ledger: Ledger) -> None:
 
 
 def preflight(cfg: Settings) -> list[str]:
-    """Names of this run that already exist on the instance (stop condition)."""
+    """Names and states of this run that already exist on the instance (stop condition).
+
+    Besides tags and groups: the app config key the run sets and deletes, and a disabled
+    second account, which M1c disables and enables. On a maintained instance either would be
+    a state this run cannot restore exactly (29-REVIEW IN-07), so the run stops before it
+    changes anything instead.
+    """
     clash: list[str] = []
     tags = tag_list(cfg)
     clash.extend(f"tag {n!a}" for n in RUN_TAGS if n in tags)
@@ -974,6 +981,12 @@ def preflight(cfg: Settings) -> list[str]:
     except json.JSONDecodeError:
         groups = {}
     clash.extend(f"gruppe {g}" for g in RUN_GROUPS if g in groups)
+    code, _o = occ(cfg, "config:app:get", *CONFIG_KEY, log=False)
+    if code == 0:
+        clash.append(f"config {' '.join(CONFIG_KEY)}")
+    _c, info = occ(cfg, "user:info", cfg.user2, log=False)
+    if not re.search(r"enabled:\s*true", info):
+        clash.append(f"konto {cfg.user2} nicht aktiv")
     return clash
 
 
