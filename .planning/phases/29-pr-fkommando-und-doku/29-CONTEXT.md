@@ -35,6 +35,11 @@ Ein `occ mcp_connector:exclusion:check`, mit dem eine Administration ohne Live-S
 - **D-29-07:** README.md / README.de.md / README.fr.md bekommen je einen **kurzen Abschnitt** (3 bis 4 Zeilen): was das Tag tut, die wichtigste Grenze in einem Satz, Link auf die Doku-Seite der Sprache.
 - **D-29-08:** Die Doku enthält eine **Schritt-für-Schritt-Anleitung mit occ-Befehlen** für beide Betriebsarten (Tag anlegen; eingeschränktes Tag mit Gruppen-Delegation; Kontrolle mit dem Prüfkommando), gegen nc35 nachgemessen, Befehle und Ausgaben als Rohbeleg.
 
+### Owner-Entscheide nach der Recherche (2026-10-01, O1 bis O3 aus 29-RESEARCH.md)
+- **D-29-09 (O1):** Option `--admin=<uid>`. Der Handler prüft selbst, dass das Konto Admin ist, und liest nur. Ohne Option prüft das Kommando nur sichtbare Tags und sagt ausdrücklich, dass unsichtbare Tags und Delegationsgruppen nicht geprüft wurden.
+- **D-29-10 (O2):** Exaktes Tag vorhanden plus Variante = `passed=true` mit Warnung ("Objekte mit '<variante>' sind NICHT ausgeschlossen"). Nur Variante ohne exaktes Tag = `passed=false`.
+- **D-29-11 (O3):** Zusätzlich zu den 9 Grenzen aus D-29-05 ein eigener Abschnitt "Weitere technische Grenzen" mit den Punkten aus 28-SECURITY.md H-4 (SQLite, Upload-Restorakel, Tables/Talk ohne Sandbox, Fremdtext, Staging-Ordner, D-28-21, Einheitswortlaut, MariaDB), je ein Satz mit Quelle.
+
 ### Claude's Discretion
 - Wortlaut und Reihenfolge der Prüfschritte, Schlüsselnamen im `--json` (am exchange:check-Schema orientiert), Erkennung der Tippfehler-Varianten (Normalisierung von Leerzeichen, Bindestrich, Groß/Klein), technische Umsetzung der Zählung ohne Zustandsänderung.
 
