@@ -212,6 +212,23 @@ jobs:
         run: |
           set -a && . ./.env.exapp && set +a
           uv run pytest tests/integration/test_canary.py tests/integration/test_pair_equality_live.py tests/integration/test_provider_classes_live.py -m integration -s
+      - name: exclusion:check live (OPS-01)
+        # occ mcp_connector:exclusion:check against a real instance (plan 29-06): every case
+        # of the command, and around every invocation a dump of systemtag,
+        # systemtag_object_mapping, systemtag_group and the systemtags appconfig rows that
+        # has to stay unchanged. It runs here because this is the one job topology with
+        # Nextcloud 35 and an ExApp built from the current source, which the occ command
+        # lives in. It runs after the canary step because both create kein-ki and every
+        # test reads its own cleanup back, and the test refuses an instance that still
+        # carries a kein-ki spelling. No administrator password is needed: the test creates
+        # its own administrator, with a random password passed through the environment of
+        # docker exec, and deletes it again. NC_MCP_REQUIRE_LIVE as in the step above.
+        env:
+          PYTHONUTF8: "1"
+          NC_MCP_REQUIRE_LIVE: "1"
+        run: |
+          set -a && . ./.env.exapp && set +a
+          uv run pytest tests/integration/test_exclusion_check_live.py -m integration -s
       - name: Topology and ExApp logs on failure
         if: failure()
         run: |
