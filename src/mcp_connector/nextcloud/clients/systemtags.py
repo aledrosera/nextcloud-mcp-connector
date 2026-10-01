@@ -19,7 +19,8 @@ Why outcomes come back as values instead of a ``ToolError``: the guard treats 20
 and every other status differently (D-25-05), and a raised error would erase exactly that
 difference. Only data that cannot be what Nextcloud sends raises: a non-digit id or file
 id is a ``ValueError``, an unparsable body is the ``ToolError`` of ``xml.parse_multistatus``.
-Transport errors from httpx are not caught here either.
+Transport errors from httpx are not caught here either, with one exception: a timeout of the
+admin proof is "not decidable", see :func:`confirm_admin`.
 
 No retry, ever (the rule of ``dav``: Nextcloud counts failed logins per source IP), and
 the ``systemtags`` capability is never read (D-25-05): the listing itself is the only
@@ -41,7 +42,7 @@ from lxml import etree
 
 from ...errors import ToolError
 from ..credentials import Credentials
-from . import dav, xml
+from . import dav, ocs, xml
 
 TAGS_PATH = "/remote.php/dav/systemtags/"
 
@@ -406,3 +407,48 @@ async def count_tag_objects(
             )
             return ObjectCount(status=207, files=files)
     return ObjectCount(status=207, files=None)
+
+
+#: The OCS route of the admin proof, below ``/ocs/v2.php``.
+ADMIN_USERS_PATH = "/cloud/groups/admin/users"
+
+
+def _ocs_statuscode(response: httpx.Response) -> int | None:
+    """``ocs.meta.statuscode`` of an OCS answer, ``None`` when the body is not that shape."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    envelope = payload.get("ocs")
+    meta = envelope.get("meta") if isinstance(envelope, dict) else None
+    code = meta.get("statuscode") if isinstance(meta, dict) else None
+    return code if isinstance(code, int) else None
+
+
+async def confirm_admin(client: httpx.AsyncClient, creds: Credentials) -> bool | None:
+    """Prove whether the account of ``creds`` is an administrator: True, False or None.
+
+    ENTSCHEID admin-nachweis=b of plan 29-01 (measured on nc35 on 2026-10-01, block M2b of
+    raw/29-01-messungen.txt): ``GET /ocs/v2.php/cloud/groups/admin/users`` under the given
+    credentials answers 200 with OCS status 200 for an admin and 403 with OCS status 403
+    for anyone else. Candidate a (reading the ``oc:groups`` propstat) was dropped, because
+    a non-admin asking for ``oc:groups`` gets a 403 for the whole PROPFIND (M2), so there is
+    no propstat to judge; b also decides on an instance without any tag.
+
+    Exactly that pair is True or False. Every other status, a mismatch between HTTP and
+    OCS status, an unreadable body and a timeout are ``None``: not decidable, which the
+    caller treats as "no admin view", never as a failed check. The member list of the
+    admin group is read only to find the status and is never returned or logged.
+    """
+    try:
+        response = await ocs.ocs_get(client, creds, ADMIN_USERS_PATH)
+    except httpx.TimeoutException:
+        return None
+    code = _ocs_statuscode(response)
+    if response.status_code == 200 and code == 200:
+        return True
+    if response.status_code == 403 and code == 403:
+        return False
+    return None
