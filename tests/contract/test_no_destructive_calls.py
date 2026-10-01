@@ -225,13 +225,17 @@ VERB_FIRST_ATTRS = frozenset({"request", "build_request"})
 #: The one module that talks to the system tag collection, held to the rule that it reads.
 SYSTEMTAGS_MODULE = "nextcloud/clients/systemtags.py"
 
-#: The two forms :mod:`mcp_connector.nextcloud.clients.systemtags` really builds, as pairs of
+#: The forms :mod:`mcp_connector.nextcloud.clients.systemtags` really builds, as pairs of
 #: verb and target in the spelling ``ast.unparse`` gives them: the tag listing on the
-#: collection and the one REPORT on the home root. The line needles cannot deliver this half
-#: of the proof, because both calls are written over several lines and a needle never sees
+#: collection, the one REPORT on the home root, and since plan 29-03 the two reads of
+#: exclusion:check (the detail listing on the collection, hence the listing form twice, and
+#: the Depth 0 count of ``nc:object-ids`` on one tag). The line needles cannot deliver this
+#: half of the proof, because the calls are written over several lines and a needle never sees
 #: the verb and the target on the same one.
 ALLOWED_SYSTEMTAGS_FORMS = (
     ("PROPFIND", "f'{creds.base_url}{TAGS_PATH}'"),
+    ("PROPFIND", "f'{creds.base_url}{TAGS_PATH}'"),
+    ("PROPFIND", "f'{creds.base_url}{TAGS_PATH}{tag_id}'"),
     ("REPORT", "home_url(creds)"),
 )
 
@@ -905,7 +909,7 @@ def test_the_systemtags_client_only_reads(injected: str) -> None:
 
 
 def test_the_two_forms_the_systemtags_client_really_builds_stay_allowed() -> None:
-    """The other half of the proof: exactly the listing and the one REPORT, nothing more.
+    """The other half of the proof: exactly the allowed read forms, nothing more.
 
     A third form is a decision about the tag the guard trusts, and a decision has to be made
     in a review and not in a diff.

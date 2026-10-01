@@ -336,3 +336,9 @@ _._decode_payload
 # AuditResult.checked is the JSON key "checked" of the console (plan 29-04), which does not
 # exist yet; plan 29-05 empties this section once the handler reads it.
 AuditResult.checked
+
+# --- The audit reads of plan 29-03, called by the exclusion:check handler of plan 29-04 --
+# list_tag_details and count_tag_objects are the policy-free reads the handler (plan 29-04)
+# builds its TagFacts from; the handler does not exist yet, plan 29-04 removes these lines.
+list_tag_details
+count_tag_objects

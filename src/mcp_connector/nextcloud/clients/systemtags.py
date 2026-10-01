@@ -24,6 +24,12 @@ Transport errors from httpx are not caught here either.
 No retry, ever (the rule of ``dav``: Nextcloud counts failed logins per source IP), and
 the ``systemtags`` capability is never read (D-25-05): the listing itself is the only
 answer that counts.
+
+The audit reads of ``exclusion:check`` (plan 29-03) live here as well and follow the same
+rules: policy-free, read-only (PROPFIND, plus one OCS GET for the admin proof), outcomes as
+values. They walk the Multi-Status themselves instead of using ``xml.parse_multistatus``,
+because that reader drops every non-2xx propstat, and the status of ``oc:groups`` is part
+of the answer here. The hardened parser of ``xml.parse_root`` stays the only entrance.
 """
 
 import re
@@ -33,6 +39,7 @@ from urllib.parse import quote, unquote, urlsplit
 import httpx
 from lxml import etree
 
+from ...errors import ToolError
 from ..credentials import Credentials
 from . import dav, xml
 
@@ -46,6 +53,23 @@ _FILEID = f"{{{xml.OC}}}fileid"
 _RESOURCETYPE = f"{{{xml.DAV}}}resourcetype"
 _TAG_ID = f"{{{xml.OC}}}id"
 _TAG_NAME = f"{{{xml.OC}}}display-name"
+_TAG_VISIBLE = f"{{{xml.OC}}}user-visible"
+_TAG_ASSIGNABLE = f"{{{xml.OC}}}user-assignable"
+_TAG_GROUPS = f"{{{xml.OC}}}groups"
+_OBJECT_IDS = f"{{{xml.NC}}}object-ids"
+_OBJECT_TYPE = f"{{{xml.NC}}}type"
+_MULTISTATUS = f"{{{xml.DAV}}}multistatus"
+_RESPONSE = f"{{{xml.DAV}}}response"
+_HREF = f"{{{xml.DAV}}}href"
+_PROPSTAT = f"{{{xml.DAV}}}propstat"
+_PROP = f"{{{xml.DAV}}}prop"
+_STATUS = f"{{{xml.DAV}}}status"
+
+#: ``HTTP/1.1 403 Forbidden`` -> ``403``.
+_STATUS_LINE = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})")
+
+#: The spellings Sabre uses for a true boolean property.
+_TRUE = frozenset({"true", "1"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +103,43 @@ class TaggedSet:
 
     status: int
     nodes: tuple[TaggedNode, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TagDetail:
+    """One tag with its access flags, as the audit of ``exclusion:check`` needs it.
+
+    ``groups`` is ``None`` when the groups were not asked for or their propstat was not
+    200; ``groups_status`` is that propstat status, ``None`` when not asked for or not
+    answered at all.
+    """
+
+    id: str
+    name: str
+    visible: bool
+    assignable: bool
+    groups: tuple[str, ...] | None
+    groups_status: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class TagDetailListing:
+    """The status of the detail listing and, on 207 only, the tags it carried."""
+
+    status: int
+    tags: tuple[TagDetail, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectCount:
+    """How many files carry one tag; ``files`` only on 207 with a readable property.
+
+    Deliberately a number and nothing else: there is no field an object id could ever
+    travel in (threat T-29-10).
+    """
+
+    status: int
+    files: int | None
 
 
 def home_url(creds: Credentials) -> str:
@@ -175,3 +236,173 @@ async def tagged_nodes(client: httpx.AsyncClient, creds: Credentials, tag_id: st
             )
         )
     return TaggedSet(status=207, nodes=tuple(nodes))
+
+
+def _details_body(*, with_groups: bool) -> bytes:
+    """Build the PROPFIND body of the detail listing with lxml; groups only on request."""
+    root = etree.Element(
+        f"{{{xml.DAV}}}propfind",
+        nsmap={"d": xml.DAV, "oc": xml.OC, "nc": xml.NC},
+    )
+    prop = etree.SubElement(root, _PROP)
+    for name in (_TAG_ID, _TAG_NAME, _TAG_VISIBLE, _TAG_ASSIGNABLE):
+        etree.SubElement(prop, name)
+    if with_groups:
+        etree.SubElement(prop, _TAG_GROUPS)
+    return etree.tostring(root, xml_declaration=True, encoding="utf-8")
+
+
+def _object_ids_body() -> bytes:
+    """Build the PROPFIND body that asks one tag for its ``nc:object-ids``, with lxml."""
+    root = etree.Element(
+        f"{{{xml.DAV}}}propfind",
+        nsmap={"d": xml.DAV, "oc": xml.OC, "nc": xml.NC},
+    )
+    prop = etree.SubElement(root, _PROP)
+    etree.SubElement(prop, _OBJECT_IDS)
+    return etree.tostring(root, xml_declaration=True, encoding="utf-8")
+
+
+def _multistatus_responses(body: bytes) -> list[etree._Element]:
+    """Parse with the hardened parser and return every ``d:response`` of a Multi-Status."""
+    root = xml.parse_root(body)
+    if root.tag != _MULTISTATUS:
+        raise ToolError(
+            message="Expected a DAV Multi-Status response.",
+            hint="Check that the base URL points at Nextcloud itself and not at a login page.",
+        )
+    return list(root.iterchildren(_RESPONSE))
+
+
+def _propstat_status(propstat: etree._Element) -> int:
+    """The status of one propstat; a propstat without a status line counts as 200.
+
+    That is the reading of ``xml._is_ok`` as well. A status line that is present but not
+    of the form ``HTTP/x.y nnn`` cannot come from Nextcloud and raises.
+    """
+    text = (propstat.findtext(_STATUS) or "").strip()
+    if not text:
+        return 200
+    match = _STATUS_LINE.match(text)
+    if match is None:
+        raise ValueError(f"Nextcloud sent a propstat status that is no status line: {text!r}")
+    return int(match.group(1))
+
+
+def _props_by_status(response: etree._Element) -> dict[str, tuple[int, etree._Element]]:
+    """Map every property of one response to its propstat status and its element."""
+    props: dict[str, tuple[int, etree._Element]] = {}
+    for propstat in response.iterchildren(_PROPSTAT):
+        status = _propstat_status(propstat)
+        prop = propstat.find(_PROP)
+        if prop is None:
+            continue
+        for element in prop:
+            if isinstance(element.tag, str):
+                props[element.tag] = (status, element)
+    return props
+
+
+def _ok_text(props: dict[str, tuple[int, etree._Element]], name: str) -> str:
+    """The stripped text of a property answered with 200, else an empty string."""
+    entry = props.get(name)
+    if entry is None or entry[0] != 200:
+        return ""
+    return (entry[1].text or "").strip()
+
+
+def _detail_of(
+    href: str, props: dict[str, tuple[int, etree._Element]], *, with_groups: bool
+) -> TagDetail | None:
+    """One ``TagDetail``, or ``None`` for the collection itself (the rule of list_tags)."""
+    tag_id = _ok_text(props, _TAG_ID)
+    if not tag_id:
+        if unquote(urlsplit(href).path).rstrip("/").endswith("/systemtags"):
+            return None
+        raise ValueError(f"Nextcloud listed a tag without an id: {href!r}")
+    if not _DIGITS.fullmatch(tag_id):
+        raise ValueError(f"Nextcloud listed a tag id that is not ASCII digits: {tag_id!r}")
+    groups: tuple[str, ...] | None = None
+    groups_status: int | None = None
+    if with_groups and _TAG_GROUPS in props:
+        groups_status = props[_TAG_GROUPS][0]
+        if groups_status == 200:
+            # Sabre joins the group ids with a pipe (SystemTagPlugin); empty means none.
+            groups = tuple(gid for gid in _ok_text(props, _TAG_GROUPS).split("|") if gid)
+    return TagDetail(
+        id=tag_id,
+        name=_ok_text(props, _TAG_NAME),
+        visible=_ok_text(props, _TAG_VISIBLE).lower() in _TRUE,
+        assignable=_ok_text(props, _TAG_ASSIGNABLE).lower() in _TRUE,
+        groups=groups,
+        groups_status=groups_status,
+    )
+
+
+async def list_tag_details(
+    client: httpx.AsyncClient, creds: Credentials, *, with_groups: bool
+) -> TagDetailListing:
+    """List every tag the account can see, with its access flags, by PROPFIND Depth 1.
+
+    Policy-free and read-only. ``oc:groups`` is asked for only with ``with_groups``: the
+    measurement of plan 29-01 (M2) showed that a non-admin asking for it does not get a
+    403 propstat but a 403 for the whole PROPFIND, so the caller must have proven admin
+    rights first. Any status other than 207 comes back as a value with no tags. The id
+    rules are those of :func:`list_tags`: the collection is skipped by its href, any other
+    entry without a digit id raises.
+    """
+    response = await client.request(
+        "PROPFIND",
+        f"{creds.base_url}{TAGS_PATH}",
+        headers={"Depth": "1", "Content-Type": "application/xml"},
+        content=_details_body(with_groups=with_groups),
+        auth=creds.auth(),
+    )
+    if response.status_code != 207:
+        return TagDetailListing(status=response.status_code, tags=())
+    tags: list[TagDetail] = []
+    for entry in _multistatus_responses(response.content):
+        href = (entry.findtext(_HREF) or "").strip()
+        detail = _detail_of(href, _props_by_status(entry), with_groups=with_groups)
+        if detail is not None:
+            tags.append(detail)
+    return TagDetailListing(status=207, tags=tuple(tags))
+
+
+async def count_tag_objects(
+    client: httpx.AsyncClient, creds: Credentials, tag_id: str
+) -> ObjectCount:
+    """Count the files carrying one tag, by PROPFIND Depth 0 on ``nc:object-ids``.
+
+    Policy-free and read-only, and it returns a number, never an id: the assignments are
+    summed while walking, never collected. Nextcloud serialises every assignment as an
+    inner ``nc:object-ids`` with ``nc:id`` and ``nc:type`` (29-01, M3); ``nc:id`` is a
+    running index, not a file id. The count is instance-wide, the same for every account,
+    and includes files in the trash bin (29-01, M3b and M4).
+
+    Why not ``nc:files-assigned``: on ``/systemtags/<id>`` it always answers -1 (pitfall
+    P4). Why not a ``REPORT oc:filter-files``: that counts only the asking user's own files
+    and runs for minutes on SQLite. An invalid id raises before any request; a status
+    other than 207, or a 207 without a readable property, leaves ``files`` at ``None``.
+    """
+    if not _DIGITS.fullmatch(tag_id):
+        raise ValueError(f"a tag id must be ASCII digits only (got {tag_id!r})")
+    response = await client.request(
+        "PROPFIND",
+        f"{creds.base_url}{TAGS_PATH}{tag_id}",
+        headers={"Depth": "0", "Content-Type": "application/xml"},
+        content=_object_ids_body(),
+        auth=creds.auth(),
+    )
+    if response.status_code != 207:
+        return ObjectCount(status=response.status_code, files=None)
+    for entry in _multistatus_responses(response.content):
+        outer = _props_by_status(entry).get(_OBJECT_IDS)
+        if outer is not None and outer[0] == 200:
+            files = sum(
+                1
+                for inner in outer[1].iterchildren(_OBJECT_IDS)
+                if (inner.findtext(_OBJECT_TYPE) or "").strip() == "files"
+            )
+            return ObjectCount(status=207, files=files)
+    return ObjectCount(status=207, files=None)
