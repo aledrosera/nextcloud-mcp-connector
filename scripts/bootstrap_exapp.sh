@@ -1387,6 +1387,12 @@ ensure_talk_room alice "${ALICE_PASSWORD}" "${TALK_ROOM_LOCKED_KEY}" "${TALK_ROO
 if [ "${DISABLE_BRUTEFORCE}" -eq 1 ]; then
   occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean >/dev/null
   echo "bruteforce protection: disabled (test instance)"
+  # The per-user rate limits of the OCS routes are a second, separate guard. The canary
+  # world creates and removes shares in four modes within a minute, and on the first CI
+  # run on 35.0.1 (run 36810316714) the share creation answered 429 after the second
+  # mode. Same reasoning, same scope: test instance only.
+  occ config:system:set ratelimit.protection.enabled --value=false --type=boolean >/dev/null
+  echo "rate limit protection: disabled (test instance)"
 else
   echo "bruteforce protection: left enabled (public instance)"
 fi
@@ -1486,7 +1492,8 @@ echo "  ${PUBLIC_URL}/mcp"
 #
 #   1. Download the release archive on a machine that has access:
 #      https://github.com/nextcloud/app_api/releases (pick the tag that matches the
-#      server version, 34.x for nextcloud:34-apache).
+#      server version of the running image: 34.x for the default of compose.exapp.yml,
+#      35.x when NC_EXAPP_NEXTCLOUD_IMAGE points at a 35 image).
 #   2. Unpack it into the container so the app directory keeps its plain name:
 #        docker compose -f compose.exapp.yml cp app_api nextcloud:/var/www/html/custom_apps/app_api
 #        docker compose -f compose.exapp.yml exec -T --user root nextcloud \

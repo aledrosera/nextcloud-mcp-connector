@@ -52,6 +52,9 @@ sequence frames itself exactly the same way (BL-09, ME-03), and a mail is the ch
 of all to try it: anybody may write one.
 """
 
+import asyncio
+import re
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -68,9 +71,10 @@ from ..nextcloud.clients import deck as deck_client
 from ..nextcloud.clients import mail as mail_client
 from ..nextcloud.clients import tables as tables_client
 from ..nextcloud.clients import talk as talk_client
+from ..nextcloud.exclusion import TagScope
 from . import deck as deck_tools
 from . import files as files_tools
-from . import html_text, marks
+from . import html_text, marks, withhold
 from . import mail as mail_tools
 from . import notes as notes_tools
 from . import search as search_tools
@@ -167,6 +171,14 @@ _NO_SUBJECT = "(no subject)"
 _NO_CONVERSATION = "(conversation without a name)"
 _NO_TABLE_TITLE = "(table without a title)"
 
+#: A file id the batch lookup may take: ASCII digits, the same rule as the DAV layer.
+#: Anything else goes the single lookup and gets the error it always got there.
+_FILEID = re.compile(r"[0-9]+")
+
+#: What a failed :func:`file_entries` may raise. A caller that catches exactly these takes
+#: the single lookup instead, which then words the failure as it always did.
+LOOKUP_FAILURES: tuple[type[Exception], ...] = (ToolError, httpx.HTTPError, ValueError)
+
 _UNFETCHABLE = "This search result cannot be fetched: it belongs to an app this server cannot read."
 
 
@@ -211,6 +223,8 @@ async def fetch(
     resource_id: str,
     *,
     max_bytes: int | None = None,
+    resolved: Mapping[str, dict[str, Any] | None] | None = None,
+    note_batch: notes_tools.NoteBatch | None = None,
     owner: TicketOwner | None = None,
 ) -> dict[str, Any]:
     """Read one search result in full and answer in the OpenAI fetch shape.
@@ -227,13 +241,22 @@ async def fetch(
     nothing to apply to. A mail is not an exception to that: it arrives whole or not at all,
     and what it is cut to is a ceiling of its own (:data:`MAX_MAIL_BYTES`), because a slice
     of it cannot be continued by a second call.
+
+    ``resolved`` is Python only as well: the answer of :func:`file_entries` for the file
+    ids of the same tool call, so a bundle of several file excerpts pays one file id
+    SEARCH instead of one per excerpt (plan 27-09). An id it does not contain goes the
+    single lookup; the other kinds ignore it.
+
+    ``note_batch`` is the note side of the same idea (plan 27-10): an awaitable over that
+    lookup, handed to ``notes.read`` so a note excerpt checks its path in the SEARCH of the
+    bundle instead of one of its own. Only a note reads it, and only where it needs a path.
     """
     kind, parts = ids.parse(resource_id)
     match kind:
         case "file":
-            return await _fetch_file(clients, parts[0], max_bytes, owner=owner)
+            return await _fetch_file(clients, parts[0], max_bytes, resolved, owner=owner)
         case "note":
-            return await _fetch_note(clients, parts[0])
+            return await _fetch_note(clients, parts[0], note_batch)
         case "card":
             return await _fetch_card(clients, parts)
         case "event":
@@ -251,18 +274,70 @@ async def fetch(
             )
 
 
+async def file_entries(
+    clients: NcClients,
+    identifiers: Sequence[str],
+    *,
+    kinds: tuple[str, ...] = ("file",),
+) -> dict[str, dict[str, Any] | None]:
+    """Resolve the file ids among ``identifiers`` with one lookup, for one tool call.
+
+    Only ``<kind>:<digits>`` ids of a kind in ``kinds`` are taken, by default files only;
+    every other or unparsable id is passed over and later goes its own way through
+    :func:`fetch`, with exactly the error it always had. With ``"note"`` in ``kinds`` the
+    note ids join the same SEARCH, because a note id is the file id of the note's file
+    (25-MESSBERICHT K4, plan 27-10); an id that is both a file and a note id is asked once.
+    The answer maps a file id onto its entry, onto ``None`` when it certainly belongs to
+    no file inside the sandbox, and leaves out an id the batch could not settle
+    (:func:`dav_client.entries_of_fileids`), which then goes the single lookup.
+
+    A failure of the lookup (:data:`LOOKUP_FAILURES`) is left to the caller, whose answer
+    is to take the single route. Nothing is kept: no module
+    variable, no cache, the entries belong to this one call (E3, D-25-05).
+    """
+    wanted: list[str] = []
+    for identifier in identifiers:
+        try:
+            kind, parts = ids.parse(identifier)
+        except ToolError:
+            continue
+        if kind in kinds and _FILEID.fullmatch(parts[0]):
+            wanted.append(parts[0])
+    wanted = list(dict.fromkeys(wanted))
+    if not wanted:
+        return {}
+    return await dav_client.entries_of_fileids(clients.client, clients.creds, wanted)
+
+
 async def _fetch_file(
     clients: NcClients,
     fileid: str,
     max_bytes: int | None = None,
+    resolved: Mapping[str, dict[str, Any] | None] | None = None,
     *,
     owner: TicketOwner | None = None,
 ) -> dict[str, Any]:
     """Turn a file id back into a path, then read that path with the ordinary reader.
 
+    A file id known from before the tag answers like an unknown one (EXCL-03, success
+    criterion 2). The guard and the lookup run side by side, and the answers are read in the
+    order of ``files._visible_stat``: an error of the guard, then ``unverifiable``, then an
+    error of the lookup, then the tag (D-28-17), because a failing lookup must answer a
+    tagged id and an unknown one alike. A tagged id is refused before any path is looked at,
+    a path below a tagged folder right after the lookup, both with :func:`_no_file`, the
+    very error of an id that belongs to no file. When the check cannot be answered, every
+    id gets ``withhold.unavailable_error()``, so the refusal itself tells nothing about the
+    id. ``files_tools.read`` asks the same
+    guard of the same ``clients`` afterwards and gets the fast path, not a second REPORT.
+
     ``MAX_TEXT_BYTES`` is read here and not bound as a default in the signature, so the
     ceiling stays one module level constant that a caller can lower and a test can lower
     for the whole module.
+
+    With ``resolved`` holding this id, the lookup already happened for the whole bundle
+    and only the guard is awaited; the decisions below run line for line the same. The
+    entry then goes into ``files_tools.read`` as ``known`` on both routes, so the stat
+    PROPFIND after the lookup is not asked again (plan 27-09).
 
     A binary file (PDF, Office, image, ...) cannot come back as ``text``: claude.ai and
     Claude Desktop only accept text and images in a tool result, and ``files_read`` refuses
@@ -271,17 +346,31 @@ async def _fetch_file(
     a deployment without an ExApp owner cannot serve a link a code execution environment
     could later redeem.
     """
-    entry = await dav_client.find_by_fileid(clients.client, clients.creds, fileid)
-    if entry is None:
-        raise ToolError(
-            message=f"This account has no file with the id {fileid}.",
-            hint=(
-                "Run search again and use the id from the fresh answer: a file id stops "
-                "resolving once the file is deleted or the share is gone."
-            ),
+    scope: TagScope | BaseException
+    entry: dict[str, Any] | BaseException | None
+    if resolved is not None and fileid in resolved:
+        entry = resolved[fileid]
+        scope = await clients.exclusion.scope(clients)
+    else:
+        scope, entry = await asyncio.gather(
+            clients.exclusion.scope(clients),
+            dav_client.find_by_fileid(clients.client, clients.creds, fileid),
+            return_exceptions=True,
         )
-
+    if isinstance(scope, BaseException):
+        raise scope
+    if scope.state == "unverifiable":
+        raise withhold.unavailable_error()
+    if isinstance(entry, BaseException):
+        raise entry
+    if scope.excludes(fileid=fileid):
+        raise _no_file(fileid)
+    if entry is None:
+        raise _no_file(fileid)
     path = str(entry["path"])
+    if scope.excludes(path=path, fileid=fileid):
+        raise _no_file(fileid)
+
     content_type = str(entry.get("content_type") or "")
     if owner is not None and content_type and not files_tools.is_text(content_type):
         link = await issue.issue_link(clients, owner, path)
@@ -305,7 +394,7 @@ async def _fetch_file(
         }
 
     limit = MAX_TEXT_BYTES if max_bytes is None else max_bytes
-    answer = await files_tools.read(clients, path=path, max_bytes=limit)
+    answer = await files_tools.read(clients, path=path, max_bytes=limit, known=entry)
 
     # The document's own copy of either marker goes before this server writes one of its
     # own (BL-09, ME-03): a complete file that carries the note would claim to be cut, and
@@ -332,9 +421,29 @@ async def _fetch_file(
     }
 
 
-async def _fetch_note(clients: NcClients, note_id: str) -> dict[str, Any]:
+def _no_file(fileid: str) -> ToolError:
+    """The one answer for a file id this account cannot read, whatever the reason.
+
+    An id that belongs to no file, a tagged file and a file below a tagged folder all
+    build this very object, so the three cannot be told apart (the pairing tests of phase
+    28 compare it byte for byte). No ``reason``, exactly as before phase 27.
+    """
+    return ToolError(
+        message=f"This account has no file with the id {fileid}.",
+        hint=(
+            "Run search again and use the id from the fresh answer: a file id stops "
+            "resolving once the file is deleted or the share is gone."
+        ),
+    )
+
+
+async def _fetch_note(
+    clients: NcClients,
+    note_id: str,
+    note_batch: notes_tools.NoteBatch | None = None,
+) -> dict[str, Any]:
     """Read one note. The reader checks the Notes app itself, so a missing app is named."""
-    note = await notes_tools.read(clients, note_id)
+    note = await notes_tools.read(clients, note_id, batch=note_batch)
 
     metadata = {"kind": "note"}
     if note.get("category"):
@@ -797,6 +906,11 @@ async def _fetch_message(clients: NcClients, token: str, message_id: str) -> dic
     message text carries none by decision of phase 9, because a marker inside a text every
     participant of a conversation may write is an attack path (ME-03), and the fact stands
     beside the text as ``metadata["truncated"]`` instead.
+
+    The ``kein-ki`` guard is inherited twice: ``one_room`` refuses a file conversation of a
+    withheld file like an unknown token, and the file screen of the talk module keeps the
+    placeholder of a withheld file raw. The title stays the conversation name; for a withheld
+    file conversation this line is never reached.
     """
     await capabilities.require_app(clients, talk_tools.APP)
     room = await talk_tools.one_room(clients, token, include_last_message=False)
@@ -804,7 +918,13 @@ async def _fetch_message(clients: NcClients, token: str, message_id: str) -> dic
         clients.client, clients.creds, token, message_id, limit=MESSAGE_CONTEXT_LIMIT
     )
 
-    entry = talk_tools.one_message(window, message_id)
+    # Only the wanted message is screened: a file beside it in the context window is never
+    # shown, so it must neither cost a guard request nor mark this answer as degraded.
+    wanted = str(message_id).strip()
+    screen = await talk_tools.file_screen(
+        clients, [raw for raw in window if str(raw.get("id")) == wanted]
+    )
+    entry = talk_tools.one_message(window, message_id, screen=screen)
     if entry is None:
         raise ToolError(
             message=(
@@ -842,6 +962,10 @@ async def _fetch_message(clients: NcClients, token: str, message_id: str) -> dic
         # ``message_truncated`` for the cut text of one entry, DF-11-01); ``fetch`` answers one
         # single message, so its ``metadata`` has one level and one word is unambiguous there.
         metadata["truncated"] = "true"
+    if screen.unavailable:
+        # A message is not a file: it stays readable with its file placeholders raw, and the
+        # one sentence says why (D-27-05, D-27-06).
+        metadata["degraded"] = withhold.EXCLUSION_UNAVAILABLE
 
     return {
         "id": ids.encode_message(token, message_id),
@@ -874,12 +998,19 @@ async def _fetch_table(clients: NcClients, table_id: str) -> dict[str, Any]:
     success that invites a model to fill the gap itself (threat T-11-17). An answer that carries
     the header row alone is the same case, because that row is the shape of the table and not
     its content.
+
+    The rows pass the same ``tables_tools.screen_links`` as ``tables_browse`` before a cell is
+    rendered (D-28-14): a link cell of a file tagged ``kein-ki`` answers like an empty one, and
+    when the check could not be answered every file link is withheld and ``metadata`` says so.
+    A withheld cell is still a cell, so a row that carried nothing else still counts as a row.
     """
     await capabilities.require_app(clients, tables_tools.APP)
     table = await tables_client.get_table(clients.client, clients.creds, table_id)
     rows = await tables_client.get_rows_simple(
         clients.client, clients.creds, table_id, limit=TABLE_ROWS
     )
+    screened = await tables_tools.screen_links(clients, rows)
+    rows = screened.rows
 
     shown = max(len(rows) - 1, 0)
     if not shown:
@@ -915,6 +1046,8 @@ async def _fetch_table(clients: NcClients, table_id: str) -> dict[str, Any]:
     }
     if truncated:
         metadata["truncated"] = "true"
+    if screened.unavailable:
+        metadata["degraded"] = withhold.EXCLUSION_UNAVAILABLE
 
     return {
         "id": ids.encode_table(table_id),

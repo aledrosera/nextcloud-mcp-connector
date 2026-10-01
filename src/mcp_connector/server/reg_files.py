@@ -77,6 +77,11 @@ async def files_read(
     return await read_within_budget(deps.resolve_clients(ctx), path, offset)
 
 
+# files_read_as_markdown (upstream 0.4.0, TOOL-14) is deliberately not registered in the
+# olivia fork: Office and PDF files go out as a download link (files_download). The code in
+# tools/files.py and the documents package stays as upstream ships it, so merges stay cheap.
+
+
 @mcp.tool(annotations=READ_ONLY, structured_output=False)
 @graceful
 async def files_download(

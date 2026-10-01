@@ -473,18 +473,22 @@ Ins Protokoll gehören nie: `APP_SECRET`, App-Passwörter, der `AUTHORIZATION-AP
 | A5 | `apachectl -k graceful` leert OPcache der Worker (Definition "kalt") | Pattern 4 | Kaltwerte ungenau benannt; Warmwerte (maßgeblich für D-25-04) unberührt |
 | A6 | `files:scan`, `files:cleanup`, `trashbin:cleanup` existieren auf 32 bis 34 unverändert | Quellbefund 4 | Wird dort nicht gebraucht (Wegwerf-Instanz fällt mit `down -v`) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Gilt D-25-01 "(nextcloud-docker-dev)" als Festlegung oder als Beispiel?**
    - What we know: Discretion-Klausel gibt die Aufbau-Mechanik frei; das Repo nutzt überall das offizielle Image.
    - Recommendation: offizielles Image, Begründung ein Satz im Messbericht; nur bei Owner-Widerspruch umstellen.
+   - RESOLVED: offizielle Images statt nextcloud-docker-dev, gedeckt durch Claude's Discretion in D-25-01; umgesetzt in 25-01 (Compose) und 25-03 (Matrix), Begründungssatz im Messbericht 25-04.
 2. **Patch-Stand der Matrix: aktuelle Patches (32.0.15/33.0.9/34.0.4) oder lokal vorhandene (33.0.7/34.0.3)?**
    - Recommendation: aktuelle Patches; lokale nur als Rückfall bei Netzproblemen, Version im Protokoll nennen.
+   - RESOLVED: aktuelle Patch-Stände 32.0.15/33.0.9/34.0.4, umgesetzt in 25-03; lokale Stände nur als Rückfall, Version im Protokoll.
 3. **Ballast (300k bis 400k Zuordnungen) ja oder nein?**
    - What we know: D-25-03 verlangt den 10k-Ordner-Extremfall; die 385k Zuordnungen des PR sind der Teil, der `nc:system-tags` teuer macht.
    - Recommendation: ja, als eigener, abbrechbarer Block nach den Pflichtstufen; fällt er aus Zeitgründen weg, im Bericht nennen.
+   - RESOLVED: Ballast-Block ja, abbrechbar mit harter 600-s-Grenze für den Aufbau, umgesetzt in 25-02 Task 1.
 4. **Speicherort des Messskripts (`scripts/` vs. Phasenordner).**
    - Recommendation: `scripts/tag_spike.py` unter den Gates (siehe Project Structure).
+   - RESOLVED: `scripts/tag_spike.py` unter den Gates (25-01). Die in den Plänen ebenfalls als "Q4" geführte PostgreSQL-Gegenmessung (Pitfall Datenbank) hängt am Owner-Checkpoint D-25-05 in 25-04 (Entscheid E4), ausgelöst ab Median warm bei 5000 >= 0,6 s.
 
 ## Environment Availability
 

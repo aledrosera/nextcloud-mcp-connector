@@ -29,6 +29,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+import guard_routes
 import httpx
 import pytest
 
@@ -45,6 +46,13 @@ from mcp_connector.tools import talk as talk_tools
 BASE = "http://nc.test"
 USER = "alice"
 SECRET = "app-password-test"
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 @pytest.fixture
@@ -660,12 +668,22 @@ class FakeFetch:
         self.barrier = barrier
         self.ids: list[str] = []
         self.limits: list[int | None] = []
+        self.resolved: list[Any] = []
+        self.note_batches: list[Any] = []
 
     async def __call__(
-        self, _clients: NcClients, resource_id: str, *, max_bytes: int | None = None
+        self,
+        _clients: NcClients,
+        resource_id: str,
+        *,
+        max_bytes: int | None = None,
+        resolved: Any = None,
+        note_batch: Any = None,
     ) -> dict[str, Any]:
         self.ids.append(resource_id)
         self.limits.append(max_bytes)
+        self.resolved.append(resolved)
+        self.note_batches.append(note_batch)
         if self.barrier is not None:
             await asyncio.wait_for(self.barrier.wait(), timeout=5)
         if self.hang:
@@ -682,7 +700,22 @@ class FakeFetch:
 
 
 def wire_fetch(monkeypatch: pytest.MonkeyPatch, fetch: FakeFetch) -> FakeFetch:
+    """Replace ``fetch`` and the shared file id lookup of the bundle (plan 27-09).
+
+    The lookup answers one entry per file id without a request, so these tests never run
+    against the transport; the batch itself is tested in ``test_excerpt_batch.py``.
+    """
+
+    async def file_entries(
+        _clients: NcClients, identifiers: Any, *, kinds: Any = ("file",)
+    ) -> dict[str, Any]:
+        # 27-10: with "note" in kinds the note ids of the bundle join the lookup as well.
+        prefixes = tuple(f"{kind}:" for kind in kinds)
+        numbers = [str(i).partition(":")[2] for i in identifiers if str(i).startswith(prefixes)]
+        return {n: {"path": f"/{n}.md", "fileid": n} for n in numbers}
+
     monkeypatch.setattr(chatgpt_tools, "fetch", fetch)
+    monkeypatch.setattr(chatgpt_tools, "file_entries", file_entries)
     return fetch
 
 

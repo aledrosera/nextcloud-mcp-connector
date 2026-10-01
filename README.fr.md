@@ -103,6 +103,13 @@ manquante reçoit une réponse en une phrase, jamais un résultat vide.
 {"query":"budget","count":2,"results":[{"id":"file:4711","title":"Budget 2026.md","url":"https://cloud.example.org/index.php/f/4711","provider":"files","kind":"file"},{"id":"url:https://cloud.example.org/index.php/call/abc123","title":"Khaled","url":"https://cloud.example.org/index.php/call/abc123","provider":"talk-conversations","kind":"url","resolvable":false}]}
 ```
 
+## Exclure des dossiers : l'étiquette kein-ki
+
+Un dossier ou un fichier portant l'étiquette collaborative `kein-ki` devient invisible pour l'assistant, avec tout ce qu'il contient.
+Vérifier avec `php occ mcp_connector:exclusion:check --admin=<uid>`.
+Limite principale : une étiquette au-dessus de la racine d'un partage ne protège pas le dossier partagé chez le destinataire, étiquetez donc le dossier que vous partagez.
+Mise en place, toutes les limites et leurs constats : [docs/exclusion.fr.md](docs/exclusion.fr.md).
+
 ## Sécurité
 
 Ce serveur détient des **données privées**, il absorbe du **contenu non fiable** (un courriel

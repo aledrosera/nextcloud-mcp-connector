@@ -1,10 +1,24 @@
+import guard_routes
+import httpx
 import pytest
 
 from mcp_connector import provider_map
 from mcp_connector.deps import TicketOwner
+from mcp_connector.nextcloud import NcClients
+from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.tools import chatgpt
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests pin the link branch; the guard states are tested in the exclusion tests."""
+    guard_routes.patch_untagged(monkeypatch)
+
+
+def _clients(base_url: str) -> NcClients:
+    return NcClients(httpx.AsyncClient(), Credentials(base_url, "alice", "app-password-test"))
 
 
 def test_findling_hits_become_file_ids():
@@ -33,13 +47,8 @@ async def test_fetch_of_a_pdf_returns_a_download_link(monkeypatch):
 
     monkeypatch.setattr(chatgpt.dav_client, "find_by_fileid", fake_find)
     monkeypatch.setattr(chatgpt.issue, "issue_link", fake_issue)
-    clients = type(
-        "C", (), {"client": None, "creds": type("K", (), {"base_url": "https://cloud.example"})()}
-    )()
     result = await chatgpt._fetch_file(
-        clients,  # pyright: ignore[reportArgumentType]
-        "4711",
-        owner=TicketOwner("a", "alice"),
+        _clients("https://cloud.example"), "4711", owner=TicketOwner("a", "alice")
     )
     assert result["url"] == "https://cloud.example/index.php/f/4711"
     assert result["metadata"]["download_url"] == "https://x/dl/tok"
@@ -58,11 +67,10 @@ async def test_fetch_of_a_pdf_without_owner_keeps_the_old_refusal(monkeypatch):
             "content_type": "application/pdf",
         }
 
-    async def fake_read(clients, path, max_bytes):
+    async def fake_read(clients, path, max_bytes, known=None):
         raise ToolError(message="/Docs/scan.pdf is application/pdf and not text.", hint="h")
 
     monkeypatch.setattr(chatgpt.dav_client, "find_by_fileid", fake_find)
     monkeypatch.setattr(chatgpt.files_tools, "read", fake_read)
-    clients = type("C", (), {"client": None, "creds": type("K", (), {"base_url": "x"})()})()
     with pytest.raises(ToolError):
-        await chatgpt._fetch_file(clients, "4711")  # pyright: ignore[reportArgumentType]
+        await chatgpt._fetch_file(_clients("https://x"), "4711")

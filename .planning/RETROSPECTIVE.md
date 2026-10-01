@@ -275,11 +275,52 @@ Ein zweiter, ab Werk ausgeschalteter Prüfpfad nimmt ein nach RFC 8693 getauscht
 - Sessions: 9 Kalendertage (18.-26.09.), 217 Commits, +40.143/-3.428 Zeilen über 174 Dateien.
 - Notable: der Abschlusstag lief komplett in einer Session (Rebase auf PR #8, Gates, secure-phase, Archiv), weil alle Phasen schon verifiziert waren.
 
+## Milestone: v1.7 , Ausschluss-Tag kein-ki
+
+**Shipped:** 2026-10-01
+**Phasen:** 5 | **Pläne:** 38 | **Tasks:** 92
+
+### What Was Built
+
+Eine Datei oder ein Ordner mit dem System-Tag `kein-ki` erscheint in keiner Tool-Antwort mehr: Mess-Spike gegen NC 32 bis 35 vor jeder Designentscheidung (Phase 25), policy-freier Tag-Client und request-gebundener Guard mit drei Zuständen (26), Anschluss aller dateitragenden Familien samt Sandbox-Parität für pfadlose Treffer (27), die Grenze als Gate mit Klassifikations-Freeze, Kanarie, byte-gleichen Paaren und AST-Nadeln (28), Prüfkommando `occ mcp_connector:exclusion:check` und dreisprachige Betreiberdoku mit 17 ehrlichen Grenzen (29). Kein Release; der Filter reist mit 0.4.0.
+
+### What Worked
+
+- Erst messen, dann bauen: der Spike entschied Fail-closed-Auslöser, Notes-Weg und Batch-Strategie, bevor eine Zeile Produktcode stand; die PostgreSQL-Gegenmessung verhinderte eine falsche SQLite-getriebene Batch-Entscheidung.
+- Die Kanarie über alle 22 Werkzeuge fand einen echten Abfluss (Dateiname über den Suchprovider `talk-conversations`), den kein Unit-Test gesehen hätte; nach D-28-21 ist sie in allen vier Modi grün.
+- Byte-Gleichheit als Prüfkriterium (getaggt gegen nicht existent, auch im Ausfall) machte "verrät nichts" zu einem roten oder grünen Test statt einer Behauptung.
+- Gemeinsame Owner-Abnahme des Doku-Wortlauts: vier Korrekturen am 01.10., danach freigegeben.
+
+### What Was Inefficient
+
+- Die Wanduhr-Schwelle für prepare_context kostete zwei Lückenpläne (27-09, 27-10) und mehrere Messfenster; am Ende lag schon die Kontrolle mit dem alten Code über der Schwelle, und das Rauschen übertraf die Reserve. Die Abnahme mit Begründung hätte früher kommen können.
+- Fünf Tage ohne Push (171 Commits voraus) hielten die CI-gebundenen Nachweise (SBX-01 gegen echten Findling, canary-nc35) bis zum Abschlusstag offen; zwei Verifikationen standen deshalb lange auf human_needed.
+- RAM-Knappheit der Box zwang schwere Agenten und Docker-Läufe in Serie; eine RAM-Prüfung vor Messläufen war nur Arbeitsanweisung und musste als AR-29-03 akzeptiert werden.
+
+### Patterns Established
+
+- Live-Harness mit gelesenem Aufräumbeweis je Nebenwirkung (canary_world) als wiederverwendbare Basis für Grenz-Gates.
+- Doku-Wahrheitstest: jede Grenzaussage der Betreiberdoku verweist auf einen Befund und wird gegen Code-Konstanten und Rohbelege geprüft.
+- Store-Texte per SHA-256-Pin im CI eingefroren, solange ein Feature nicht released ist.
+
+### Key Lessons
+
+- milestone.complete zieht die Accomplishments nur aus der letzten Phase, zählt die Tasks falsch (18 statt 92) und schreibt Gedankenstriche in STATE.md; MILESTONES.md und STATE.md nach jedem Lauf von Hand redigieren.
+- audit-open meldet Quick-Tasks als "missing", obwohl SUMMARY-Dateien mit status complete vorliegen; vor einem Abbruch die Datei selbst ansehen.
+- Produktdoku, die Befunde unter .planning/phases/ verlinkt, verhindert das Phasenarchiv beim Milestone-Abschluss; für künftige Doku-Befundlinks einen stabilen Ort wählen (z. B. docs/evidence/) oder den Umzug als eigene Aufgabe planen.
+- CI-gebundene Must-haves früh pushen oder ausdrücklich als Abschluss-Gate planen, sonst wandern sie als human_needed bis ans Milestone-Ende.
+
+### Cost Observations
+
+- Modell-Mix: Executor/Planner/Auditor opus (Owner-Vorgabe), Checker/Verifier sonnet, Orchestrierung fable.
+- Sessions: 6 Kalendertage (26.09. bis 01.10.), 343 Commits, +57.263/-1.733 Zeilen über 264 Dateien.
+- Notable: parallel liefen zwei Hotfix-Releases (0.3.1, 0.3.2) und PR #13 außerhalb des Milestones, ohne den Phasenplan zu stören.
+
 ## Cross-Milestone Trends
 
-| Metrik | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v1.6 |
-|--------|------|------|------|------|------|------|------|
-| Phasen / Pläne / Tasks | 5 / 50 / 111 | 1 / 11 / 20 | 4 / 28 / 67 | 2 / 10 / 26 | 2 / 6 / 12 | 4 / 32 / n. rek. | 5 / 22 / 59 |
-| Kalenderzeit | 7 Tage | 1 Tag | 5 Tage (21.-25.08.) | 2 Tage (25.-26.08.) | 1 Tag (28.08.) | 4 Tage (28.-31.08.) | 9 Tage (18.-26.09.) |
-| Verifier-Gap-Runden | 1 (Phase 5) | 1 (Phase 6, CLIENT-04) | 0 (alle 4 Phasen passed im ersten Lauf) | 0 (beide Phasen passed im ersten Lauf) | 0 (beide Phasen passed im ersten Lauf) | n. rek. (nachgetragen) | 0 (alle 5 Phasen passed) |
-| Live-Releases im Milestone | 3 (0.1.0, 0.1.1, 0.1.2) | 0 (0.1.3-Kandidat wartet auf Owner-Freigabe) | 5 (0.1.4 bis 0.1.8, drei davon vorgezogen) | 1 (0.1.9) | 1 (0.1.10) | 1 (0.1.11) | 0 (Exchange-Pfad reist erst mit 0.3.0) |
+| Metrik | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v1.6 | v1.7 |
+|--------|------|------|------|------|------|------|------|------|
+| Phasen / Pläne / Tasks | 5 / 50 / 111 | 1 / 11 / 20 | 4 / 28 / 67 | 2 / 10 / 26 | 2 / 6 / 12 | 4 / 32 / n. rek. | 5 / 22 / 59 | 5 / 38 / 92 |
+| Kalenderzeit | 7 Tage | 1 Tag | 5 Tage (21.-25.08.) | 2 Tage (25.-26.08.) | 1 Tag (28.08.) | 4 Tage (28.-31.08.) | 9 Tage (18.-26.09.) | 6 Tage (26.09.-01.10.) |
+| Verifier-Gap-Runden | 1 (Phase 5) | 1 (Phase 6, CLIENT-04) | 0 (alle 4 Phasen passed im ersten Lauf) | 0 (beide Phasen passed im ersten Lauf) | 0 (beide Phasen passed im ersten Lauf) | n. rek. (nachgetragen) | 0 (alle 5 Phasen passed) | 1 (Phase 27, Wanduhr, zwei Lückenpläne; dazu zwei CI-gebundene human_needed bis zum Push) |
+| Live-Releases im Milestone | 3 (0.1.0, 0.1.1, 0.1.2) | 0 (0.1.3-Kandidat wartet auf Owner-Freigabe) | 5 (0.1.4 bis 0.1.8, drei davon vorgezogen) | 1 (0.1.9) | 1 (0.1.10) | 1 (0.1.11) | 0 (Exchange-Pfad reist erst mit 0.3.0) | 0 (Filter reist mit 0.4.0; 0.3.1/0.3.2 nebenläufig außerhalb) |

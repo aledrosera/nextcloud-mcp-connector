@@ -2,41 +2,39 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: planning
-stopped_at: Phase 25 context gathered
-last_updated: "2026-09-26T16:07:04.870Z"
-last_activity: 2026-09-26, Roadmap v1.7 erstellt (5 Phasen, 14/14 Requirements zugeordnet)
+status: Awaiting next milestone
+stopped_at: Milestone v1.7 complete (Phasenordner 25-29 bleiben in .planning/phases/, weil docs/exclusion*.md, Tests und src/ darauf verlinken)
+last_updated: "2026-10-01T12:37:43.330Z"
+last_activity: 2026-10-01, Milestone v1.7 abgeschlossen und archiviert; vorher Push 5a89219 mit CI-Lauf 36861555478 grün (SBX-01, canary-nc35), secure-phase 29 (31/31)
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 5
+  total_plans: 38
+  completed_plans: 38
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-26)
+See: .planning/PROJECT.md (updated 2026-10-01)
 
 **Core value:** Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
-**Current focus:** Milestone v1.7 Ausschluss-Tag kein-ki (BL-16), Phasen 25-29; als Nächstes Phase 25 (Mess-Spike Tag-Abfrage). Nebenläufig extern: files_update als Community-PR (Design-Issue #9), F13-Spur ruht, Release 0.3.0 nur mit Owner-Freigabe.
+**Current focus:** Kein aktiver Milestone. Geplant: Release 0.4.0 nach dem Merge von PR #14 (andrewyager, files_read_as_markdown), nur mit Owner-Freigabe; danach /gsd:new-milestone.
 
 ## Current Position
 
-Phase: 25 von 25-29 (Mess-Spike Tag-Abfrage)
-Plan: noch keiner (Phase nicht geplant)
-Status: Ready to plan
-Last activity: 2026-09-26, Roadmap v1.7 erstellt (5 Phasen, 14/14 Requirements zugeordnet)
-
-Progress: [░░░░░░░░░░] 0%
+Phase: Milestone v1.7 complete (Phasen 25-29)
+Plan: keiner
+Status: Awaiting next milestone
+Last activity: 2026-10-01, Milestone v1.7 abgeschlossen und archiviert
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 134
+- Total plans completed: 172
 - Average duration: 35 min
 - Total execution time: 15.2 hours
 
@@ -62,6 +60,11 @@ Progress: [░░░░░░░░░░] 0%
 | 20 | 2 | 49 min | 25 min |
 | 22 | 1 | 25 min | 25 min |
 | 24 | 9 | - | - |
+| 25 | 5 | - | - |
+| 26 | 2 | - | - |
+| 27 | 10 | - | - |
+| 28 | 12 | - | - |
+| 29 | 9 | - | - |
 
 **Recent Trend:**
 
@@ -209,6 +212,10 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 21-exchange-verifier P02 | 20 min | 2 tasks | 2 files |
 | Phase 22 P02 | 35 | 3 tasks | 11 files |
 | Phase 22 P03 | 21 min | 2 tasks | 9 files |
+| Phase 29 P01 | 25min | 2 tasks | 2 files |
+| Phase 29 P03 | 25min | 2 tasks | 4 files |
+| Phase 29 P04 | 35min | 2 tasks | 3 files |
+| Phase 29 P09 | 60min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -759,6 +766,14 @@ Recent decisions affecting current work:
 - [Phase 22]: EXCHANGE_LIMIT = 30 als eigenes Limit zwischen FAILURE_LIMIT (10) und PATH_CEILING (200); die Decke der Klasse bleibt PATH_CEILING und wird bewusst nicht angehoben (22-03): eine Ablehnung des Exchange-Pfades kostet eine Signaturpruefung und bei unbekanntem kid einen ausgehenden Abruf, ist also teurer als ein abgelehnter Token-Grant; die Decke ist geteiltes Schicksal, und das ist auf einem Pfad, den ein Fremder ohne Schluessel erreicht, der richtige Handel, weil der bestehende Pfad gar nicht in dieser Klasse liegt
 - [Phase 22]: Die Formbedingung der Drossel steht in chain.exchange_shaped_request und nicht in throttle.py: die Formregel darf es nur einmal geben, sonst driften Weiche und Drossel auseinander; throttle.py bekommt ein Callable hereingereicht und nennt den Exchange-Pfad nirgends, ein grep haelt das fest (22-03)
 - [Phase 22]: Im Aus-Zustand haengt an der MCP-Route gar kein Drossel-Wrapper, nicht einer, der alles durchlaesst: ein solcher waere heute nicht unterscheidbar und morgen ein anderer Codepfad; im bewaffneten Fall sitzt er aussen um die Transportgrenze, weil die gezaehlte Ablehnung der 401 dieser Grenze ist (22-03)
+- [Phase 29]: 29-01: Admin-Nachweis über cloud/groups/admin/users (200/403); oc:groups als Nicht-Admin kippt ganze PROPFIND auf 403
+- [Phase 29]: 29-01: Zählung über innere nc:object-ids mit nc:type=files (nc:id ist Index); ohne --admin erstes AppAPI-Konto mit 207, nur user-visible
+- [Phase 29]: 29-03: confirm_admin nur Kandidat b (200+OCS 200 True, 403+OCS 403 False, sonst None); Zählung über innere nc:object-ids per sum(), ObjectCount ohne Id-Feld
+- [Phase 29]: 29-04: Handler /exclusion-check; JSON mode null bei checked=false (Ausfall nie als kein Tag lesbar), reason-Schlüssel, confirm_admin None liest als genanntes Konto ohne oc:groups
+- [Phase 29]: 29-07: Hinweis ohne --admin in der Doku aus NO_VISIBLE_TAG_SENTENCE (f016f8f) zitiert, nicht aus dem 29-06-Livetext; M4-Zählgrenze (instanzweit, Papierkorb) im Abschnitt check-command
+- [Phase 29]: 29-07: Doku-Wahrheitstest prüft Link-Auflösung ohne die Schwester-Sprachseiten (eigener Test plus Existenztest), damit EN/DE vor FR grün sind
+- [Phase 29]: 29-08: FR-Seite mit Menüpfad "Paramètres d'administration > Paramètres de base > Étiquettes collaboratives" (M9); README-Abschnitt je Sprache vier Zeilen vor der Sicherheits-Überschrift; DOC-03 erst mit 29-09 abhaken
+- [Phase 29]: 29-09: Store-Texte per SHA-256 seit ca157b4 gepinnt; Doku-Wortlaut nach vier Owner-Korrekturen am 2026-10-01 freigegeben (a9ec7ad)
 
 ### Pending Todos
 
@@ -776,9 +791,9 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- v1.7 Messvorbedingung: Phase 25 misst vor jeder Designentscheidung; Notes-Anschluss (EXCL-05) hängt am Befund "Notiz-Id = fileid", bei negativem Befund dokumentiert vertagt statt geraten
-- v1.7 Versionsfenster: App-aus-Verhalten des REPORT ist nur auf NC 35 gemessen; NC 32 bis 34 und die AppAPI-Impersonation-Variante sind offen, bis Phase 25 sie misst
-- v1.7 offene discuss-Fragen (nicht entschieden): Ordner-Tag als Ausschlussliste und Admin-Schalter (Phase 26), Upload-Orakel und Zählen-vs-Schweigen je Familie (Phase 27)
+- v1.7 offen aus Phase 27: der CI-Schritt 'Findling hits run through sandbox and exclusion (SBX-01)' im Job exapp ist nie gelaufen (main über 170 Commits vor origin/main); beim nächsten Push muss er grün werden, ohne Skip (27-VERIFICATION human_needed)
+- v1.7 Merker für Phase 28: talk_send und notes_create sind im Klassifikations-Freeze betroffen; ChatGPT-search trägt kein degraded-Feld; Provider-cursors-Kanarientest (27-LIVE-BEWEIS.md, Merker für Phase 28)
+- v1.7 Harness nc35: test_ctx_bundle.py braucht neben .env.nc35 die NC_MCP_E2E_*-Exporte aus topology.py und PYTHONUTF8=1, sonst läuft occ im falschen Container (27-LIVE-BEWEIS.md, Neumessung 28.09.)
 - v1.7 Flächen-Nachbarschaft: files_update aus dem Community-PR muss beim Merge in den Klassifikations-Freeze (GATE-01) eingetragen werden
 - v1.5 Termin: der ISV-Call am 14.09. ist der harte Anker für Phase 17; die Fragenliste (OD-03) muss auch dann vorliegen, wenn OD-01 oder OD-02 ergebnislos bleiben, denn ein ungemessener Punkt ist selbst eine Frage für den Call
 - v1.5 offene Architekturfrage: Weg 0 hängt an einer einzigen ungemessenen Tatsache (trägt die serverseitige Token-Erneuerung von `integration_openproject` auch in openDesks OIDC-gebundenem Betrieb, oder fällt sie nach Ablauf des zwischengespeicherten Tokens auf 401); fällt sie, ist Weg 1 der Rückfall, nicht ein Ausweichen
@@ -794,16 +809,18 @@ Recent decisions affecting current work:
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
+Items acknowledged and deferred at milestone close on 2026-10-01 (v1.7):
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| *(none)* | | | |
+| quick_task | 260926-ktw-24-review-infos-in-01-bis-in-07-abraeume | missing (Fehlalarm: SUMMARY vorhanden, Arbeit erledigt, Commits in Quick-Tasks-Tabelle) | v1.7-Abschluss |
+| quick_task | 260930-ty7-ci-kanarie-auf-nc-35 | missing (Fehlalarm: SUMMARY mit status complete, CI-Job canary-nc35 im Lauf 36861555478 grün) | v1.7-Abschluss |
 
 ## Quick Tasks Completed
 
 | Date | Task | Commits | Directory |
 |------|------|---------|-----------|
+| 2026-09-30 | WR-04: Kanarie- und Paarbeweise (GATE-02/03) in neuen CI-Job canary-nc35 auf nextcloud:35.0.1-apache verschoben (Compose-Variable NC_EXAPP_NEXTCLOUD_IMAGE, Default bleibt 34.0.3 für EXAPP-06, occ-status-Versionscheck, NC_MCP_REQUIRE_LIVE=1), zwei Wächtertests. Gates grün. Offen: erster CI-Lauf nach Owner-Push. | c358b40 | .planning/quick/260930-ty7-ci-kanarie-auf-nc-35/ |
 | 2026-09-26 | 24-REVIEW-Infos IN-01 bis IN-07 abgeraeumt: Bremszustand _windows aus eq/hash (compare=False), AST-Gate refusals.py importiert nichts aus oauth, actor-Auslassung im repr begruendet und getestet (R-24-04), exchange_check_routes nimmt die geladene Config, Spalten-Docstring korrigiert (neun zu elf), privacy.md nennt die reservierten --user-Woerter, --keep-armed-Hilfetext nennt die verbleibende Test-CA. Alle Gates gruen. | 017c30c, 1a024a2, 687e161, 4b5a7ed (Merge bc721b5) | .planning/quick/260926-ktw-24-review-infos-in-01-bis-in-07-abraeume/ |
 | 2026-09-25 | Community-PR #8 (piAreSquare) übernommen: die fünf Review-Änderungen selbst umgesetzt (files_download in die Vulture-Whitelist, Dockerfile.railway raus, Mathpix-.mmd-Sonderfall aus _is_text entfernt, Beispielpfad /Documents/AI, Titel und Beschreibung gesetzt), auf den Fork-Branch gepusht, CI 4/4 grün (Lauf 36113314273), serverseitig squash-gemergt mit Autorenschaft beim Beitragenden. ACHTUNG: origin/main ist damit vorgerückt; das lokale main liegt 77 Commits voraus und muss beim Push-Hook-Entscheid des Owners rebased oder gemergt werden, bevor gepusht wird. Kein Release, kein Tag. | 89bb7e7 (Squash auf origin/main), f9838e2 (Übernahme-Commit auf dem PR-Branch) | .planning/reviews/pr-8-overwrite-f-beweis.md |
 | 2026-09-23 | BL-15 Rest: ehrliche Tool-Beschreibung von unified_search, Contract-Pin umgedreht, Backlog geschlossen | 9a32764, 6ee0a03, 5c4c043 | .planning/quick/260923-bl15-honest-search-note/ |
@@ -813,11 +830,13 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-26T16:07:04.848Z
-Stopped at: Phase 25 context gathered
-Nächster Schritt: /gsd:discuss-phase 25 oder direkt /gsd:plan-phase 25 (Mess-Spike Tag-Abfrage, braucht Live-Zugriff auf NC 32 bis 35)
-Resume file: .planning/phases/25-mess-spike-tag-abfrage/25-CONTEXT.md
+Last session: 2026-10-01T10:23:22.167Z
+Stopped at: Milestone v1.7 abgeschlossen (2026-10-01)
+Nächster Schritt: Release 0.4.0 nach Merge von PR #14 (Owner-Freigabe), danach /gsd:new-milestone
+Resume file: None
 
 ## Operator Next Steps
 
-- Phase 25 planen: /gsd:plan-phase 25
+- Release 0.4.0 (nur mit ausdrücklicher Owner-Freigabe, Tag `v*` löst release.yml aus): geplant nach dem Merge von PR #14 (andrewyager, files_read_as_markdown); bündelt den kein-ki-Filter aus v1.7 und die Store-Text-Erwähnung des Tags (EXCL-F02)
+- Lokaler Stand: die Abschluss-Commits von v1.7 sind noch nicht gepusht (Push nur nach Owner-Entscheid)
+- Danach den nächsten Milestone mit /gsd:new-milestone starten (Kandidaten in PROJECT.md, Next Milestone Goals)

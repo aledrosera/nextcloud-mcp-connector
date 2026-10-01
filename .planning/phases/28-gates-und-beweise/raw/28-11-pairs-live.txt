@@ -1,0 +1,277 @@
+
+# 28-11 pairs normal 2026-09-28 15:09:55 +0200 head=2a92052 container=nc35-nc user=alice
+# kommando: PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_pair_equality_live.py -m integration -s
+# stamm=kanarie28x84aea038 marker=mkc5f60711c75842ac87ba8c175e569100
+PAAR normal files_read path: gleich
+GATE-03 files_read normal path: ja (gleich ("text": "Error executing tool files_read: File not found: <ID>. Hint: List the parent folder first to get the exact spelling of the path.", "type": "text"}], "isError": true, "resultType": "complet...))
+ABWEISUNG files_read normal path: ja (is_error getaggt=True erfunden=True)
+PAAR normal files_download path: gleich
+GATE-03 files_download normal path: ja (gleich ("text": "Error executing tool files_download: File not found: <ID>. Hint: List the parent folder first to get the exact spelling of the path.", "type": "text"}], "isError": true, "resultType": "com...))
+ABWEISUNG files_download normal path: ja (is_error getaggt=True erfunden=True)
+PAAR normal files_list folder: gleich
+GATE-03 files_list normal folder: ja (gleich ("text": "Error executing tool files_list: File not found: <ID>. Hint: List the parent folder first to get the exact spelling of the path.", "type": "text"}], "isError": true, "resultType": "complet...))
+ABWEISUNG files_list normal folder: ja (is_error getaggt=True erfunden=True)
+PAAR normal files_search folder: gleich
+GATE-03 files_search normal folder: ja (gleich ("text": "Error executing tool files_search: File not found: <ID>. Hint: List the parent folder first to get the exact spelling of the path.", "type": "text"}], "isError": true, "resultType": "compl...))
+ABWEISUNG files_search normal folder: ja (is_error getaggt=True erfunden=True)
+PAAR normal files_upload text: gleich
+GATE-03 files_upload normal text: ja (gleich ("text": "Error executing tool files_upload: The parent folder <ID> of <ID> does not exist. Hint: Create the folder in Nextcloud first, or upload into a folder that exists.", "type": "text"}], "isEr...))
+ABWEISUNG files_upload normal text: ja (is_error getaggt=True erfunden=True)
+PAAR normal files_upload binary_chunk1: gleich
+GATE-03 files_upload normal binary_chunk1: ja (gleich ("text": "Error executing tool files_upload: The parent folder <ID> of <ID> does not exist. Hint: Create the folder in Nextcloud first, or upload into a folder that exists.", "type": "text"}], "isEr...))
+ABWEISUNG files_upload normal binary_chunk1: ja (is_error getaggt=True erfunden=True)
+PAAR normal fetch file: gleich
+GATE-03 fetch normal file: ja (gleich ("text": "Error executing tool fetch: This account has no file with the id <ID>. Hint: Run search again and use the id from the fresh answer: a file id stops resolving once the file is deleted or th...))
+ABWEISUNG fetch normal file: ja (is_error getaggt=True erfunden=True)
+PAAR normal notes_read note: gleich
+GATE-03 notes_read normal note: ja (gleich ("text": "Error executing tool notes_read: Nextcloud did not find the note <ID>. Hint: Search for it first; the id or the name is unknown to this instance.", "type": "text"}], "isError": true, "resu...))
+ABWEISUNG notes_read normal note: ja (is_error getaggt=True erfunden=True)
+PAAR normal fetch note: gleich
+GATE-03 fetch normal note: ja (gleich ("text": "Error executing tool fetch: Nextcloud did not find the note <ID>. Hint: Search for it first; the id or the name is unknown to this instance.", "type": "text"}], "isError": true, "resultTyp...))
+ABWEISUNG fetch normal note: ja (is_error getaggt=True erfunden=True)
+PAAR normal notes_create category: benannte Ausnahme, gemessen als AUSNAHME
+PAAR normal talk_browse messages: gleich
+GATE-03 talk_browse normal messages: ja (gleich ("text": "Error executing tool talk_browse: The token '<ID>' is not in the conversation list of this account. Hint: Call talk_browse with level=conversations first; it lists the token of every conve...))
+ABWEISUNG talk_browse normal messages: ja (is_error getaggt=True erfunden=True)
+PAAR normal talk_send token: gleich
+GATE-03 talk_send normal token: ja (gleich ("text": "Error executing tool talk_send: The token '<ID>' is not in the conversation list of this account. Hint: Call talk_browse with level=conversations first; it lists the token of every convers...))
+ABWEISUNG talk_send normal token: ja (is_error getaggt=True erfunden=True)
+PAAR normal fetch message: gleich
+GATE-03 fetch normal message: ja (gleich ("text": "Error executing tool fetch: The token '<ID>' is not in the conversation list of this account. Hint: Call talk_browse with level=conversations first; it lists the token of every conversatio...))
+ABWEISUNG fetch normal message: ja (is_error getaggt=True erfunden=True)
+PAAR normal fetch table: Zelle leer ja
+GATE-03 fetch normal table: ja (browse-zelle=None fetch-zeile='' name-im-json=False zeilen=2 kontrolle-sichtbar=True)
+PAARE normal verglichen 13 von 14 (ausnahmen 1)
+CLEANUP uploads/getaggt (vorher 404): 404
+CLEANUP uploads/erfunden (vorher 207): 404
+CLEANUP notes-kategorie /Notes/kanarie28x84aea038-fehlt (vorher 404): 404
+CLEANUP papierkorb kanarie28x84aea038: leer
+CLEANUP PROPFIND /kanarie28x84aea038: 404
+CLEANUP PROPFIND /Notes/kanarie28x84aea038-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28x84aea038: entfernt
+CLEANUP share raum 81: 404
+CLEANUP share user2 82: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 23: 404
+CLEANUP kalender kanarie28x84aea038: 404
+CLEANUP deck board 30: gelöscht
+CLEANUP share deck 83: 404
+CLEANUP tag kein-ki: entfernt
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+
+# 28-11 pairs 500 2026-09-28 15:10:13 +0200 head=2a92052 container=nc35-nc user=alice
+# kommando: PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_pair_equality_live.py -m integration -s
+# stamm=kanarie28x51a3060c marker=mk98fcb0f921184f27a936dbabac938630
+PAAR 500 files_read path: gleich
+GATE-03 files_read 500 path: ja (gleich ("text": "Error executing tool files_read: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask ...))
+AUSFALL-TEXT files_read 500 path: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 files_download path: gleich
+GATE-03 files_download 500 path: ja (gleich ("text": "Error executing tool files_download: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ...))
+AUSFALL-TEXT files_download 500 path: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 files_list folder: gleich
+GATE-03 files_list 500 folder: ja (gleich ("text": "{\"path\":\"<ID>\",\"count\":0,\"items\":[],\"degraded\":[{\"source\":\"exclusion\",\"reason\":\"The exclusion check (tag kein-ki) could not be answered, so entries that may carry file con...))
+AUSFALL-TEXT files_list 500 folder: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 files_search folder: gleich
+GATE-03 files_search 500 folder: ja (gleich ("text": "{\"query\":\"kanarie28x51a3060c\",\"folder\":\"<ID>\",\"count\":0,\"items\":[],\"note\":\"matched on names only; contents are not indexed\",\"degraded\":[{\"source\":\"exclusion\",\"reason...))
+AUSFALL-TEXT files_search 500 folder: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 files_upload text: gleich
+GATE-03 files_upload 500 text: ja (gleich ("text": "Error executing tool files_upload: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT files_upload 500 text: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 files_upload binary_chunk1: gleich
+GATE-03 files_upload 500 binary_chunk1: ja (gleich ("text": "Error executing tool files_upload: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT files_upload 500 binary_chunk1: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 fetch file: gleich
+GATE-03 fetch 500 file: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch 500 file: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 notes_read note: gleich
+GATE-03 notes_read 500 note: ja (gleich ("text": "Error executing tool notes_read: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask ...))
+AUSFALL-TEXT notes_read 500 note: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 fetch note: gleich
+GATE-03 fetch 500 note: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch 500 note: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 notes_create category: gleich
+GATE-03 notes_create 500 category: ja (gleich ("text": "Error executing tool notes_create: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT notes_create 500 category: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 talk_browse messages: gleich
+GATE-03 talk_browse 500 messages: ja (gleich ("text": "Error executing tool talk_browse: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask...))
+AUSFALL-TEXT talk_browse 500 messages: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 talk_send token: gleich
+GATE-03 talk_send 500 token: ja (gleich ("text": "Error executing tool talk_send: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask a...))
+AUSFALL-TEXT talk_send 500 token: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 fetch message: gleich
+GATE-03 fetch 500 message: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch 500 message: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 500 fetch table: Zelle leer ja
+GATE-03 fetch 500 table: ja (browse-zelle=None fetch-zeile='' name-im-json=False zeilen=2 degraded=True)
+AUSFALL 500 report-route call_count=28
+PAARE 500 verglichen 14 von 14 (ausnahmen 0)
+CLEANUP uploads/getaggt (vorher 404): 404
+CLEANUP uploads/erfunden (vorher 404): 404
+CLEANUP notes-kategorie /Notes/kanarie28x51a3060c-fehlt (vorher 404): 404
+CLEANUP papierkorb kanarie28x51a3060c: leer
+CLEANUP PROPFIND /kanarie28x51a3060c: 404
+CLEANUP PROPFIND /Notes/kanarie28x51a3060c-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28x51a3060c: entfernt
+CLEANUP share raum 84: 404
+CLEANUP share user2 85: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 24: 404
+CLEANUP kalender kanarie28x51a3060c: 404
+CLEANUP deck board 31: gelöscht
+CLEANUP share deck 86: 404
+CLEANUP tag kein-ki: entfernt
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+
+# 28-11 pairs 412 2026-09-28 15:10:28 +0200 head=2a92052 container=nc35-nc user=alice
+# kommando: PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_pair_equality_live.py -m integration -s
+# stamm=kanarie28x77c45f64 marker=mk76d39b9aab8c4928946775516a519738
+PAAR 412 files_read path: gleich
+GATE-03 files_read 412 path: ja (gleich ("text": "Error executing tool files_read: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask ...))
+AUSFALL-TEXT files_read 412 path: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 files_download path: gleich
+GATE-03 files_download 412 path: ja (gleich ("text": "Error executing tool files_download: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ...))
+AUSFALL-TEXT files_download 412 path: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 files_list folder: gleich
+GATE-03 files_list 412 folder: ja (gleich ("text": "{\"path\":\"<ID>\",\"count\":0,\"items\":[],\"degraded\":[{\"source\":\"exclusion\",\"reason\":\"The exclusion check (tag kein-ki) could not be answered, so entries that may carry file con...))
+AUSFALL-TEXT files_list 412 folder: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 files_search folder: gleich
+GATE-03 files_search 412 folder: ja (gleich ("text": "{\"query\":\"kanarie28x77c45f64\",\"folder\":\"<ID>\",\"count\":0,\"items\":[],\"note\":\"matched on names only; contents are not indexed\",\"degraded\":[{\"source\":\"exclusion\",\"reason...))
+AUSFALL-TEXT files_search 412 folder: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 files_upload text: gleich
+GATE-03 files_upload 412 text: ja (gleich ("text": "Error executing tool files_upload: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT files_upload 412 text: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 files_upload binary_chunk1: gleich
+GATE-03 files_upload 412 binary_chunk1: ja (gleich ("text": "Error executing tool files_upload: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT files_upload 412 binary_chunk1: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 fetch file: gleich
+GATE-03 fetch 412 file: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch 412 file: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 notes_read note: gleich
+GATE-03 notes_read 412 note: ja (gleich ("text": "Error executing tool notes_read: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask ...))
+AUSFALL-TEXT notes_read 412 note: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 fetch note: gleich
+GATE-03 fetch 412 note: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch 412 note: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 notes_create category: gleich
+GATE-03 notes_create 412 category: ja (gleich ("text": "Error executing tool notes_create: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT notes_create 412 category: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 talk_browse messages: gleich
+GATE-03 talk_browse 412 messages: ja (gleich ("text": "Error executing tool talk_browse: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask...))
+AUSFALL-TEXT talk_browse 412 messages: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 talk_send token: gleich
+GATE-03 talk_send 412 token: ja (gleich ("text": "Error executing tool talk_send: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask a...))
+AUSFALL-TEXT talk_send 412 token: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 fetch message: gleich
+GATE-03 fetch 412 message: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch 412 message: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR 412 fetch table: Zelle leer ja
+GATE-03 fetch 412 table: ja (browse-zelle=None fetch-zeile='' name-im-json=False zeilen=2 degraded=True)
+AUSFALL 412 report-route call_count=56
+PAARE 412 verglichen 14 von 14 (ausnahmen 0)
+CLEANUP uploads/getaggt (vorher 404): 404
+CLEANUP uploads/erfunden (vorher 404): 404
+CLEANUP notes-kategorie /Notes/kanarie28x77c45f64-fehlt (vorher 404): 404
+CLEANUP papierkorb kanarie28x77c45f64: leer
+CLEANUP PROPFIND /kanarie28x77c45f64: 404
+CLEANUP PROPFIND /Notes/kanarie28x77c45f64-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28x77c45f64: entfernt
+CLEANUP share raum 87: 404
+CLEANUP share user2 88: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 25: 404
+CLEANUP kalender kanarie28x77c45f64: 404
+CLEANUP deck board 32: gelöscht
+CLEANUP share deck 89: 404
+CLEANUP tag kein-ki: entfernt
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+
+# 28-11 pairs timeout 2026-09-28 15:10:45 +0200 head=2a92052 container=nc35-nc user=alice
+# kommando: PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_pair_equality_live.py -m integration -s
+# stamm=kanarie28x3fb262e0 marker=mk56b5b1e776444e08bf47e9941d030ab8
+PAAR timeout files_read path: gleich
+GATE-03 files_read timeout path: ja (gleich ("text": "Error executing tool files_read: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask ...))
+AUSFALL-TEXT files_read timeout path: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout files_download path: gleich
+GATE-03 files_download timeout path: ja (gleich ("text": "Error executing tool files_download: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ...))
+AUSFALL-TEXT files_download timeout path: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout files_list folder: gleich
+GATE-03 files_list timeout folder: ja (gleich ("text": "{\"path\":\"<ID>\",\"count\":0,\"items\":[],\"degraded\":[{\"source\":\"exclusion\",\"reason\":\"The exclusion check (tag kein-ki) could not be answered, so entries that may carry file con...))
+AUSFALL-TEXT files_list timeout folder: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout files_search folder: gleich
+GATE-03 files_search timeout folder: ja (gleich ("text": "{\"query\":\"kanarie28x3fb262e0\",\"folder\":\"<ID>\",\"count\":0,\"items\":[],\"note\":\"matched on names only; contents are not indexed\",\"degraded\":[{\"source\":\"exclusion\",\"reason...))
+AUSFALL-TEXT files_search timeout folder: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout files_upload text: gleich
+GATE-03 files_upload timeout text: ja (gleich ("text": "Error executing tool files_upload: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT files_upload timeout text: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout files_upload binary_chunk1: gleich
+GATE-03 files_upload timeout binary_chunk1: ja (gleich ("text": "Error executing tool files_upload: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT files_upload timeout binary_chunk1: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout fetch file: gleich
+GATE-03 fetch timeout file: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch timeout file: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout notes_read note: gleich
+GATE-03 notes_read timeout note: ja (gleich ("text": "Error executing tool notes_read: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask ...))
+AUSFALL-TEXT notes_read timeout note: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout fetch note: gleich
+GATE-03 fetch timeout note: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch timeout note: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout notes_create category: gleich
+GATE-03 notes_create timeout category: ja (gleich ("text": "Error executing tool notes_create: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, as...))
+AUSFALL-TEXT notes_create timeout category: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout talk_browse messages: gleich
+GATE-03 talk_browse timeout messages: ja (gleich ("text": "Error executing tool talk_browse: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask...))
+AUSFALL-TEXT talk_browse timeout messages: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout talk_send token: gleich
+GATE-03 talk_send timeout token: ja (gleich ("text": "Error executing tool talk_send: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask a...))
+AUSFALL-TEXT talk_send timeout token: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout fetch message: gleich
+GATE-03 fetch timeout message: ja (gleich ("text": "Error executing tool fetch: The exclusion check (tag kein-ki) could not be answered, so entries that may carry file content are withheld. Hint: Retry in a minute; if it persists, ask an ad...))
+AUSFALL-TEXT fetch timeout message: ja (EXCLUSION_UNAVAILABLE genannt)
+PAAR timeout fetch table: Zelle leer ja
+GATE-03 fetch timeout table: ja (browse-zelle=None fetch-zeile='' name-im-json=False zeilen=2 degraded=True)
+AUSFALL timeout report-route call_count=28
+PAARE timeout verglichen 14 von 14 (ausnahmen 0)
+CLEANUP uploads/getaggt (vorher 404): 404
+CLEANUP uploads/erfunden (vorher 404): 404
+CLEANUP notes-kategorie /Notes/kanarie28x3fb262e0-fehlt (vorher 404): 404
+CLEANUP papierkorb kanarie28x3fb262e0: leer
+CLEANUP PROPFIND /kanarie28x3fb262e0: 404
+CLEANUP PROPFIND /Notes/kanarie28x3fb262e0-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28x3fb262e0: entfernt
+CLEANUP share raum 90: 404
+CLEANUP share user2 91: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 26: 404
+CLEANUP kalender kanarie28x3fb262e0: 404
+CLEANUP deck board 33: gelöscht
+CLEANUP share deck 92: 404
+CLEANUP tag kein-ki: entfernt
+ZUSAMMENFASSUNG cleanup: 16 Zeilen, 16 gelesen ok, 0 Werkzeug-Einträge
+
+# 28-11 pairs ausnahmen 2026-09-28 15:11:01 +0200 head=2a92052 container=nc35-nc user=alice
+# kommando: PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_pair_equality_live.py -m integration -s
+# stamm=kanarie28x756fdff9 marker=mke6c14d330a6e4090b45ff175bd809cb6
+SCHREIBVORGANG notes_create: gebucht note note:22721
+AUSNAHME notes_create category: getaggt=is_error Error executing tool notes_create: The parent folder /Notes/kanarie28x756fdff9-kat of /Notes/kanarie28x756fdff9-kat/kanarie28x756fdff9-neu.md does not exist. Hint: Create the folder in Nex... erfunden=erfolg id=note:22721 title=kanarie28x756fdff9-neu
+GATE-03 notes_create ausnahme category getaggt abgewiesen: ja (is_error Error executing tool notes_create: The parent folder /Notes/kanarie28x756fdff9-kat of /Notes/kanarie28x756fdff9-kat/kanarie28x756fdff9-neu.md does not exist. Hint: Create the folder in Nex...)
+GATE-03 notes_create ausnahme category erfunden angelegt: ja (erfolg id=note:22721 title=kanarie28x756fdff9-neu notes-GET 200)
+CLEANUP notes-kategorie /Notes/kanarie28x756fdff9-fehlt (vorher 207): 404
+CLEANUP papierkorb kanarie28x756fdff9: leer
+CLEANUP PROPFIND /kanarie28x756fdff9: 404
+CLEANUP PROPFIND /Notes/kanarie28x756fdff9-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28x756fdff9: entfernt
+CLEANUP share raum 93: 404
+CLEANUP share user2 94: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 27: 404
+CLEANUP kalender kanarie28x756fdff9: 404
+CLEANUP deck board 34: gelöscht
+CLEANUP share deck 95: 404
+CLEANUP tag kein-ki: entfernt
+CLEANUP tool note note:22721: 404
+ZUSAMMENFASSUNG cleanup: 15 Zeilen, 15 gelesen ok, 1 Werkzeug-Einträge

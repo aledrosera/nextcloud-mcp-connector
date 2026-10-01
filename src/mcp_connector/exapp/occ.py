@@ -1,10 +1,12 @@
 """The registration of the occ commands of this app with Nextcloud.
 
-Four of them since plan 24-06: ``mcp_connector:purge`` ends every connection of this
+Five of them since plan 29-05: ``mcp_connector:purge`` ends every connection of this
 instance, ``mcp_connector:audit:verify`` checks the chain of the audit log, the third one,
 whose name stands at :data:`OCC_AUDIT_READ_COMMAND_NAME`, reads the rows of that log out and
-hands them over (AUDIT-04), and the fourth holds a presented token against the configured
-token exchange path without using it for anything (EXCH-06). They are registered one by one,
+hands them over (AUDIT-04), the fourth holds a presented token against the configured
+token exchange path without using it for anything (EXCH-06), and the fifth reads the
+``kein-ki`` exclusion tag of the instance and judges it, read only (OPS-01). They are
+registered one by one,
 because
 ``OccCommandController::registerCommand`` takes exactly one command per ``POST`` (app_api
 v34.0.3), and each of them gets its own ``try`` for the reason ``exapp/lifecycle.py`` gives
@@ -65,9 +67,11 @@ from .audit_read import (
 )
 from .audit_verify import AUDIT_VERIFY_PATH, JSON_OPTION
 from .exchange_check import EXCHANGE_CHECK_PATH, TOKEN_OPTION
+from .exclusion_check import ADMIN_OPTION, EXCLUSION_CHECK_PATH
 from .purge import FORCE_OPTION, PURGE_PATH
 
 __all__ = [
+    "APPAPI_DESCRIPTION_LENGTH",
     "OCC_AUDIT_COMMAND_NAME",
     "OCC_AUDIT_HANDLER",
     "OCC_AUDIT_JSON_DESCRIPTION",
@@ -84,6 +88,11 @@ __all__ = [
     "OCC_EXCHANGE_CHECK_HANDLER",
     "OCC_EXCHANGE_CHECK_JSON_DESCRIPTION",
     "OCC_EXCHANGE_CHECK_TOKEN_DESCRIPTION",
+    "OCC_EXCLUSION_CHECK_ADMIN_DESCRIPTION",
+    "OCC_EXCLUSION_CHECK_COMMAND_NAME",
+    "OCC_EXCLUSION_CHECK_DESCRIPTION",
+    "OCC_EXCLUSION_CHECK_HANDLER",
+    "OCC_EXCLUSION_CHECK_JSON_DESCRIPTION",
     "OCC_FORCE_DESCRIPTION",
     "OCC_HANDLER",
     "command_schemes",
@@ -92,6 +101,13 @@ __all__ = [
 
 #: The OCS route AppAPI exposes for the occ commands of an ExApp.
 OCC_COMMAND_PATH = "/ocs/v2.php/apps/app_api/api/v1/occ_command"
+
+#: The most AppAPI stores for a command description: its migration
+#: ``Version2205Date20240411124836`` declares the column with this length, and MariaDB
+#: refuses a longer value (``1406 Data too long for column 'description'``) with a 400 that
+#: leaves the command out of ``occ list``. SQLite truncates silently, so a test has to hold
+#: this line rather than a topology.
+APPAPI_DESCRIPTION_LENGTH = 255
 
 #: What an administrator types. The app id as the namespace, which is what every ExApp
 #: command of an app shares and what makes it findable in ``occ list``.
@@ -201,10 +217,9 @@ OCC_EXCHANGE_CHECK_HANDLER = EXCHANGE_CHECK_PATH.removeprefix("/")
 #: handler, because the person deciding whether to run this against a token somebody handed
 #: them reads this text and not the source.
 OCC_EXCHANGE_CHECK_DESCRIPTION = (
-    "Hold a presented token against the token exchange path configured on this instance and "
-    "report every rule with its outcome. The check is a dry run: it makes no Nextcloud call, "
-    "it creates no session and no authorization, and it writes no row into the audit log. It "
-    "costs one outgoing key set request to the configured provider."
+    "Check a token against the token exchange path of this instance and report every rule "
+    "with its outcome. A dry run: no Nextcloud call, no session, no authorization and no audit "
+    "log row. It costs one key set request to the configured provider."
 )
 
 #: The description that names a price instead of hiding it, after the model of
@@ -226,6 +241,35 @@ OCC_EXCHANGE_CHECK_TOKEN_DESCRIPTION = (
 OCC_EXCHANGE_CHECK_JSON_DESCRIPTION = (
     "Answer with the same result as JSON, whose key passed carries the verdict. A script "
     "watches that key and not the exit code, which is always 0."
+)
+
+#: What an administrator types for the check of OPS-01. Two levels in the namespace like the
+#: three commands before it, and the literal stands here exactly once for the reason given at
+#: :data:`OCC_EXCHANGE_CHECK_COMMAND_NAME`: AppAPI's ``insertOrUpdate`` keys a registration on
+#: the app id and the name, so a renamed command leaves the old one behind as an entry in
+#: ``occ list`` that answers 404. Never rename it.
+OCC_EXCLUSION_CHECK_COMMAND_NAME = "mcp_connector:exclusion:check"
+
+#: The route on us AppAPI calls when the check runs, derived like every handler above.
+OCC_EXCLUSION_CHECK_HANDLER = EXCLUSION_CHECK_PATH.removeprefix("/")
+
+#: What the command does, and in its second half the three things it does not do: the person
+#: deciding whether to run it on a productive instance reads this text and not the source.
+OCC_EXCLUSION_CHECK_DESCRIPTION = (
+    "Check the kein-ki exclusion tag of this instance: whether it exists, who can set it and "
+    "how many items carry it. It only reads, changes nothing and names no file and no account."
+)
+
+#: The ``passed`` key named for the reason :data:`OCC_EXCHANGE_CHECK_JSON_DESCRIPTION` gives:
+#: AppAPI drops the body of any answer that is not a 200, so the exit code is always 0.
+OCC_EXCLUSION_CHECK_JSON_DESCRIPTION = (
+    "Answer with the same result as JSON, whose key passed carries the verdict. A script "
+    "watches that key and not the exit code, which is always 0."
+)
+
+#: The price of leaving the option out, said where an administrator sees it before typing.
+OCC_EXCLUSION_CHECK_ADMIN_DESCRIPTION = (
+    "The uid of an administrator; without it, invisible tags and delegation groups are not checked."
 )
 
 logger = logging.getLogger("mcp_connector.exapp.occ")
@@ -379,6 +423,38 @@ def command_schemes() -> list[dict[str, Any]]:
                 f"{OCC_EXCHANGE_CHECK_COMMAND_NAME} --{TOKEN_OPTION}=<token> --{JSON_OPTION}",
             ],
             "execute_handler": OCC_EXCHANGE_CHECK_HANDLER,
+        },
+        # The check of OPS-01. The comment block at the third entry holds here as well: modes
+        # from the positive list, no arguments, and the one value option carries its
+        # ``default``. ``--admin`` is ``optional`` and not ``required``, because the check
+        # without it is a smaller check and not a broken one, and the handler names what it
+        # left out. No ``--force``: the command changes nothing.
+        {
+            "name": OCC_EXCLUSION_CHECK_COMMAND_NAME,
+            "description": OCC_EXCLUSION_CHECK_DESCRIPTION,
+            "hidden": 0,
+            "arguments": [],
+            "options": [
+                {
+                    "name": ADMIN_OPTION,
+                    "mode": "optional",
+                    "description": OCC_EXCLUSION_CHECK_ADMIN_DESCRIPTION,
+                    "default": None,
+                },
+                # The same spelling as in the handler module, held equal by a test, like the
+                # flag of the two audit commands and the dry run.
+                {
+                    "name": JSON_OPTION,
+                    "mode": "none",
+                    "description": OCC_EXCLUSION_CHECK_JSON_DESCRIPTION,
+                },
+            ],
+            "usages": [
+                OCC_EXCLUSION_CHECK_COMMAND_NAME,
+                f"{OCC_EXCLUSION_CHECK_COMMAND_NAME} --{ADMIN_OPTION}=<uid>",
+                f"{OCC_EXCLUSION_CHECK_COMMAND_NAME} --{ADMIN_OPTION}=<uid> --{JSON_OPTION}",
+            ],
+            "execute_handler": OCC_EXCLUSION_CHECK_HANDLER,
         },
     ]
 

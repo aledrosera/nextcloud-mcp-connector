@@ -85,7 +85,7 @@ from ..nextcloud import NcClients
 from . import calendar as calendar_tools
 from . import chatgpt as chatgpt_tools
 from . import mail as mail_tools
-from . import marks
+from . import marks, withhold
 from . import search as search_tools
 from . import talk as talk_tools
 
@@ -245,7 +245,13 @@ async def prepare_context(clients: NcClients, query: str, detail: str = SHORT) -
         raise ToolError(message=f"{detail!r} is not a known detail level.", hint=_DETAIL_HINT)
 
     start, end = _window()
-    search_out, calendar_out, talk_out, mail_out = await asyncio.gather(
+    # The guard is the first member, outside every leg budget (Merker (c), pattern 6): the
+    # flight of this call is held here, so no leg with a short ceiling can cancel it at its
+    # timeout and make the next leg ask again. 5000 tagged nodes on SQLite take 8 to 10 s,
+    # longer than TALK_BUDGET. Its outcome is not read: every leg asks the same guard itself
+    # and decides fail-closed there, so an exception here is ignored on purpose.
+    _, search_out, calendar_out, talk_out, mail_out = await asyncio.gather(
+        clients.exclusion.scope(clients),
         search_tools.unified_search(clients, query=term, limit=SEARCH_LIMIT),
         _events(clients, start, end),
         _talk(clients),
@@ -274,6 +280,7 @@ async def prepare_context(clients: NcClients, query: str, detail: str = SHORT) -
     if mode == FULL:
         await _excerpts(clients, results, degraded)
 
+    degraded = _one_exclusion_entry(degraded)
     result: dict[str, Any] = {
         "query": term,
         "window": {"start": start, "end": end},
@@ -741,6 +748,21 @@ async def _excerpts(
     The kinds come from :data:`EXCERPT_KINDS` and deliberately not from the bucket list: a
     later decision about how this answer is grouped must not silently widen what this server
     reads unasked.
+
+    **One file id lookup per bundle, not one per excerpt.** The file excerpts share one
+    SEARCH (``chatgpt.file_entries``), started as one task before the excerpts and awaited
+    by each file excerpt inside its own budget, and its entries replace the stat PROPFIND
+    of the read as well. Measured in plan 27-09 against the wall clock gap of
+    27-VERIFICATION (scenario B, ``detail="full"``): three serial round trips per excerpt
+    became two, and a bundle sends five requests less. Since plan 27-10 the note excerpts
+    check their path in the same SEARCH (a note id is a file id, K4): a note starts its
+    guard and its read at once and waits for the lookup only where ``notes.read`` needs the
+    path, so a note without a path check and every card never wait for it. A bundle without
+    a file excerpt starts no shared lookup at all, because without a tagged folder its
+    notes check no path and the SEARCH would be one request more.
+    When the shared lookup fails, every excerpt takes the single route of ``fetch``
+    and so gets exactly the sentence it always got. The entries live in this call only and
+    the task is cancelled before the answer leaves (E3, D-25-05).
     """
     targets = [
         hit
@@ -749,9 +771,23 @@ async def _excerpts(
         if hit.get("resolvable") is not False
     ][:MAX_EXCERPTS]
 
-    outcomes = await asyncio.gather(
-        *(_excerpt(clients, str(hit["id"])) for hit in targets), return_exceptions=True
+    batch_ids = [str(hit["id"]) for hit in targets if hit.get("kind") in ("file", "note")]
+    lookup = (
+        asyncio.create_task(chatgpt_tools.file_entries(clients, batch_ids, kinds=("file", "note")))
+        if any(hit.get("kind") == "file" for hit in targets)
+        else None
     )
+    try:
+        outcomes = await asyncio.gather(
+            *(
+                _excerpt(clients, str(hit["id"]), lookup, str(hit.get("kind") or ""))
+                for hit in targets
+            ),
+            return_exceptions=True,
+        )
+    finally:
+        if lookup is not None:
+            await _settle(lookup)
     for hit, outcome in zip(targets, outcomes, strict=True):
         if isinstance(outcome, BaseException):
             # The hit was found, and that stays true even when its content cannot be read.
@@ -765,15 +801,62 @@ async def _excerpts(
         hit["excerpt"] = outcome
 
 
-async def _excerpt(clients: NcClients, identifier: str) -> str:
+async def _excerpt(
+    clients: NcClients,
+    identifier: str,
+    lookup: asyncio.Task[dict[str, dict[str, Any] | None]] | None = None,
+    kind: str = "file",
+) -> str:
     """One excerpt, under its own two ceilings, through the routing that already exists.
 
     The second ceiling is the one on the way in: the reader is told how much it may read,
     instead of reading its own default and having it thrown away here (LO-06).
+
+    A file excerpt waits for the shared ``lookup`` of its bundle inside its own budget,
+    through ``asyncio.shield`` so its own timeout never cancels the lookup of the others.
+    A lookup that failed sends it the single route, with the sentence it always had.
+
+    A note excerpt does not wait before its read (plan 27-10): it hands ``fetch`` a
+    ``note_batch`` that awaits the same shielded lookup, and ``notes.read`` calls it only
+    where it would otherwise ask its own path SEARCH. The budget still covers that wait,
+    so a lookup that misses it reads like any timed out excerpt.
     """
     async with asyncio.timeout(EXCERPT_TIMEOUT):
-        fetched = await chatgpt_tools.fetch(clients, identifier, max_bytes=EXCERPT_READ_BYTES)
+        resolved: dict[str, dict[str, Any] | None] | None = None
+        if lookup is not None and kind == "note":
+            shared = lookup
+
+            async def note_batch() -> dict[str, dict[str, Any] | None]:
+                return await asyncio.shield(shared)
+
+            fetched = await chatgpt_tools.fetch(
+                clients, identifier, max_bytes=EXCERPT_READ_BYTES, note_batch=note_batch
+            )
+            return _capped(str(fetched.get("text") or ""))
+        if lookup is not None and kind == "file":
+            try:
+                resolved = await asyncio.shield(lookup)
+            except chatgpt_tools.LOOKUP_FAILURES:
+                resolved = None
+        fetched = await chatgpt_tools.fetch(
+            clients, identifier, max_bytes=EXCERPT_READ_BYTES, resolved=resolved
+        )
     return _capped(str(fetched.get("text") or ""))
+
+
+async def _settle(lookup: asyncio.Task[Any]) -> None:
+    """Cancel the shared lookup if it still runs and collect whatever it ended with.
+
+    No request of this bundle may outlive its answer, and an exception nobody retrieved
+    would be logged as "never retrieved" long after the call; every excerpt that needed
+    it has already turned it into its own outcome.
+    """
+    if not lookup.done():
+        lookup.cancel()
+        # wait() and not await: a cancellation of this very task must still propagate.
+        await asyncio.wait([lookup])
+    if not lookup.cancelled():
+        lookup.exception()
 
 
 def _capped(text: str) -> str:
@@ -795,6 +878,28 @@ def _capped(text: str) -> str:
     if len(encoded) <= EXCERPT_MAX_BYTES:
         return body
     return f"{encoded[:EXCERPT_MAX_BYTES].decode('utf-8', errors='ignore')}\n\n{EXCERPT_TRUNCATION}"
+
+
+def _one_exclusion_entry(degraded: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Fold every "could not check" entry of the legs into one, at the place of the first.
+
+    D-27-03: one ``degraded`` entry per family, and this bundle is one family. The search
+    names it under ``provider``, Talk under ``source``, a refused excerpt under the id of
+    its hit; all three carry :data:`withhold.EXCLUSION_UNAVAILABLE` (D-27-05), so the
+    sentence is what they are recognised by. The one entry left follows the idiom of this
+    answer (``source``) and names no hit, so it cannot point at a single entry. Every other
+    entry stays unchanged and in its order.
+    """
+    folded: list[dict[str, str]] = []
+    seen = False
+    for entry in degraded:
+        if entry.get("reason") != withhold.EXCLUSION_UNAVAILABLE:
+            folded.append(entry)
+            continue
+        if not seen:
+            folded.append(withhold.degraded_entry("source"))
+            seen = True
+    return folded
 
 
 def _degraded_of(answer: dict[str, Any]) -> list[dict[str, str]]:

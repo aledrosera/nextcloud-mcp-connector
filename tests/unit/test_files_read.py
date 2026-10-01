@@ -7,6 +7,7 @@ run without Nextcloud and without Docker.
 
 import base64
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -24,6 +25,13 @@ SECRET = "app-password-test"
 FILES_ROOT = f"{BASE}/remote.php/dav/files/{USER}"
 NOTES_URL = f"{FILES_ROOT}/Docs/notes.md"
 CONTENT = "# Notes\nline two\n"
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 def test_configured_files_root_is_a_virtual_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:

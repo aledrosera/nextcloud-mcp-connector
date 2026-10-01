@@ -1,0 +1,55 @@
+29-09 Rohbeleg: Store-Texte unverändert (Erfolgskriterium 4, EXCL-F02)
+Datum: 2026-10-01
+HEAD beim Lauf: cef6e98 (Arbeitsbaum sauber, appinfo/info.xml ohne lokale Änderung)
+Referenz: ca157b4 (letzter Commit vor Phase-29-Code)
+
+Umfang: die sechs direkten Kinder summary und description des Wurzelelements info
+(en ohne lang-Attribut, de, fr). Die zehn weiteren description-Elemente tiefer in
+info.xml sind keine Store-Texte und nicht Teil des Vergleichs.
+Je Element eine Zeile "<tag>|<lang oder en>|<text>", Parser lxml mit
+hardened_parser() aus mcp_connector.nextcloud.clients.xml (gleiche Extraktion wie
+tests/unit/test_store_texts_frozen.py).
+
+KOMMANDO
+
+PYTHONUTF8=1 uv run python claude_diff.py </dev/null
+
+claude_diff.py (Inhalt wörtlich):
+
+import difflib, subprocess, sys
+from lxml import etree
+from mcp_connector.nextcloud.clients.xml import hardened_parser
+def ext(b):
+    r = etree.fromstring(b, hardened_parser())
+    return [f"{c.tag}|{c.get('lang') or 'en'}|{c.text or ''}" for c in r if c.tag in ("summary","description")]
+head = subprocess.run(["git","rev-parse","--short","HEAD"],capture_output=True,text=True,check=True).stdout.strip()
+a = ext(subprocess.run(["git","show","ca157b4:appinfo/info.xml"],capture_output=True,check=True).stdout)
+b = ext(open("appinfo/info.xml","rb").read())
+d = list(difflib.unified_diff("\n".join(a).splitlines(), "\n".join(b).splitlines(), "ca157b4:appinfo/info.xml", f"{head}:appinfo/info.xml", lineterm=""))
+print(f"elemente ca157b4={len(a)} {head}={len(b)}")
+print(f"diff-zeilen={len(d)}")
+for l in d: print(l)
+if not d and len(a)==len(b)==6:
+    print(f"DIFF LEER summary/description en de fr: ca157b4 gegen {head}")
+    sys.exit(0)
+sys.exit(1)
+
+AUSGABE (Exit 0)
+
+elemente ca157b4=6 cef6e98=6
+diff-zeilen=0
+DIFF LEER summary/description en de fr: ca157b4 gegen cef6e98
+
+SHA-256 der verbundenen Zeilen (beide Stände gleich):
+cddc87fdae70d0b0a7e9e2d59b43c177f8a75368dc9d216397b06c1737c1ba47
+
+Gegenprobe Pin: Ein zusätzliches Leerzeichen in summary|en ergibt einen anderen Hash
+(mutant differs: True), der Pin greift also.
+
+git diff ca157b4 --stat -- appinfo/info.xml (wörtlich)
+
+ appinfo/info.xml | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+Die zehn Einfügungen sind die Kommentarzeilen aus 29-05 (achter "deliberately absent
+path" /exclusion-check, Zeilen 260 bis 269 im XML-Kommentar), keine Store-Texte.

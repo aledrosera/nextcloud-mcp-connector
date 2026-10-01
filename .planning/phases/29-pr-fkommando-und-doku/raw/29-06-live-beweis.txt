@@ -1,0 +1,349 @@
+# 29-06 Vorlauf 2026-10-01 08:35:21 +0200 head=2a3529b container=nc35-nc
+ExApp neu gebaut und registriert: app_api:app:unregister mcp_connector, dann bash scripts/bootstrap_exapp.sh --nc35 (Image 127.0.0.1:5000/mcp_connector:0.3.2, sha256:73beb4e91d7f98e052ec605703bb9387ea205ae0e354e5cdc3334d4abe4ab8e5)
+$ php occ list mcp_connector (Kommandozeilen)
+    mcp_connector:audit:read       Read the audit log of this instance and hand it over: which account ran which tool, when, through which app, and whether the call was carried out or refused. No parameter value and no part of a result is written down, so none can be printed here either.
+    mcp_connector:audit:verify     Check every entry of the audit log against the chain it belongs to and report either that no break was found or the first place a chain is broken.
+    mcp_connector:exchange:check   Check a token against the token exchange path of this instance and report every rule with its outcome. A dry run: no Nextcloud call, no session, no authorization and no audit log row. It costs one key set request to the configured provider.
+    mcp_connector:exclusion:check  Check the kein-ki exclusion tag of this instance: whether it exists, who can set it and how many items carry it. It only reads, changes nothing and names no file and no account.
+    mcp_connector:purge            End every MCP connection of this instance: hand every Nextcloud app password this app created back to Nextcloud, empty its database and delete its encryption key. Run this before removing the app, because removing the app does not do it.
+$ php occ mcp_connector:exclusion:check --help
+  Description:
+    Check the kein-ki exclusion tag of this instance: whether it exists, who can set it and how many items carry it. It only reads, changes nothing and names no file and no account.
+  
+  Usage:
+    mcp_connector:exclusion:check [options]
+    mcp_connector:exclusion:check
+    mcp_connector:exclusion:check --admin=<uid>
+    mcp_connector:exclusion:check --admin=<uid> --json
+  
+  Options:
+        --admin[=ADMIN]   The uid of an administrator; without it, invisible tags and delegation groups are not checked.
+        --json            Answer with the same result as JSON, whose key passed carries the verdict. A script watches that key and not the exit code, which is always 0.
+    -h, --help            Display help for the given command. When no command is given display help for the list command
+        --silent          Do not output any message
+    -q, --quiet           Only errors are displayed. All other output is suppressed
+    -V, --version         Display this application version
+        --ansi|--no-ansi  Force (or disable --no-ansi) ANSI output
+    -n, --no-interaction  Do not ask any interactive question
+        --no-warnings     Skip global warnings, show command output only
+    -v|vv|vvv, --verbose  Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug
+
+# 29-06 exclusion:check live 2026-10-01 08:35:31 +0200 head=2a3529b container=nc35-nc - versionstring: 35.0.0
+ADMIN-KONTO eigenes Konto angelegt, Gruppe admin, Passwort nicht protokolliert
+== FALL A ==
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  note         a tag named exactly kein-ki exists (no_tag)
+  skipped      the kein-ki tag is visible to users
+  skipped      no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  skipped      the items carrying kein-ki can be counted
+  Hint: no kein-ki tag exists, the connector filters nothing. Create it with: php occ tag:add kein-ki public
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18 --json
+  {"checked":true,"passed":true,"mode":"none","assigned":0,"unprotected":0,"admin_checked":true,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"note","note":"no_tag"},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"skipped","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"skipped","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"skipped","note":null}],"tags":[],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check A: ja (Text und JSON)
+T-29-23 exclusion:check A: ja (Text und JSON)
+T-29-23 exclusion:check A: ja (Text und JSON)
+$ php occ mcp_connector:exclusion:check
+  checked the kein-ki exclusion tag of this instance, read only
+  not_checked  the named account is an administrator (admin_not_named)
+  passed       the tag listing of this instance can be read
+  note         a tag named exactly kein-ki exists (no_visible_tag)
+  not_checked  the kein-ki tag is visible to users (visibility_not_checked)
+  skipped      no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  skipped      the items carrying kein-ki can be counted
+  Hint: no visible kein-ki tag exists; invisible tags were not checked. Create it with: php occ tag:add kein-ki public
+  Without --admin: invisible tags and delegation groups were not checked; run again with --admin=<uid>.
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --json
+  {"checked":true,"passed":true,"mode":"none","assigned":0,"unprotected":0,"admin_checked":false,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"not_checked","note":"admin_not_named"},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"note","note":"no_visible_tag"},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"not_checked","note":"visibility_not_checked"},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"skipped","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"skipped","note":null}],"tags":[],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check A: ja (Text und JSON)
+T-29-23 exclusion:check A: ja (Text und JSON)
+T-29-23 exclusion:check A: ja (Text und JSON)
+FALL A passed=True mode=none diff=leer
+== FALL B und G ==
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  passed       a tag named exactly kein-ki exists
+  passed       the kein-ki tag is visible to users
+  passed       no other spelling of kein-ki is in use
+  passed       the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  Self service: every user who can see a file can set and remove kein-ki on it.
+  Items carrying kein-ki (assignments across the instance, trash bin included): 1
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=1/91deee33af9a nachher=1/91deee33af9a gleich=ja
+TABELLE systemtag_object_mapping vorher=1/27709cca24c8 nachher=1/27709cca24c8 gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18 --json
+  {"checked":true,"passed":true,"mode":"self_service","assigned":1,"unprotected":0,"admin_checked":true,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"passed","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"passed","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"passed","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"passed","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"passed","note":null}],"tags":[{"name":"kein-ki","access":"public","groups":[],"assigned":1,"kind":"exact"}],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=1/91deee33af9a nachher=1/91deee33af9a gleich=ja
+TABELLE systemtag_object_mapping vorher=1/27709cca24c8 nachher=1/27709cca24c8 gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check B: ja (Text und JSON)
+T-29-23 exclusion:check B: ja (Text und JSON)
+T-29-23 exclusion:check B: ja (Text und JSON)
+T-29-23 exclusion:check B: ja (Text und JSON)
+T-29-23 exclusion:check B: ja (Text und JSON)
+T-29-23 exclusion:check B: ja (Text und JSON)
+FALL B passed=True mode=self_service diff=leer
+$ php occ mcp_connector:exclusion:check
+  checked the kein-ki exclusion tag of this instance, read only
+  not_checked  the named account is an administrator (admin_not_named)
+  passed       the tag listing of this instance can be read
+  passed       a tag named exactly kein-ki exists
+  not_checked  the kein-ki tag is visible to users (visibility_not_checked)
+  passed       no other spelling of kein-ki is in use
+  passed       the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  Self service: every user who can see a file can set and remove kein-ki on it.
+  Items carrying kein-ki (assignments across the instance, trash bin included): 1
+  Without --admin: invisible tags and delegation groups were not checked; run again with --admin=<uid>.
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=1/91deee33af9a nachher=1/91deee33af9a gleich=ja
+TABELLE systemtag_object_mapping vorher=1/27709cca24c8 nachher=1/27709cca24c8 gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --json
+  {"checked":true,"passed":true,"mode":"self_service","assigned":1,"unprotected":0,"admin_checked":false,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"not_checked","note":"admin_not_named"},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"passed","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"not_checked","note":"visibility_not_checked"},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"passed","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"passed","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"passed","note":null}],"tags":[{"name":"kein-ki","access":"public","groups":null,"assigned":1,"kind":"exact"}],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=1/91deee33af9a nachher=1/91deee33af9a gleich=ja
+TABELLE systemtag_object_mapping vorher=1/27709cca24c8 nachher=1/27709cca24c8 gleich=ja
+TABELLE systemtag_group vorher=6/b720bd93adf8 nachher=6/b720bd93adf8 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check G: ja (Text und JSON)
+T-29-23 exclusion:check G: ja (Text und JSON)
+T-29-23 exclusion:check G: ja (Text und JSON)
+T-29-23 exclusion:check G: ja (Text und JSON)
+T-29-23 exclusion:check G: ja (Text und JSON)
+T-29-23 exclusion:check G: ja (Text und JSON)
+FALL G passed=True mode=self_service diff=leer
+CLEANUP tag kein-ki: entfernt
+CLEANUP papierkorb chk29b7744b0f1.txt: leer
+CLEANUP PROPFIND /chk29b7744b0f1.txt: 404
+== FALL C ==
+PROPPATCH oc:groups=ki-verantwortung-c86a5f (Basic eigenes Admin-Konto): status 207
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  passed       a tag named exactly kein-ki exists
+  passed       the kein-ki tag is visible to users
+  passed       no other spelling of kein-ki is in use
+  passed       the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  Organisation mode: only members of ki-verantwortung-c86a5f and administrators can set or remove kein-ki.
+  Items carrying kein-ki (assignments across the instance, trash bin included): 0
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=1/1ccf53cc35ed nachher=1/1ccf53cc35ed gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18 --json
+  {"checked":true,"passed":true,"mode":"organisation","assigned":0,"unprotected":0,"admin_checked":true,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"passed","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"passed","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"passed","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"passed","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"passed","note":null}],"tags":[{"name":"kein-ki","access":"restricted","groups":["ki-verantwortung-c86a5f"],"assigned":0,"kind":"exact"}],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=1/1ccf53cc35ed nachher=1/1ccf53cc35ed gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check C: ja (Text und JSON)
+T-29-23 exclusion:check C: ja (Text und JSON)
+T-29-23 exclusion:check C: ja (Text und JSON)
+FALL C passed=True mode=organisation diff=leer
+CLEANUP gruppe ki-verantwortung-c86a5f: entfernt
+CLEANUP tag kein-ki: entfernt
+== FALL D ==
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  passed       a tag named exactly kein-ki exists
+  failed       the kein-ki tag is visible to users
+  passed       no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  An invisible kein-ki tag does not work for users: the connector reads tags as the user, who cannot see it, so the items carrying it are not excluded. Make it public or restricted.
+  Items tagged 'kein-ki' are NOT excluded: 0
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=1/35da6fa30b33 nachher=1/35da6fa30b33 gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18 --json
+  {"checked":true,"passed":false,"mode":"misconfigured","assigned":0,"unprotected":0,"admin_checked":true,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"passed","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"failed","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"passed","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"passed","note":null}],"tags":[{"name":"kein-ki","access":"invisible","groups":[],"assigned":0,"kind":"exact"}],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=1/35da6fa30b33 nachher=1/35da6fa30b33 gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check D: ja (Text und JSON)
+T-29-23 exclusion:check D: ja (Text und JSON)
+T-29-23 exclusion:check D: ja (Text und JSON)
+$ php occ mcp_connector:exclusion:check
+  checked the kein-ki exclusion tag of this instance, read only
+  not_checked  the named account is an administrator (admin_not_named)
+  passed       the tag listing of this instance can be read
+  note         a tag named exactly kein-ki exists (no_visible_tag)
+  not_checked  the kein-ki tag is visible to users (visibility_not_checked)
+  skipped      no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  skipped      the items carrying kein-ki can be counted
+  Hint: no visible kein-ki tag exists; invisible tags were not checked. Create it with: php occ tag:add kein-ki public
+  Without --admin: invisible tags and delegation groups were not checked; run again with --admin=<uid>.
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=1/35da6fa30b33 nachher=1/35da6fa30b33 gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --json
+  {"checked":true,"passed":true,"mode":"none","assigned":0,"unprotected":0,"admin_checked":false,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"not_checked","note":"admin_not_named"},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"note","note":"no_visible_tag"},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"not_checked","note":"visibility_not_checked"},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"skipped","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"skipped","note":null}],"tags":[],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=1/35da6fa30b33 nachher=1/35da6fa30b33 gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check D: ja (Text und JSON)
+T-29-23 exclusion:check D: ja (Text und JSON)
+T-29-23 exclusion:check D: ja (Text und JSON)
+FALL D ohne --admin passed=True
+FALL D passed=False mode=misconfigured diff=leer
+CLEANUP tag kein-ki: entfernt
+== FALL E ==
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  failed       a tag named exactly kein-ki exists
+  skipped      the kein-ki tag is visible to users
+  failed       no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  No tag is named exactly kein-ki, only other spellings, which the connector does not honour: it filters nothing.
+  Items tagged 'Kein KI' are NOT excluded: 0
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=1/eeea02a2a0a2 nachher=1/eeea02a2a0a2 gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18 --json
+  {"checked":true,"passed":false,"mode":"misconfigured","assigned":0,"unprotected":0,"admin_checked":true,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"failed","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"skipped","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"failed","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"passed","note":null}],"tags":[{"name":"Kein KI","access":"public","groups":[],"assigned":0,"kind":"variant"}],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=1/eeea02a2a0a2 nachher=1/eeea02a2a0a2 gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check E: ja (Text und JSON)
+T-29-23 exclusion:check E: ja (Text und JSON)
+T-29-23 exclusion:check E: ja (Text und JSON)
+FALL E passed=False mode=misconfigured diff=leer
+CLEANUP tag Kein KI: entfernt
+== FALL F ==
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  passed       a tag named exactly kein-ki exists
+  passed       the kein-ki tag is visible to users
+  note         no other spelling of kein-ki is in use (variant_beside_exact)
+  passed       the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  Self service: every user who can see a file can set and remove kein-ki on it.
+  Items carrying kein-ki (assignments across the instance, trash bin included): 1
+  Items tagged 'keinki' are NOT excluded: 1
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=2/f01462ed4b7d nachher=2/f01462ed4b7d gleich=ja
+TABELLE systemtag_object_mapping vorher=2/89fdf40ed16a nachher=2/89fdf40ed16a gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --admin=chkadm0b074e18 --json
+  {"checked":true,"passed":true,"mode":"self_service","assigned":1,"unprotected":1,"admin_checked":true,"reason":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"passed","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"passed","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"note","note":"variant_beside_exact"},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"passed","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"passed","note":null}],"tags":[{"name":"kein-ki","access":"public","groups":[],"assigned":1,"kind":"exact"},{"name":"keinki","access":"public","groups":[],"assigned":1,"kind":"variant"}],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=2/f01462ed4b7d nachher=2/f01462ed4b7d gleich=ja
+TABELLE systemtag_object_mapping vorher=2/89fdf40ed16a nachher=2/89fdf40ed16a gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check F: ja (Text und JSON)
+T-29-23 exclusion:check F: ja (Text und JSON)
+T-29-23 exclusion:check F: ja (Text und JSON)
+T-29-23 exclusion:check F: ja (Text und JSON)
+T-29-23 exclusion:check F: ja (Text und JSON)
+T-29-23 exclusion:check F: ja (Text und JSON)
+T-29-23 exclusion:check F: ja (Text und JSON)
+T-29-23 exclusion:check F: ja (Text und JSON)
+FALL F passed=True mode=self_service diff=leer
+CLEANUP tag kein-ki: entfernt
+CLEANUP tag keinki: entfernt
+CLEANUP papierkorb chk29fca874dbca.txt: leer
+CLEANUP PROPFIND /chk29fca874dbca.txt: 404
+CLEANUP papierkorb chk29fca874dbcb.txt: leer
+CLEANUP PROPFIND /chk29fca874dbcb.txt: 404
+== FALL H ==
+$ php occ mcp_connector:exclusion:check --admin=alice
+  checked the kein-ki exclusion tag of this instance, read only
+  failed       the named account is an administrator
+  skipped      the tag listing of this instance can be read
+  skipped      a tag named exactly kein-ki exists
+  skipped      the kein-ki tag is visible to users
+  skipped      no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  skipped      the items carrying kein-ki can be counted
+  the account named with --admin is not an administrator of this instance; nothing was checked.
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+TABELLE systemtag vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+$ php occ mcp_connector:exclusion:check --admin=alice --json
+  {"checked":false,"passed":false,"mode":null,"assigned":null,"unprotected":null,"admin_checked":false,"reason":"the account named with --admin is not an administrator of this instance; nothing was checked.","steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"failed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"skipped","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"skipped","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"skipped","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"skipped","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"skipped","note":null}],"tags":[],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}
+TABELLE systemtag vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_object_mapping vorher=0/4f53cda18c2b nachher=0/4f53cda18c2b gleich=ja
+TABELLE systemtag_group vorher=7/de50ff7a36d9 nachher=7/de50ff7a36d9 gleich=ja
+TABELLE appconfig vorher=3/dd1c2ee5c6fd nachher=3/dd1c2ee5c6fd gleich=ja
+T-29-23 exclusion:check H: ja (Text und JSON)
+T-29-23 exclusion:check H: ja (Text und JSON)
+T-29-23 exclusion:check H: ja (Text und JSON)
+FALL H passed=False mode=None diff=leer
+CLEANUP admin-konto: entfernt
+
+ZUSAMMENFASSUNG 29-06
+Lauf: 2026-10-01 08:35, nc35-nc (versionstring 35.0.0), HEAD 2a3529b, ExApp 0.3.2 aus dem aktuellen Arbeitsbaum gebaut und neu registriert. Kommando: PYTHONUTF8=1 NC_MCP_REQUIRE_LIVE=1 uv run pytest tests/integration/test_exclusion_check_live.py -m integration -s (mit .env.nc35 und den NC_MCP_E2E_*-Exporten), Ergebnis 7 passed in 40.63s, ein Lauf, kein Code-Fix nötig.
+FALL A kein Tag: mit --admin passed=true mode=none, ohne --admin passed=true admin_checked=false, Hinweis mit "php occ tag:add kein-ki public" auf beiden Wegen; Diff leer.
+FALL B Selbstbedienung: passed=true mode=self_service assigned=1; Diff leer.
+FALL C Organisationsmodus: passed=true mode=organisation, gid ki-verantwortung-c86a5f in Text und JSON (Delegation per PROPPATCH 207 als eigenes Admin-Konto); Diff leer.
+FALL D unsichtbar: mit --admin passed=false mode=misconfigured, Schritt tag_visible failed; ohne --admin passed=true admin_checked=false (Hinweis no_visible_tag und Satz zu nicht geprüften Teilen); Diff leer.
+FALL E nur Tippfehler "Kein KI": passed=false mode=misconfigured, Schritte tag_exists und no_variants failed; Diff leer.
+FALL F exakt plus "keinki": passed=true mode=self_service assigned=1 unprotected=1, Warnung "Items tagged 'keinki' are NOT excluded: 1"; Diff leer.
+FALL G ohne --admin bei Fall B: passed=true admin_checked=false, Satz "Without --admin: invisible tags and delegation groups were not checked"; Diff leer.
+FALL H --admin=alice (kein Admin): checked=false passed=false mode=null, Satz "not an administrator"; Diff leer.
+Tabellen-Diff vor/nach exclusion:check in allen Fällen leer (Erfolgskriterium 2): 80 TABELLE-Zeilen gleich=ja (20 Aufrufe, je 4 Tabellen), keine abweichende Zeile, für Text- und --json-Aufruf.
+Keine Ausgabe nannte Dateiname, Pfad, fileid, die uid des eigenen Admin-Kontos oder die Testnutzer (T-29-23, alle Prüfzeilen ja). Alle CLEANUP-Zeilen mit Rückleseprobe, Admin-Konto entfernt, Instanz danach ohne kein-ki-Schreibweise.
+Ohne Nutzersitzung: jeder Aufruf ist reines occ im Container, kein Login, kein App-Passwort.
+DOKU-AUSGABE help: Zeilen 9 bis 28
+DOKU-AUSGABE kein Tag (mit --admin): Zeilen 34 bis 44; ohne --admin: Zeilen 58 bis 69
+DOKU-AUSGABE Selbstbedienung: Zeilen 85 bis 96 (JSON Zeile 102)
+DOKU-AUSGABE ohne --admin (Fall G): Zeilen 114 bis 126
+DOKU-AUSGABE Organisationsmodus: Zeilen 149 bis 160
+DOKU-AUSGABE unsichtbar: Zeilen 178 bis 189; ohne --admin: Zeilen 203 bis 214
+DOKU-AUSGABE nur Variante: Zeilen 232 bis 243
+DOKU-AUSGABE Variante neben exakt: Zeilen 260 bis 272
+DOKU-AUSGABE kein Admin: Zeilen 299 bis 309 (JSON Zeile 315)
+Auffälligkeit für 29-07: Im Fall D ohne --admin nennt der Hinweis "Create it with: php occ tag:add kein-ki public", obwohl ein unsichtbares kein-ki schon existiert; tag:add würde dort mit "already exists" scheitern. Die Doku sollte für diesen Fall auf den Lauf mit --admin verweisen.
+Hinweis wie A-28-09: Der CI-Schritt "exclusion:check live (OPS-01)" im Job canary-nc35 läuft erst nach dem nächsten Push; der lokale nc35-Beweis steht hier.

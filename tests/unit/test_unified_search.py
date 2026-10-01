@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -28,6 +29,13 @@ SECRET = "app-password-test"
 PROVIDERS_URL = f"{BASE}/ocs/v2.php/search/providers"
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 def fixture(name: str) -> dict[str, Any]:
@@ -191,6 +199,42 @@ async def test_file_search_results_outside_the_bound_root_are_skipped(
 
     assert [hit["id"] for hit in result["results"]] == ["file:5001"]
     assert result["skipped"] == 1
+
+
+@pytest.mark.anyio
+async def test_pathless_note_hits_outside_the_bound_root_are_now_a_sandbox_drop(
+    clients: NcClients, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Until phase 27 a hit without ``attributes.path`` passed the sandbox unchecked (SBX-02).
+
+    A note carries only its id, which is the file id of the note; it is resolved with one
+    SEARCH inside the sandbox, and an id that does not come back is counted like any other
+    hit outside the root. A deck card carries no file and stays.
+    """
+    monkeypatch.setenv(config.ENV_FILES_ROOT, "/rtc/mth/knsk")
+    with respx.mock(assert_all_called=True) as mock:
+        mock.get(PROVIDERS_URL).mock(
+            return_value=httpx.Response(200, json=provider_list("notes", "search-deck-card-board"))
+        )
+        mock.get(search_url("notes")).mock(
+            return_value=httpx.Response(200, json=hits("Notes", [NOTE_ENTRY]))
+        )
+        mock.get(search_url("search-deck-card-board")).mock(
+            return_value=httpx.Response(200, json=hits("Deck", [CARD_ENTRY]))
+        )
+        lookup = mock.route(method="SEARCH", url=f"{BASE}/remote.php/dav/").mock(
+            return_value=httpx.Response(
+                207,
+                content=b'<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"/>',
+                headers={"Content-Type": "application/xml; charset=utf-8"},
+            )
+        )
+
+        result = await search_tools.unified_search(clients, query="protokoll")
+
+    assert [hit["id"] for hit in result["results"]] == ["card:57"]
+    assert result["skipped"] == 1
+    assert lookup.call_count == 1
 
 
 @pytest.mark.anyio

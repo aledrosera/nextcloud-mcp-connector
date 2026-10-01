@@ -12,6 +12,7 @@ server afterwards), and never let a redirect pass silently (the auth header woul
 foreign host or vanish).
 """
 
+import asyncio
 import re
 from collections.abc import AsyncIterator, Sequence
 from posixpath import dirname
@@ -42,6 +43,44 @@ _DIGITS = re.compile(r"[0-9]+")
 #: The search endpoint is the DAV root, not the files path: Nextcloud's search backend
 #: reports an empty arbiter path, so every other target answers 405.
 DAV_ROOT_PATH = "/remote.php/dav/"
+
+#: How many file ids one SEARCH of ``paths_of_fileids`` asks for. Nextcloud refuses a
+#: query with more than 100 operators (see ``build_search_body``); a block costs one
+#: ``d:or`` plus one ``d:eq`` per id, so 50 ids stay well below that limit.
+FILEID_BLOCK = 50
+
+_NOT_FOUND_HINT = "List the parent folder first to get the exact spelling of the path."
+_PARENT_HINT = "Create the folder in Nextcloud first, or upload into a folder that exists."
+
+
+def not_found(path: str) -> ToolError:
+    """The error of a path Nextcloud does not know: a 404 on a read.
+
+    The one source of this sentence (D-27-01). A real 404 and an entry the exclusion
+    guard withholds answer with the same object, so the two cannot be told apart; the
+    paired tests of phase 28 compare them byte for byte.
+    """
+    return ToolError(
+        message=f"File not found: {path}.",
+        hint=_NOT_FOUND_HINT,
+        reason=REASON_UNKNOWN_ID,
+    )
+
+
+def parent_missing(path: str) -> ToolError:
+    """The error of an upload whose parent folder is missing: a 404 or 409 on a write.
+
+    The one source of this sentence (D-27-01), shared by the create-only PUT, the chunked
+    upload and every upload the exclusion guard refuses, for the same reason as
+    :func:`not_found`.
+    """
+    parent = dirname(path) or "/"
+    return ToolError(
+        message=f"The parent folder {parent} of {path} does not exist.",
+        hint=_PARENT_HINT,
+        reason=REASON_UNKNOWN_ID,
+    )
+
 
 _STAT_PROPS = (
     f"{{{xml.DAV}}}getcontentlength",
@@ -115,7 +154,7 @@ def safe_path(path: str) -> str:
         return requested
     # A configured root becomes the virtual `/` for agents: `/scan.pdf` means a file below
     # the bound directory, while its explicit absolute spelling remains accepted as well.
-    if requested == root or requested.startswith(root + "/"):
+    if within(requested, root):
         return requested
     return root if requested == "/" else f"{root}{requested}"
 
@@ -356,7 +395,31 @@ def build_fileid_body(scope: str, fileid: str, props: Sequence[str] = _SEARCH_PR
             message=f"{fileid!r} is not a numeric Nextcloud file id.",
             hint="Use an id from a search tool, for example file:4711.",
         )
+    return _fileids_body(scope, [number], props)
 
+
+def build_fileids_body(
+    scope: str, fileids: Sequence[str], props: Sequence[str] = _SEARCH_PROPS
+) -> bytes:
+    """Build the basicsearch body that turns several file ids into paths with one SEARCH.
+
+    The comparison is one ``d:or`` over one ``d:eq`` per id, and ``nresults`` is the
+    number of ids. One id is the body of :func:`build_fileid_body` exactly, without a
+    one-armed ``d:or``. Every id has to be ASCII digits (``ValueError`` otherwise); the
+    caller keeps a block at :data:`FILEID_BLOCK` ids, below the operator limit.
+    """
+    if not fileids:
+        raise ValueError("build_fileids_body needs at least one file id")
+    for fileid in fileids:
+        if not _DIGITS.fullmatch(fileid):
+            raise ValueError(f"{fileid!r} is not a numeric Nextcloud file id")
+    if len(fileids) == 1:
+        return build_fileid_body(scope, fileids[0], props)
+    return _fileids_body(scope, fileids, props)
+
+
+def _fileids_body(scope: str, numbers: Sequence[str], props: Sequence[str]) -> bytes:
+    """The shared lxml body of both file id lookups; ``numbers`` are checked digits."""
     root = etree.Element(
         f"{{{xml.DAV}}}searchrequest",
         nsmap={"d": xml.DAV, "oc": xml.OC, "nc": xml.NC},
@@ -376,17 +439,19 @@ def build_fileid_body(scope: str, fileid: str, props: Sequence[str] = _SEARCH_PR
     depth.text = "infinity"
 
     where = etree.SubElement(basic, f"{{{xml.DAV}}}where")
-    equals = etree.SubElement(where, f"{{{xml.DAV}}}eq")
-    eq_prop = etree.SubElement(equals, f"{{{xml.DAV}}}prop")
-    etree.SubElement(eq_prop, f"{{{xml.OC}}}fileid")
-    literal = etree.SubElement(equals, f"{{{xml.DAV}}}literal")
-    literal.text = number
+    parent = where if len(numbers) == 1 else etree.SubElement(where, f"{{{xml.DAV}}}or")
+    for number in numbers:
+        equals = etree.SubElement(parent, f"{{{xml.DAV}}}eq")
+        eq_prop = etree.SubElement(equals, f"{{{xml.DAV}}}prop")
+        etree.SubElement(eq_prop, f"{{{xml.OC}}}fileid")
+        literal = etree.SubElement(equals, f"{{{xml.DAV}}}literal")
+        literal.text = number
 
     etree.SubElement(basic, f"{{{xml.DAV}}}orderby")
 
     limit_element = etree.SubElement(basic, f"{{{xml.DAV}}}limit")
     nresults = etree.SubElement(limit_element, f"{{{xml.DAV}}}nresults")
-    nresults.text = "1"
+    nresults.text = str(len(numbers))
 
     return etree.tostring(root, xml_declaration=True, encoding="utf-8")
 
@@ -415,6 +480,137 @@ async def find_by_fileid(
     _check(response, f"the file with id {fileid}")
     entries = parse_entries(response.content, creds)
     return entries[0] if entries else None
+
+
+async def paths_of_fileids(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    fileids: Sequence[str],
+) -> dict[str, str]:
+    """Map file ids onto absolute home paths, one SEARCH per block of ids.
+
+    An id that is missing from the result lies outside ``NC_MCP_FILES_ROOT`` or no longer
+    exists: the search scope is the sandbox, and ``parse_entries`` drops every href
+    outside it on top. Ids Nextcloud answers without having been asked are ignored.
+
+    Every id must be ASCII digits; anything else raises ``ValueError`` before a request
+    goes out. Duplicates are asked once, blocks of :data:`FILEID_BLOCK` ids run in
+    parallel, and a failing block raises for the whole call: the callers treat that as
+    "not verifiable" and withhold, never as "not found". Nothing is cached, the answer
+    belongs to this call (contract gate: three module caches, no more).
+    """
+    for fileid in fileids:
+        if not _DIGITS.fullmatch(fileid):
+            raise ValueError(f"{fileid!r} is not a numeric Nextcloud file id")
+    wanted = list(dict.fromkeys(fileids))
+    if not wanted:
+        return {}
+
+    scope = search_scope(creds)
+    blocks = [wanted[start : start + FILEID_BLOCK] for start in range(0, len(wanted), FILEID_BLOCK)]
+    answers = await asyncio.gather(*(_search_fileids(client, creds, scope, b) for b in blocks))
+
+    asked = set(wanted)
+    return {
+        entry["fileid"]: entry["path"]
+        for entries in answers
+        for entry in entries
+        if entry["fileid"] in asked
+    }
+
+
+async def entries_of_fileids(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    fileids: Sequence[str],
+) -> dict[str, dict[str, Any] | None]:
+    """Map file ids onto their full entries, one SEARCH per block of ids (plan 27-09).
+
+    The batch form of :func:`find_by_fileid`, for a caller that needs several of them in
+    one tool call (the file excerpts of one ``prepare_context`` bundle). Same checks as
+    :func:`paths_of_fileids` (ASCII digits or ``ValueError`` before any request, duplicates
+    asked once, blocks of :data:`FILEID_BLOCK`), same scope as the single lookup, so the
+    sandbox holds in the query and again in the path check below.
+
+    The answer has three states per id, and the difference is load bearing:
+
+    * an entry: the first response Nextcloud gave for that id, exactly the one
+      :func:`find_by_fileid` returns (``entries[0]``);
+    * ``None``: the id is certainly not there. Either the first response for it lies
+      outside the home or ``NC_MCP_FILES_ROOT``, or the block came back with fewer
+      responses than ``nresults``, so nothing was cut off and a missing id is missing;
+    * absent: not known. A block that filled its ``nresults`` may have lost an id to a
+      doubled entry of another one, which the single lookup with ``nresults`` 1 would
+      still have found; the caller has to ask that id on its own.
+
+    Nothing is cached, the answer belongs to this call (E3, D-25-05); a failing block
+    raises for the whole call.
+    """
+    for fileid in fileids:
+        if not _DIGITS.fullmatch(fileid):
+            raise ValueError(f"{fileid!r} is not a numeric Nextcloud file id")
+    wanted = list(dict.fromkeys(fileids))
+    if not wanted:
+        return {}
+
+    scope = search_scope(creds)
+    blocks = [wanted[start : start + FILEID_BLOCK] for start in range(0, len(wanted), FILEID_BLOCK)]
+    answers = await asyncio.gather(
+        *(_search_fileid_entries(client, creds, scope, b) for b in blocks)
+    )
+    found: dict[str, dict[str, Any] | None] = {}
+    for answer in answers:
+        found.update(answer)
+    return found
+
+
+async def _search_fileid_entries(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    scope: str,
+    block: Sequence[str],
+) -> dict[str, dict[str, Any] | None]:
+    """One SEARCH of :func:`entries_of_fileids`, read response by response."""
+    response = await client.request(
+        "SEARCH",
+        f"{creds.base_url}{DAV_ROOT_PATH}",
+        headers={"Content-Type": "text/xml"},
+        content=build_fileids_body(scope, block),
+        auth=creds.auth(),
+    )
+    _check(response, "the searched file ids")
+    responses = xml.parse_multistatus(response.content)
+    home = _home_prefix(creds)
+    asked = set(block)
+    found: dict[str, dict[str, Any] | None] = {}
+    for href, props in responses:
+        fileid = props.get(f"{{{xml.OC}}}fileid", "")
+        if fileid not in asked or fileid in found:
+            continue
+        path = _home_path_of(href, home)
+        found[fileid] = _entry(path, props) if path is not None and in_files_root(path) else None
+    if len(responses) < len(block):
+        for fileid in block:
+            found.setdefault(fileid, None)
+    return found
+
+
+async def _search_fileids(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    scope: str,
+    block: Sequence[str],
+) -> list[dict[str, Any]]:
+    """One SEARCH of ``paths_of_fileids``: one block of checked ids inside ``scope``."""
+    response = await client.request(
+        "SEARCH",
+        f"{creds.base_url}{DAV_ROOT_PATH}",
+        headers={"Content-Type": "text/xml"},
+        content=build_fileids_body(scope, block),
+        auth=creds.auth(),
+    )
+    _check(response, "the searched file ids")
+    return parse_entries(response.content, creds)
 
 
 def _list_body() -> bytes:
@@ -496,7 +692,7 @@ def parse_entries(body: str | bytes, creds: Credentials) -> list[dict[str, Any]]
     question this client asks, so it is skipped instead of turned into a path that would
     later be sent back to Nextcloud.
     """
-    home = f"{urlsplit(creds.base_url).path.rstrip('/')}{DAV_FILES_PREFIX}{creds.user}"
+    home = _home_prefix(creds)
     entries: list[dict[str, Any]] = []
     for href, props in xml.parse_multistatus(body):
         path = _home_path_of(href, home)
@@ -506,19 +702,75 @@ def parse_entries(body: str | bytes, creds: Credentials) -> list[dict[str, Any]]
     return entries
 
 
-def in_files_root(path: str) -> bool:
-    """Check a returned absolute path without remapping it into the virtual root."""
-    if "\\" in path or any(ord(char) < 32 or ord(char) == 127 for char in path):
-        return False
-    if any(part in (".", "..") for part in path.split("/")):
-        return False
-    root = config.files_root()
+def home_entries(body: str | bytes, creds: Credentials) -> list[tuple[str | None, dict[str, str]]]:
+    """Map a Multi-Status onto ``(path, props)`` pairs, one per ``d:response``, unfiltered.
+
+    Built for the answer of a ``REPORT oc:filter-files``: a tagged ancestor above
+    ``NC_MCP_FILES_ROOT`` has to take effect on everything below it, so unlike
+    ``parse_entries`` nothing is dropped by the sandbox here.
+
+    Nothing is dropped silently either. A href that does not map onto this user's home,
+    or whose path carries a backslash, a control character or a dot segment, comes back
+    with the path ``None``. The caller has to turn that into "not verifiable" and never
+    into an empty set, because a set with a hole in it would read as "nothing tagged".
+    A ``ToolError`` from an unparsable body is left to the caller as well.
+    """
+    home = _home_prefix(creds)
+    entries: list[tuple[str | None, dict[str, str]]] = []
+    for href, props in xml.parse_multistatus(body):
+        path = _home_path_of(href, home)
+        if path is not None and not _plain_path(path):
+            path = None
+        entries.append((path, props))
+    return entries
+
+
+def within(path: str, root: str) -> bool:
+    """The one segment rule of this project: is ``path`` the root or below it?
+
+    Shared by the sandbox (``NC_MCP_FILES_ROOT``) and the exclusion guard (EXCL-02), so
+    both draw the same boundary: ``/A/kein`` covers ``/A/kein/x`` but not ``/A/keine``.
+    """
     return root == "/" or path == root or path.startswith(root + "/")
 
 
+def in_files_root(path: str) -> bool:
+    """Check a returned absolute path without remapping it into the virtual root."""
+    return _plain_path(path) and within(path, config.files_root())
+
+
+def _plain_path(path: str) -> bool:
+    """Refuse backslashes, control characters, dot segments and empty segments.
+
+    The empty segment (``//``) is a string check on purpose (IN-03): a split into
+    segments would also see one in ``/`` itself, which is the one valid path that has it.
+    """
+    if "\\" in path or any(ord(char) < 32 or ord(char) == 127 for char in path):
+        return False
+    if "//" in path:
+        return False
+    return not any(part in (".", "..") for part in path.split("/"))
+
+
+def _home_prefix(creds: Credentials) -> str:
+    """The decoded path of this user's files directory, the prefix every href must carry."""
+    return f"{urlsplit(creds.base_url).path.rstrip('/')}{DAV_FILES_PREFIX}{creds.user}"
+
+
 def _home_path_of(href: str, home: str) -> str | None:
-    """Return the path inside the user's home, or ``None`` if the href is somewhere else."""
-    raw = unquote(urlsplit(href).path)
+    """Return the path inside the user's home, or ``None`` if the href is somewhere else.
+
+    The href is decoded one segment at a time (IN-02). Decoding the whole path at once
+    would turn ``A%2Fkein``, one folder whose name contains a slash, into the two
+    segments ``A`` and ``kein`` and so move the segment boundary that the sandbox and the
+    exclusion guard both rely on. A segment that decodes to a slash or a NUL is therefore
+    refused outright; since no decoded segment carries a slash after that, every slash of
+    the joined path is a real separator of the href.
+    """
+    segments = [unquote(segment) for segment in urlsplit(href).path.split("/")]
+    if any("/" in segment or "\x00" in segment for segment in segments):
+        return None
+    raw = "/".join(segments)
     if not raw.startswith(home):
         return None
     rest = raw[len(home) :]
@@ -666,12 +918,7 @@ def _check_write(response: httpx.Response, path: str) -> None:
             reason=REASON_PERMISSION_DENIED,
         )
     if status in (404, 409):
-        parent = dirname(path) or "/"
-        raise ToolError(
-            message=f"The parent folder {parent} of {path} does not exist.",
-            hint="Create the folder in Nextcloud first, or upload into a folder that exists.",
-            reason=REASON_UNKNOWN_ID,
-        )
+        raise parent_missing(path)
     if status == 405:
         raise ToolError(
             message=f"{path} cannot be written to; there is already a folder at that path.",
@@ -724,11 +971,7 @@ def _check(response: httpx.Response, path: str) -> None:
             reason=REASON_PERMISSION_DENIED,
         )
     if status == 404:
-        raise ToolError(
-            message=f"File not found: {path}.",
-            hint="List the parent folder first to get the exact spelling of the path.",
-            reason=REASON_UNKNOWN_ID,
-        )
+        raise not_found(path)
     if status == 416:
         raise ToolError(
             message=f"The requested byte range of {path} is not available.",

@@ -57,7 +57,7 @@ PROVIDER_KINDS: Mapping[str, str] = {
     # class FilesSearchProvider implements IFilteringProvider: getId returns 'files', and search
     # sets addAttribute('fileId', ...) and addAttribute('path', ...) while the link comes from
     # linkToRoute('files.View.showFile', ['fileid' => ...]). That double track is the reason
-    # _file_id reads attributes.fileId first and only then falls back to the /f/ segment of the
+    # file_id reads attributes.fileId first and only then falls back to the /f/ segment of the
     # URL: both ways carry the same number, and one of them can be missing.
     "files": "file",
     # Verified against nextcloud/notes v6.0.2, lib/AppInfo/SearchProvider.php, class
@@ -65,7 +65,7 @@ PROVIDER_KINDS: Mapping[str, str] = {
     # is 'notes' (lib/AppInfo/Application.php:28, read at the same tag). The second sentence is
     # the one that matters: this provider sets no attributes at all, the link is
     # linkToRouteAbsolute('notes.page.indexnote', ['id' => ...]), and that is exactly why this
-    # module reads the note id with _last_numeric_segment(url) instead of from an attribute.
+    # module reads the note id with last_numeric_segment(url) instead of from an attribute.
     "notes": "note",
     # Verified against nextcloud/deck lib/Search/DeckProvider.php. "deck" is wrong.
     "search-deck-card-board": "card",
@@ -148,15 +148,15 @@ def extract_id(
     kind = PROVIDER_KINDS.get(provider_id, UNKNOWN_KIND)
 
     if kind == "file":
-        file_id = _file_id(attributes, url)
-        if file_id:
-            return "file", ids.encode_file(file_id), True
+        fileid = file_id(attributes, url)
+        if fileid:
+            return "file", ids.encode_file(fileid), True
     elif kind == "note":
-        note_id = _last_numeric_segment(url)
+        note_id = last_numeric_segment(url)
         if note_id:
             return "note", ids.encode_note(note_id), True
     elif kind == "card":
-        card_id = _last_numeric_segment(url)
+        card_id = last_numeric_segment(url)
         if card_id:
             # Short form on purpose: the provider knows no board and no stack, and an
             # invented one would address a card that does not exist. The form comes from the
@@ -200,7 +200,7 @@ def hit_url(base_url: str, kind: str, identifier: str, entry: Mapping[str, Any])
     return parts[0] if read_kind == UNKNOWN_KIND else base_url
 
 
-def _file_id(attributes: Mapping[str, Any], url: str) -> str:
+def file_id(attributes: Mapping[str, Any], url: str) -> str:
     """``attributes.fileId`` first, then the ``/f/<fileid>`` segment of the URL."""
     raw = attributes.get("fileId")
     candidate = str(raw).strip() if raw is not None else ""
@@ -217,7 +217,7 @@ def _file_id(attributes: Mapping[str, Any], url: str) -> str:
 def _message_target(attributes: Mapping[str, Any], url: str) -> tuple[str, str] | None:
     """``attributes.conversation`` and ``attributes.messageId`` first, the URL as the cross check.
 
-    The same shape as :func:`_file_id`, only with two values instead of one, and with the honest
+    The same shape as :func:`file_id`, only with two values instead of one, and with the honest
     ``None`` when either half is missing after both ways: a Talk entry can arrive with
     ``attributes`` as an empty list (pitfall 7), and a guessed token or a guessed message id
     would address somebody else's conversation (threat T-11-02). ``threadId`` is deliberately
@@ -248,7 +248,7 @@ def _message_target(attributes: Mapping[str, Any], url: str) -> tuple[str, str] 
 def _tables_node(url: str) -> tuple[str, str] | None:
     """Return ``(nodeType, nodeId)`` of a tables link, or ``None``.
 
-    :func:`_last_numeric_segment` is unusable here, and that is the whole point of a second
+    :func:`last_numeric_segment` is unusable here, and that is the whole point of a second
     reader: it looks at ``urlsplit(url).path`` only, while the tables app puts its node into the
     fragment (``#/table/7``). The node type is read together with the id, because ``#/view/3``
     would otherwise become ``table:3`` and read a foreign table (threat T-11-01).
@@ -259,7 +259,7 @@ def _tables_node(url: str) -> tuple[str, str] | None:
     return match.group(1), match.group(2)
 
 
-def _last_numeric_segment(url: str) -> str:
+def last_numeric_segment(url: str) -> str:
     """Return the trailing numeric path segment of ``url``, or an empty string."""
     path = urlsplit(url).path.rstrip("/")
     if not path:

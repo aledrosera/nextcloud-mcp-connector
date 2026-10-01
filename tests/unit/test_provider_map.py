@@ -75,7 +75,7 @@ def test_a_file_id_that_is_not_ascii_digits_degrades_to_the_url_kind(digit: str)
 
 @pytest.mark.parametrize("digit", ["²", "٤٢"])
 def test_a_last_segment_that_is_not_ascii_digits_degrades_to_the_url_kind(digit: str) -> None:
-    """The same WR-02 pair over ``_last_numeric_segment``, the source of note and card ids."""
+    """The same WR-02 pair over ``last_numeric_segment``, the source of note and card ids."""
     entry = {"title": "kaputt", "resourceUrl": f"/index.php/apps/notes/note/{digit}"}
 
     kind, identifier, canonical = resolved("notes", entry)

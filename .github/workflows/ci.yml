@@ -18,7 +18,7 @@ jobs:
         with:
           enable-cache: true
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --frozen --extra documents
       # ruff runs over the whole repository, not over src: a lint gate that only sees the
       # package lets scripts, tests and the whitelist rot.
       - name: Lint
@@ -118,6 +118,14 @@ jobs:
         run: |
           set -a && . ./.env.exapp && set +a
           uv run pytest tests/integration/test_content_hit_fidelity.py -m integration
+      - name: Findling hits run through sandbox and exclusion (SBX-01)
+        # Findling entries carry only a file id, so the sandbox and the kein-ki check have
+        # to resolve them before they can decide. A document outside NC_MCP_FILES_ROOT and
+        # a document tagged kein-ki both vanish from unified_search with their excerpt. Only
+        # this job has a real Findling; locally the file skips with the reason named.
+        run: |
+          set -a && . ./.env.exapp && set +a
+          uv run pytest tests/integration/test_findling_sandbox.py -m integration
       - name: The OAuth connection over the full chain (AUTH-02, AUTH-03, SC 4, SC 5)
         # The five checks that prove phase 3: a token from the flow serves a tool call over
         # the chain, it survives a restart of the container, two accounts stay two, a
@@ -137,6 +145,90 @@ jobs:
         run: |
           set -a && . ./.env.exapp && set +a
           uv run pytest tests/integration/test_appapi_users_list.py -m integration
+      - name: Topology and ExApp logs on failure
+        if: failure()
+        run: |
+          docker compose -f compose.exapp.yml logs --tail=200
+          docker logs nc_app_mcp_connector --tail=200 || true
+
+  # The canary and pair proofs run on the same topology file as the exapp job, but in a job
+  # of their own: compose.exapp.yml stays pinned to 34.0.3 for EXAPP-06, and the image
+  # variable NC_EXAPP_NEXTCLOUD_IMAGE is the only difference. It is set on job level, so every
+  # docker compose call of the job, including the ones the tests make through topology.py and
+  # the log step, reads the same image. The ExApp image is built again here; that is the cost
+  # of measuring both versions in parallel.
+  canary-nc35:
+    runs-on: ubuntu-latest
+    env:
+      NC_EXAPP_NEXTCLOUD_IMAGE: nextcloud:35.0.1-apache
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - name: Generate a fresh HaRP shared key
+        # Same key handling as the exapp job (WR-11, CR-02): one fresh key per run, masked
+        # before it reaches the job environment.
+        run: |
+          KEY="$(openssl rand -hex 32)"
+          echo "::add-mask::${KEY}"
+          echo "HP_SHARED_KEY=${KEY}" >> "$GITHUB_ENV"
+      - name: Start the HaRP topology on Nextcloud 35
+        run: docker compose -f compose.exapp.yml up -d --wait
+      - name: Install the app as an ExApp
+        # Default mode on purpose: --nc35 targets the local compose.nc35.yml, which is not
+        # usable on a runner. The default mode writes .env.exapp and keeps every container
+        # name, so topology.py needs no NC_MCP_E2E_* exports here.
+        run: bash scripts/bootstrap_exapp.sh
+      - name: The instance is Nextcloud 35.0.1
+        # The compose default is 34.0.3, so a lost override would silently measure 34 and
+        # still go green; this step turns that into a failure. `occ status` is the version of
+        # record, the same rule as in compose.exapp.yml.
+        run: |
+          docker compose -f compose.exapp.yml exec -T --user www-data nextcloud             php occ status | tee nc-status.txt
+          grep -E 'versionstring: 35\.0\.1' nc-status.txt
+      - name: The ExApp is registered and enabled
+        run: |
+          docker compose -f compose.exapp.yml exec -T --user www-data nextcloud             php occ app_api:app:list | tee exapp-list.txt
+          grep -E 'mcp_connector .*\[enabled\]' exapp-list.txt
+      - name: Install locked environment
+        run: uv sync --frozen --extra documents
+      - name: Canary and pair proofs of the kein-ki exclusion (GATE-02, GATE-03)
+        # Every tool of the registry is called against a canary tagged kein-ki, in the normal
+        # state and in three forced outages of the tag REPORT, and no answer may carry its
+        # marker; every pair case answers a tagged target byte for byte like a missing one.
+        # The proofs run on Nextcloud 35 only (owner decision WR-04, 2026-09-30), because
+        # every live proof of phase 28 was measured on 35; NC 34 stays covered by the exapp
+        # job. Findling is not installed here because the canary world does not use it; the
+        # Findling and sandbox steps stay in exapp. Locally the same files run against nc35
+        # with the NC_MCP_E2E_* exports of topology.py. The provider freeze (review WR-02)
+        # fails on every search provider without a class.
+        # NC_MCP_REQUIRE_LIVE turns every missing prerequisite (variable, docker, container,
+        # second account) into a failure instead of a skip (review WR-04): a green check
+        # here has to mean the gates ran, not that they found nothing to run against.
+        env:
+          PYTHONUTF8: "1"
+          NC_MCP_REQUIRE_LIVE: "1"
+        run: |
+          set -a && . ./.env.exapp && set +a
+          uv run pytest tests/integration/test_canary.py tests/integration/test_pair_equality_live.py tests/integration/test_provider_classes_live.py -m integration -s
+      - name: exclusion:check live (OPS-01)
+        # occ mcp_connector:exclusion:check against a real instance (plan 29-06): every case
+        # of the command, and around every invocation a dump of systemtag,
+        # systemtag_object_mapping, systemtag_group and the systemtags appconfig rows that
+        # has to stay unchanged. It runs here because this is the one job topology with
+        # Nextcloud 35 and an ExApp built from the current source, which the occ command
+        # lives in. It runs after the canary step because both create kein-ki and every
+        # test reads its own cleanup back, and the test refuses an instance that still
+        # carries a kein-ki spelling. No administrator password is needed: the test creates
+        # its own administrator, with a random password passed through the environment of
+        # docker exec, and deletes it again. NC_MCP_REQUIRE_LIVE as in the step above.
+        env:
+          PYTHONUTF8: "1"
+          NC_MCP_REQUIRE_LIVE: "1"
+        run: |
+          set -a && . ./.env.exapp && set +a
+          uv run pytest tests/integration/test_exclusion_check_live.py -m integration -s
       - name: Topology and ExApp logs on failure
         if: failure()
         run: |
@@ -167,7 +259,7 @@ jobs:
       - name: Bootstrap apps, users, calendar and address book
         run: bash scripts/bootstrap_test_nc.sh
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --frozen --extra documents
       - name: Integration tests against Nextcloud
         run: |
           set -a && . ./.env.test && set +a

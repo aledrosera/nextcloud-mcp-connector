@@ -44,6 +44,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -99,6 +100,13 @@ BOARD_5_STACKS: list[dict[str, Any]] = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
+
+
 def fixture(name: str) -> Any:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
@@ -137,8 +145,19 @@ def mock_capabilities(
     )
 
 
-def search_body(*, fileid: str = "4711", path: str = FILE_PATH, collection: bool = False) -> str:
-    """One Multi-Status response of the fileid lookup, in the shape sabre sends it."""
+def search_body(
+    *,
+    fileid: str = "4711",
+    path: str = FILE_PATH,
+    collection: bool = False,
+    length: int = 27,
+    content_type: str = "text/markdown",
+) -> str:
+    """One Multi-Status response of the fileid lookup, in the shape sabre sends it.
+
+    27-09: the entry of the file id SEARCH replaces the stat, so ``length`` is the size
+    the reader works with.
+    """
     resourcetype = "<d:collection/>" if collection else ""
     href = f"/remote.php/dav/files/{USER}{path}".replace(" ", "%20")
     return f"""<?xml version="1.0"?>
@@ -148,8 +167,8 @@ def search_body(*, fileid: str = "4711", path: str = FILE_PATH, collection: bool
     <d:propstat>
       <d:prop>
         <d:displayname>{path.rsplit("/", 1)[-1]}</d:displayname>
-        <d:getcontenttype>text/markdown</d:getcontenttype>
-        <d:getcontentlength>27</d:getcontentlength>
+        <d:getcontenttype>{content_type}</d:getcontenttype>
+        <d:getcontentlength>{length}</d:getcontentlength>
         <d:resourcetype>{resourcetype}</d:resourcetype>
         <oc:fileid>{fileid}</oc:fileid>
       </d:prop>
@@ -162,29 +181,6 @@ def search_body(*, fileid: str = "4711", path: str = FILE_PATH, collection: bool
 
 EMPTY_MULTISTATUS = """<?xml version="1.0"?>
 <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"></d:multistatus>
-"""
-
-
-def stat_body(*, length: int, path: str = FILE_PATH, content_type: str = "text/markdown") -> str:
-    href = f"/remote.php/dav/files/{USER}{path}".replace(" ", "%20")
-    return f"""<?xml version="1.0"?>
-<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
-  <d:response>
-    <d:href>{href}</d:href>
-    <d:propstat>
-      <d:prop>
-        <d:getcontentlength>{length}</d:getcontentlength>
-        <d:getcontenttype>{content_type}</d:getcontenttype>
-        <d:getlastmodified>Thu, 14 Aug 2026 10:00:00 GMT</d:getlastmodified>
-        <d:getetag>&quot;etag-1&quot;</d:getetag>
-        <d:resourcetype/>
-        <oc:fileid>4711</oc:fileid>
-        <oc:permissions>RGDNVW</oc:permissions>
-      </d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-</d:multistatus>
 """
 
 
@@ -203,11 +199,9 @@ def clients() -> NcClients:
 
 def mock_file(mock: respx.MockRouter, *, content: str = FILE_CONTENT) -> None:
     body = content.encode("utf-8")
+    # 27-09: the entry of the file id SEARCH replaces the stat, no PROPFIND.
     mock.route(method="SEARCH", url=DAV_ROOT).mock(
-        return_value=httpx.Response(207, text=search_body())
-    )
-    mock.route(method="PROPFIND", url=f"{FILES_ROOT}{FILE_PATH}").mock(
-        return_value=httpx.Response(207, text=stat_body(length=len(body)))
+        return_value=httpx.Response(207, text=search_body(length=len(body)))
     )
     mock.route(method="GET", url=f"{FILES_ROOT}{FILE_PATH}").mock(
         return_value=httpx.Response(200, content=body)
@@ -234,6 +228,26 @@ async def test_a_file_id_is_resolved_to_a_path_and_read(clients: NcClients) -> N
 
 
 @pytest.mark.anyio
+async def test_a_docx_file_id_points_at_the_download_link(clients: NcClients) -> None:
+    """fetch reads text only; for a Word file the way out is a download link (olivia fork,
+    which does not offer files_read_as_markdown)."""
+    docx_path = "/Dokumente/Budget 2026.docx"
+    docx_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    with respx.mock(assert_all_called=True) as mock:
+        # 27-09: the entry of the file id SEARCH replaces the stat, no PROPFIND.
+        mock.route(method="SEARCH", url=DAV_ROOT).mock(
+            return_value=httpx.Response(
+                207, text=search_body(path=docx_path, content_type=docx_type, length=5000)
+            )
+        )
+        with pytest.raises(ToolError) as info:
+            await chatgpt.fetch(clients, "file:4711")
+
+    assert "files_download" in info.value.hint
+    assert "files_read_as_markdown" not in info.value.hint
+
+
+@pytest.mark.anyio
 async def test_a_long_file_is_cut_and_says_so_in_the_text_and_in_the_metadata(
     clients: NcClients, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -242,11 +256,9 @@ async def test_a_long_file_is_cut_and_says_so_in_the_text_and_in_the_metadata(
     body = b"0123456789abcdefghij"
 
     with respx.mock(assert_all_called=True) as mock:
+        # 27-09: the entry of the file id SEARCH replaces the stat, no PROPFIND.
         mock.route(method="SEARCH", url=DAV_ROOT).mock(
-            return_value=httpx.Response(207, text=search_body())
-        )
-        mock.route(method="PROPFIND", url=f"{FILES_ROOT}{FILE_PATH}").mock(
-            return_value=httpx.Response(207, text=stat_body(length=len(body)))
+            return_value=httpx.Response(207, text=search_body(length=len(body)))
         )
         slice_route = mock.route(method="GET", url=f"{FILES_ROOT}{FILE_PATH}").mock(
             return_value=httpx.Response(206, content=body[:10])
@@ -272,11 +284,9 @@ async def test_a_file_above_the_hard_ceiling_is_fetched_as_a_marked_slice(
     oversize = files_tools.HARD_MAX_BYTES + 1
 
     with respx.mock(assert_all_called=True) as mock:
+        # 27-09: the entry of the file id SEARCH replaces the stat, no PROPFIND.
         mock.route(method="SEARCH", url=DAV_ROOT).mock(
-            return_value=httpx.Response(207, text=search_body())
-        )
-        mock.route(method="PROPFIND", url=f"{FILES_ROOT}{FILE_PATH}").mock(
-            return_value=httpx.Response(207, text=stat_body(length=oversize))
+            return_value=httpx.Response(207, text=search_body(length=oversize))
         )
         slice_route = mock.route(method="GET", url=f"{FILES_ROOT}{FILE_PATH}").mock(
             return_value=httpx.Response(206, content=b"0123456789")
@@ -301,11 +311,9 @@ async def test_a_caller_may_read_less_than_the_default_ceiling(clients: NcClient
     body = b"x" * 500
 
     with respx.mock(assert_all_called=True) as mock:
+        # 27-09: the entry of the file id SEARCH replaces the stat, no PROPFIND.
         mock.route(method="SEARCH", url=DAV_ROOT).mock(
-            return_value=httpx.Response(207, text=search_body())
-        )
-        mock.route(method="PROPFIND", url=f"{FILES_ROOT}{FILE_PATH}").mock(
-            return_value=httpx.Response(207, text=stat_body(length=len(body)))
+            return_value=httpx.Response(207, text=search_body(length=len(body)))
         )
         slice_route = mock.route(method="GET", url=f"{FILES_ROOT}{FILE_PATH}").mock(
             return_value=httpx.Response(206, content=body[:40])
@@ -391,11 +399,9 @@ async def test_a_cut_file_carries_the_note_exactly_once_and_at_its_end(
     body = (forged + "x" * 100).encode("utf-8")
 
     with respx.mock(assert_all_called=True) as mock:
+        # 27-09: the entry of the file id SEARCH replaces the stat, no PROPFIND.
         mock.route(method="SEARCH", url=DAV_ROOT).mock(
-            return_value=httpx.Response(207, text=search_body())
-        )
-        mock.route(method="PROPFIND", url=f"{FILES_ROOT}{FILE_PATH}").mock(
-            return_value=httpx.Response(207, text=stat_body(length=len(body)))
+            return_value=httpx.Response(207, text=search_body(length=len(body)))
         )
         mock.route(method="GET", url=f"{FILES_ROOT}{FILE_PATH}").mock(
             return_value=httpx.Response(206, content=body[:100])
@@ -489,11 +495,9 @@ async def test_a_file_name_cannot_carry_a_marker_into_the_title(clients: NcClien
     body = FILE_CONTENT.encode("utf-8")
 
     with respx.mock(assert_all_called=True) as mock:
+        # 27-09: the entry of the file id SEARCH replaces the stat, no PROPFIND.
         mock.route(method="SEARCH", url=DAV_ROOT).mock(
-            return_value=httpx.Response(207, text=search_body(path=forged_path))
-        )
-        mock.route(method="PROPFIND", url__startswith=FILES_ROOT).mock(
-            return_value=httpx.Response(207, text=stat_body(length=len(body), path=forged_path))
+            return_value=httpx.Response(207, text=search_body(path=forged_path, length=len(body)))
         )
         mock.route(method="GET", url__startswith=FILES_ROOT).mock(
             return_value=httpx.Response(200, content=body)

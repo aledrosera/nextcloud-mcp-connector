@@ -1,5 +1,6 @@
 """Regression checks for transfer bounds and directory isolation."""
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -9,9 +10,17 @@ from mcp_connector.errors import ToolError
 from mcp_connector.nextcloud import NcClients
 from mcp_connector.nextcloud.clients import dav
 from mcp_connector.nextcloud.credentials import Credentials
+from mcp_connector.nextcloud.exclusion import UNTAGGED
 from mcp_connector.tools import files, search
 
 CREDS = Credentials("https://nc.test", "alice", "test-password")
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 class LargeStream(httpx.AsyncByteStream):
@@ -58,7 +67,10 @@ async def test_ignored_range_stops_reading_and_closes_the_stream() -> None:
 @pytest.mark.parametrize("path", ["/Docs2/secret", "/Docs/../secret", "/Other/secret"])
 def test_search_metadata_cannot_escape_root(path: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(config.ENV_FILES_ROOT, "/Docs")
-    assert not search._entry_in_files_root("files", {"attributes": {"path": path}})
+    clients = NcClients(httpx.AsyncClient(), CREDS)
+    screened = search._screen(clients, "files", [{"attributes": {"path": path}}], UNTAGGED)
+    assert screened.kept == []
+    assert screened.skipped == 1
 
 
 def test_dav_filters_returned_paths_and_supports_subpath_installations(

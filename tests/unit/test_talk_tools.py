@@ -25,6 +25,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -61,6 +62,13 @@ SPREED_INSTALLED = {
     "features": ["chat-v2", "conversation-v4", "chat-permission", "mention-permissions"],
     "config": {"chat": {"max-length": 32000}},
 }
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 def fixture(name: str) -> Any:

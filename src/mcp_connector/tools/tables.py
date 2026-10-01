@@ -23,18 +23,42 @@ middleware stays the authority; the pre-check is only the better error message.
 Deliberately absent: update, delete, creating columns or whole tables, importing a scheme
 and every share path. The client below has no code for any of it, which is what makes the
 create-only annotation of ``tables_create_row`` honest rather than a promise (T-08-11).
+
+**A link cell is a stored copy of a file (D-28-14).** A Tables link column that points at a
+Nextcloud file keeps the file name and the file id in the cell itself, so a row read would
+name a file tagged ``kein-ki`` without ever touching the file. :func:`screen_links` runs once
+per call before any cell is projected, in ``tables_browse`` and in ``fetch(table:)`` alike,
+and a cell of a tagged file answers exactly like an empty link cell.
 """
 
 import json
+from collections.abc import Collection
+from dataclasses import dataclass
 from typing import Any
 
-from .. import paging
+import httpx
+
+from .. import paging, provider_map
 from ..errors import ToolError
 from ..nextcloud import NcClients, capabilities
+from ..nextcloud.clients import dav
 from ..nextcloud.clients import tables as tables_client
-from . import marks
+from ..nextcloud.clients import talk as talk_client
+from . import marks, withhold
+from . import talk as talk_tools
 
 APP = "tables"
+
+#: The ``providerId`` of a link cell that points at a Nextcloud file (D-28-18, measured in
+#: 28-01). A link of any other provider counts as a file link as well when its value carries
+#: a ``/f/<fileid>`` segment (review WR-03 of phase 28): a pasted web address of a file, or a
+#: comment link, names the file just as well.
+_FILES_PROVIDER = "files"
+
+#: The ``providerId`` of a link cell that points at a Talk conversation. The conversation of a
+#: file carries the file name as its name (D-28-21), so such a cell is decided against the
+#: conversation list like the ``talk-conversations`` hits of the unified search (WR-03).
+_ROOMS_PROVIDER = "talk-conversations"
 
 #: The three navigation levels of ``tables_browse``, in the order a model walks them.
 LEVELS = ("tables", "columns", "rows")
@@ -362,6 +386,11 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
     The table itself is read first, for two answers out of one request (K11): ``rowsCount``
     is what turns "there is more" into an observation instead of a guess, and ``title`` is
     what the answer calls the table.
+
+    The rows pass :func:`screen_links` before a single cell is projected (D-28-14): a link
+    cell carries its own copy of a file name and a file id, so a tagged file would otherwise
+    be named here. When the check could not be answered, every file link is withheld and the
+    answer carries the one ``degraded`` entry of this family.
     """
     info = await tables_client.get_table(clients.client, clients.creds, table)
 
@@ -376,6 +405,8 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
     payload = await tables_client.get_rows_simple(
         clients.client, clients.creds, table, limit=limit, offset=offset
     )
+    screened = await screen_links(clients, payload)
+    payload = screened.rows
     titles = [_text(cell) for cell in payload[0]] if payload else []
     results = [_row(titles, values) for values in payload[1:]]
 
@@ -389,6 +420,8 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
     count = _row_count(info)
     if count is not None:
         answer["rowsCount"] = count
+    if screened.unavailable:
+        answer["degraded"] = [withhold.degraded_entry("source")]
     # Two ways to know that this window is not the whole table, and the second one is the
     # only one left when the app reported no count: a window that came back full has a next
     # page behind it often enough to say so, and a wrong "there is more" costs one empty
@@ -406,6 +439,186 @@ async def _rows(clients: NcClients, table: str, limit: int, cursor: str | None) 
         answer["truncated"] = True
         answer["next"] = paging.encode_cursor({"o": offset + len(results), "t": table})
     return answer
+
+
+@dataclass(frozen=True, slots=True)
+class LinkScreenResult:
+    """The rows of one ``rows/simple`` answer after the ``kein-ki`` screen, decided once.
+
+    ``rows`` is the payload with every withheld link cell set to ``None``, which is what the
+    app itself answers for an empty link cell, so a withheld cell and an empty one cannot be
+    told apart. ``unavailable`` says that the check could not be answered and every file link
+    was withheld for that reason, so the caller adds its one ``degraded`` entry.
+    """
+
+    rows: list[list[Any]]
+    unavailable: bool
+
+
+async def screen_links(clients: NcClients, payload: list[list[Any]]) -> LinkScreenResult:
+    """Withhold every link cell that points at a file tagged ``kein-ki`` (D-28-14).
+
+    Public because ``tools/chatgpt.py`` screens ``fetch(table:)`` with the same function; one
+    decision for both tools means one truth about which cell stays.
+
+    The title row (the first list) is never touched. The guard is asked only when a value
+    row carries a file link at all: a table without one costs no request (the same rule as
+    ``talk.file_screen``), and the whole window costs at most one REPORT.
+
+    *   ``untagged``: every cell stays as it came.
+    *   ``unverifiable``: every file link cell is withheld, and ``unavailable`` is set.
+    *   ``active`` without a tagged folder: the file id decides.
+    *   ``active`` with a tagged folder: the file ids are resolved into paths with one
+        ``dav.paths_of_fileids`` call. An id that does not resolve is withheld, and a failing
+        lookup withholds every file link like the ``unverifiable`` state does.
+    *   A file link whose id cannot be read is withheld while a tag is active.
+    *   A Talk conversation link (review WR-03 of phase 28) is decided against the
+        conversation list, read once and only when such a cell exists and something is
+        tagged: a file conversation counts as a link to its file, a conversation without a
+        file stays, a token the list does not carry is withheld. A list that cannot be read,
+        and the ``unverifiable`` state, withhold every conversation link with ``unavailable``.
+
+    Tables gets no sandbox of its own, only the tag, like Talk: ``NC_MCP_FILES_ROOT`` does
+    not filter link cells, and it only shapes the path lookup when a folder carries the tag
+    (an id outside the root then does not resolve and is withheld). Noted for phase 29.
+    """
+    found: dict[tuple[int, int], str] = {}
+    rooms: dict[tuple[int, int], str] = {}
+    for row_index, values in enumerate(payload[1:], start=1):
+        if not isinstance(values, list):
+            continue
+        for column_index, cell in enumerate(values):
+            token = _linked_room(cell)
+            if token is not None:
+                rooms[(row_index, column_index)] = token
+                continue
+            fileid = _linked_fileid(cell)
+            if fileid is not None:
+                found[(row_index, column_index)] = fileid
+    if not found and not rooms:
+        return LinkScreenResult(payload, unavailable=False)
+
+    scope = await clients.exclusion.scope(clients)
+    if scope.state == "untagged":
+        return LinkScreenResult(payload, unavailable=False)
+    if scope.state == "unverifiable":
+        return LinkScreenResult(_blank(payload, found.keys() | rooms.keys()), unavailable=True)
+    if rooms:
+        # A conversation link stands for its file when the conversation is a file
+        # conversation (talk.room_fileid). A token this account does not list, or a list that
+        # cannot be read, withholds the cell while anything is tagged (fail-closed, D-28-21).
+        try:
+            listed = await talk_client.get_rooms(
+                clients.client, clients.creds, include_last_message=False
+            )
+        except (ToolError, httpx.HTTPError):
+            return LinkScreenResult(_blank(payload, found.keys() | rooms.keys()), unavailable=True)
+        by_token = {
+            str(room.get("token") or "").strip(): talk_tools.room_fileid(room)
+            for room in listed
+            if isinstance(room, dict)
+        }
+        for position, token in rooms.items():
+            if not token or token not in by_token:
+                found[position] = ""
+                continue
+            room_file = by_token[token]
+            if room_file is not None:
+                found[position] = "" if room_file == "-" else room_file
+
+    resolved: dict[str, str] = {}
+    if scope.has_folders:
+        ask = sorted({fileid for fileid in found.values() if fileid})
+        if ask:
+            try:
+                resolved = await dav.paths_of_fileids(clients.client, clients.creds, ask)
+            except (ToolError, httpx.HTTPError, ValueError):
+                return LinkScreenResult(_blank(payload, found), unavailable=True)
+
+    hidden: set[tuple[int, int]] = set()
+    for position, fileid in found.items():
+        if not fileid:
+            hidden.add(position)
+            continue
+        path: str | None = None
+        if scope.has_folders:
+            path = resolved.get(fileid)
+            if path is None:
+                hidden.add(position)
+                continue
+        if scope.excludes(path=path, fileid=fileid):
+            hidden.add(position)
+    return LinkScreenResult(_blank(payload, hidden), unavailable=False)
+
+
+def _linked_fileid(value: Any) -> str | None:
+    """The file id of a file link cell, ``""`` for one without a readable id, else ``None``.
+
+    The form is the one measured in 28-01 (D-28-18): a JSON string ``{"title": <name>,
+    "value": "<url>/f/<fileid>", "providerId": "files"}``, with the slashes PHP-escaped on
+    the wire. An object of the same shape counts as well. Anything else is not a file link:
+    ``null`` and free text that happens to contain ``/f/123`` are not. A link object of another
+    provider is a file link when its value carries ``/f/<fileid>`` (review WR-03 of phase 28):
+    a web address pasted as ``https://host/f/<id>`` or a comment link names the file as well.
+    The file id is read by ``provider_map.file_id``, the one reader of ``/f/<fileid>`` there is.
+    """
+    link = _link_object(value)
+    if link is None:
+        return None
+    target = link.get("value")
+    fileid = (
+        provider_map.file_id({}, target.replace("\\/", "/").strip())
+        if isinstance(target, str)
+        else ""
+    )
+    if str(link.get("providerId") or "").strip() == _FILES_PROVIDER:
+        return fileid
+    return fileid or None
+
+
+def _linked_room(value: Any) -> str | None:
+    """The token of a Talk conversation link cell, ``""`` for one without a token, else ``None``.
+
+    The link picker of Tables stores the hit of the ``talk-conversations`` search provider,
+    so the value is its ``/call/<token>`` link (the fragment is not part of the path).
+    """
+    link = _link_object(value)
+    if link is None or str(link.get("providerId") or "").strip() != _ROOMS_PROVIDER:
+        return None
+    target = link.get("value")
+    if not isinstance(target, str):
+        return ""
+    try:
+        segments = httpx.URL(target.replace("\\/", "/").strip()).path.split("/")
+    except (httpx.InvalidURL, ValueError):
+        return ""
+    for index, segment in enumerate(segments[:-1]):
+        if segment == "call" and segments[index + 1]:
+            return segments[index + 1]
+    return ""
+
+
+def _link_object(value: Any) -> dict[str, Any] | None:
+    """A link cell as its object: a JSON object string or an object, else ``None``."""
+    link: Any = value
+    if isinstance(value, str):
+        if not value.lstrip().startswith("{"):
+            return None
+        try:
+            link = json.loads(value)
+        except ValueError:
+            return None
+    return link if isinstance(link, dict) else None
+
+
+def _blank(payload: list[list[Any]], positions: Collection[tuple[int, int]]) -> list[list[Any]]:
+    """The payload with the cells at ``positions`` (row, column) set to ``None``."""
+    if not positions:
+        return payload
+    rows = [list(values) if isinstance(values, list) else values for values in payload]
+    for row_index, column_index in positions:
+        rows[row_index][column_index] = None
+    return rows
 
 
 def _row(titles: list[str], values: list[Any]) -> dict[str, Any]:

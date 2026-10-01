@@ -1,0 +1,37 @@
+# prepare_context-Wanduhr auf nc35, Baseline ohne Spike-Daten (Plan 25-01, Task 3b)
+# Zeitstempel: 2026-09-26T17:29:02Z (UTC, Start des Laufs)
+# Kommando (Git-Bash-Form aus RESEARCH Pattern 4; Werte der Env-Datei nie ausgegeben):
+#   set -a && . ./.env.nc35 && set +a
+#   export NC_MCP_E2E_COMPOSE_FILE=compose.nc35.yml NC_MCP_E2E_PROJECT=nc-mcp-nc35 \
+#          NC_MCP_E2E_NEXTCLOUD=nc35-nc NC_MCP_E2E_HARP=nc35-harp NC_MCP_E2E_CADDY=nc35-caddy \
+#          NC_MCP_E2E_CONTAINERS=nc35-nc,nc_app_mcp_connector,nc35-harp,nc35-caddy,nc35-greenmail
+#   uv run --no-sync pytest tests/integration/test_ctx_bundle.py -m integration -s \
+#          -k "wall_clock or measurement_protocol or no_measured_line"
+# Abweichung vom Plan-Kommando: "-k wall_clock" allein druckt nichts, weil test_ctx_bundle.py
+#   seine Messzeilen sammelt und erst im Test "measurement_protocol" ausgibt; dazu der
+#   Secret-Test "no_measured_line" (T-08-01) über dasselbe Protokoll. Die Env-Datei wurde von
+#   einem kleinen Python-Wrapper geladen statt per ". ./.env.nc35" (gleicher Inhalt).
+# Stand der Instanz: keine Spike-Daten (Tag-Liste [], alice 275 Dateien, Papierkorb 0,
+#   Mapping-Zeilen 0; siehe BASELINE-START in nc35-befunde.txt, 17:28:30Z).
+# Messbedingung Mail-Bein (Pitfall 12): im Detail "full" meldet das Bündel
+#   degraded=mail "Nextcloud did not find the mail accounts."; das Mail-Bein misst damit
+#   den Weg ohne Mailkonto, nicht das Lesen von Testmails. Das Einzelbein "mail" (0,07 s)
+#   ist entsprechend der Weg bis zu dieser Antwort.
+# Hostlast: nc35-Topologie, 34er-Topologie, Findling-Instanz und n8n liefen mit.
+# Streuung: max 3,40 s bei short ist ein einzelner Lauf von drei; die Datei nennt nicht,
+#   welcher (vermutlich der erste mit kalten Caches, nicht belegt). Vergleichswert ist der Median.
+
+--- stdout des Laufs (unverändert) ---
+..
+--- prepare_context with four legs, measured ---
+  wall clock detail='short': min 0.60 s, median 0.72 s, max 3.40 s (3 runs, 0 excerpts, degraded=empty)
+  wall clock detail='full': min 0.77 s, median 0.81 s, max 1.66 s (3 runs, 3 excerpts, degraded=[{'source': 'mail', 'reason': 'Nextcloud did not find the mail accounts.'}])
+  reference plan 04-04 (two legs): short 0.84 s, full 0.99 s; today with four legs: short 0.72 s, full 0.81 s (median)
+  leg search: median 0.72 s, max 0.88 s over 3 runs, no budget of its own (the search carries the per provider ceiling)
+  leg calendar: median 0.08 s, max 0.08 s over 3 runs, budget 10 s, headroom factor 130x
+  leg talk: median 0.04 s, max 0.04 s over 3 runs, budget 5 s, headroom factor 137x
+  leg mail: median 0.07 s, max 0.07 s over 3 runs, budget 10 s, headroom factor 146x
+  end state, unread per conversation: {'2uqkjpn2': 0, 'hbkwbtyk': 0, 'ppgkzi9r': 3, 'xa75t6fh': 0, 'tayhdxfv': 7}
+  topology: nc35-nc, nc_app_mcp_connector, nc35-harp, nc35-caddy, nc35-greenmail
+.
+3 passed, 6 deselected in 11.61s

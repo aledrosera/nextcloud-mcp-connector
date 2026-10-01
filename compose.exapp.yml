@@ -50,7 +50,12 @@ services:
     # without being asked. A measurement of a version specific behaviour (EXAPP-06, the
     # store interface fixed upstream in 34.0.3) then reads the wrong instance and nobody
     # notices. The version of record is `occ status`, never this line.
-    image: nextcloud:34.0.3-apache
+    #
+    # The default stays 34.0.3 because EXAPP-06 is measured on it. The only override in this
+    # repository is the CI job canary-nc35, which points NC_EXAPP_NEXTCLOUD_IMAGE at the
+    # official nextcloud:35.0.1-apache for the canary and pair proofs (owner decision WR-04,
+    # 2026-09-30). Any override must again be a patch version, never a floating tag.
+    image: "${NC_EXAPP_NEXTCLOUD_IMAGE:-nextcloud:34.0.3-apache}"
     container_name: nc-mcp-exapp-nc
     # No published port on purpose: this instance is reachable through Caddy only, because
     # every request from AppAPI to the ExApp has to take the same way a browser takes.

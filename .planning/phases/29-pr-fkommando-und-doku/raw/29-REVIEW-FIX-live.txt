@@ -1,0 +1,181 @@
+# 29-REVIEW-FIX live 2026-10-01T11:21:21Z head=6ba1f99 container=nc35-nc - versionstring: 35.0.0
+
+== WR-02 Delegations-Admin (Users-Einstellung an Gruppe delegiert, Konto nicht in admin) ==
+$ php occ group:add chkdeleg
+  Created group "chkdeleg"
+$ php occ group:adduser chkdeleg bob
+  user bob added
+$ php occ admin-delegation:add OCA\Settings\Settings\Admin\Users chkdeleg
+  
+   [OK] Administration of OCA\Settings\Settings\Admin\Users delegated to chkdeleg.
+  
+$ php occ admin-delegation:show (Abschnitt users)
+$ php occ mcp_connector:exclusion:check --admin=<bob> --json
+  {"checked":true,"passed":true,"mode":"none","assigned":0,"unprotected":0,"admin_checked":true,"reason":null,"error":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"note","note":"no_tag"},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"skipped","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"skipped","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"skipped","note":null}],"tags":[],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}$ php occ mcp_connector:exclusion:check --admin=<alice> --json
+  {"checked":false,"passed":false,"mode":null,"assigned":null,"unprotected":null,"admin_checked":false,"reason":"the account named with --admin is not an administrator of this instance; nothing was checked.","error":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"failed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"skipped","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"skipped","note":null},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"skipped","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"skipped","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"skipped","note":null}],"tags":[],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}$ php occ mcp_connector:exclusion:check --admin=<admin> --json
+  {"checked":true,"passed":true,"mode":"none","assigned":0,"unprotected":0,"admin_checked":true,"reason":null,"error":null,"steps":[{"step":"admin_identity","name":"the named account is an administrator","outcome":"passed","note":null},{"step":"tag_listing_readable","name":"the tag listing of this instance can be read","outcome":"passed","note":null},{"step":"tag_exists","name":"a tag named exactly kein-ki exists","outcome":"note","note":"no_tag"},{"step":"tag_visible","name":"the kein-ki tag is visible to users","outcome":"skipped","note":null},{"step":"no_variants","name":"no other spelling of kein-ki is in use","outcome":"skipped","note":null},{"step":"operating_mode","name":"the operating mode of the kein-ki tag","outcome":"skipped","note":null},{"step":"assignment_count","name":"the items carrying kein-ki can be counted","outcome":"skipped","note":null}],"tags":[],"limit":"A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md."}(die drei JSON-Zeilen oben: --admin=<bob> Delegations-Admin, --admin=<alice> Normalnutzer, --admin=<admin> Admin; die Kopfzeilen fuer alice und admin fehlen wegen eines Schleifenfehlers im Protokollbefehl)
+
+== WR-02 mit unsichtbarem kein-ki ==
+$ php occ tag:add kein-ki invisible --output=json
+  {"id":"210","name":"kein-ki","access":"invisible"}
+$ php occ mcp_connector:exclusion:check --admin=<bob>
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  note         a tag named exactly kein-ki exists (no_tag)
+  skipped      the kein-ki tag is visible to users
+  skipped      no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  skipped      the items carrying kein-ki can be counted
+  Hint: no kein-ki tag exists, the connector filters nothing. Create it with: php occ tag:add kein-ki public
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+$ php occ mcp_connector:exclusion:check --admin=<admin>
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  passed       a tag named exactly kein-ki exists
+  failed       the kein-ki tag is visible to users
+  passed       no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  An invisible kein-ki tag does not work for users: the connector reads tags as the user, who cannot see it, so the items carrying it are not excluded. Make it public or restricted.
+  Items tagged 'kein-ki' are NOT excluded for users who are not administrators: 0
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+
+== WR-02 nach dem Fix (Mitgliedsvergleich in confirm_admin), ExApp neu gebaut sha256:08e87ea2..., Arbeitsbaum ueber 6ba1f99 ==
+$ php occ mcp_connector:exclusion:check --admin=<bob>
+  checked the kein-ki exclusion tag of this instance, read only
+  failed       the named account is an administrator
+  skipped      the tag listing of this instance can be read
+  skipped      a tag named exactly kein-ki exists
+  skipped      the kein-ki tag is visible to users
+  skipped      no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  skipped      the items carrying kein-ki can be counted
+  the account named with --admin is not an administrator of this instance; nothing was checked.
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+$ php occ mcp_connector:exclusion:check --admin=<admin>
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+  passed       a tag named exactly kein-ki exists
+  failed       the kein-ki tag is visible to users
+  passed       no other spelling of kein-ki is in use
+  skipped      the operating mode of the kein-ki tag
+  passed       the items carrying kein-ki can be counted
+  An invisible kein-ki tag does not work for users: the connector reads tags as the user, who cannot see it, so the items carrying it are not excluded. Make it public or restricted.
+  Items tagged 'kein-ki' are NOT excluded for users who are not administrators: 0
+  A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.
+BEFUND WR-02 vorher: Delegations-Admin (Users an Gruppe chkdeleg, bob nicht in admin) bekam admin_identity passed, die Liste ohne unsichtbare Tags und einen gruenen Hinweis 'no kein-ki tag exists', obwohl ein unsichtbares kein-ki (id 210) bestand. nachher: admin_identity failed, passed=false, 'not an administrator'.
+
+== Aufraeumen WR-02 ==
+$ php occ admin-delegation:remove OCA\Settings\Settings\Admin\Users chkdeleg
+  
+   [OK] Removed delegation of OCA\Settings\Settings\Admin\Users to chkdeleg.      
+  
+$ php occ group:delete chkdeleg
+  Group "chkdeleg" was removed
+$ php occ tag:delete 210
+  The specified tag was deleted
+$ php occ tag:list --output=json
+  []
+$ php occ group:list --output=json
+  {"admin":["admin"]}
+
+== WR-03 Steuerzeichen in Tag-Namen (POST /remote.php/dav/systemtags/ als Normalnutzer <alice>) ==
+POST name='kein\r-ki' (CR): status 201
+POST name='kein\n-ki' (LF): status 409
+POST name='kein-ki\x1b[2K' (ESC-ANSI): status 201
+POST name='kein\x85-ki' (C1-NEL): status 409
+POST name='keinki\x9bF' (C1-CSI): status 201
+POST name='kein-ki\u202e' (BIDI-RLO): status 409
+POST name='kein\t-ki' (TAB): status 409
+  tag:list id=211 name='kein-ki'
+  tag:list id=212 name='kein-ki[2K'
+  tag:list id=213 name='keinkiF'
+$ php occ mcp_connector:exclusion:check --admin=<admin>  (Ausgabe mit ascii() je Zeile)
+  'checked the kein-ki exclusion tag of this instance, read only'
+  'passed       the named account is an administrator'
+  'passed       the tag listing of this instance can be read'
+  'passed       a tag named exactly kein-ki exists'
+  'passed       the kein-ki tag is visible to users'
+  'passed       no other spelling of kein-ki is in use (similar_name)'
+  'passed       the operating mode of the kein-ki tag'
+  'passed       the items carrying kein-ki can be counted'
+  'Self service: every user who can see a file can set and remove kein-ki on it.'
+  'Items carrying kein-ki (assignments across the instance, trash bin included): 0'
+  "A tag with a similar name is not the exclusion tag: 'keinkiF'"
+  'A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.'
+BEFUND WR-03 rohe Steuerzeichen in der Textausgabe (ausser LF): 0
+CLEANUP tags: entfernt
+
+== WR-03 Runde 2, eindeutige Namen (POST /remote.php/dav/systemtags/ als Normalnutzer <alice>) ==
+POST name='wrcr\rx' (CR): status 201
+POST name='wrlf\nx' (LF): status 201
+POST name='wresc\x1b[2Kx' (ESC-ANSI): status 201
+POST name='wrnel\x85x' (C1-NEL): status 201
+POST name='wrcsi\x9bFx' (C1-CSI): status 201
+POST name='wrrlo\u202ex' (BIDI-RLO): status 201
+POST name='wrzw\u200bx' (ZWSP): status 201
+POST name='wrtab\tx' (TAB): status 201
+POST name='wrdel\x7fx' (DEL): status 201
+  tag:list id=214 name='wrcrx'
+  tag:list id=218 name='wrcsiFx'
+  tag:list id=222 name='wrdelx'
+  tag:list id=216 name='wresc[2Kx'
+  tag:list id=215 name='wrlfx'
+  tag:list id=217 name='wrnelx'
+  tag:list id=219 name='wrrlox'
+  tag:list id=221 name='wrtabx'
+  tag:list id=220 name='wrzwx'
+$ php occ mcp_connector:exclusion:check --admin=<admin>  (Ausgabe mit ascii() je Zeile)
+  'checked the kein-ki exclusion tag of this instance, read only'
+  'passed       the named account is an administrator'
+  'passed       the tag listing of this instance can be read'
+  'note         a tag named exactly kein-ki exists (no_tag)'
+  'skipped      the kein-ki tag is visible to users'
+  'skipped      no other spelling of kein-ki is in use'
+  'skipped      the operating mode of the kein-ki tag'
+  'skipped      the items carrying kein-ki can be counted'
+  'Hint: no kein-ki tag exists, the connector filters nothing. Create it with: php occ tag:add kein-ki public'
+  'A green result does not cover shares: a tag above the root of a share does not protect it for the recipient. See docs/exclusion.md.'
+BEFUND WR-03 rohe Steuerzeichen in der Textausgabe (ausser LF): 0
+CLEANUP tags: entfernt
+
+== WR-04 Kontozustand vor/nach exclusion:check ohne --admin ==
+Konten der Instanz vor dem Lauf: admin, alice, bob
+user:add <neu> (nie angemeldet, sortiert zuerst): ok
+vorher oc_preferences: Zeilen mit <neu> = 2
+vorher oc_storages: Zeilen mit <neu> = 0
+vorher oc_mounts: Zeilen mit <neu> = 0
+vorher oc_filecache: Zeilen mit <neu> = 4
+vorher oc_authtoken: Zeilen mit <neu> = 0
+$ php occ mcp_connector:exclusion:check
+  checked the kein-ki exclusion tag of this instance, read only
+  not_checked  the named account is an administrator (admin_not_named)
+  passed       the tag listing of this instance can be read
+TABELLE oc_preferences vorher=43/7fc7091da9bd nachher=43/7fc7091da9bd gleich=ja
+TABELLE oc_storages vorher=4/6fde3700d0e0 nachher=4/6fde3700d0e0 gleich=ja
+TABELLE oc_mounts vorher=5/fb5052083ce0 nachher=5/fb5052083ce0 gleich=ja
+TABELLE oc_filecache vorher=515/c455ba40c1eb nachher=515/c455ba40c1eb gleich=ja
+TABELLE oc_authtoken vorher=83/e357daf7872a nachher=83/e357daf7872a gleich=ja
+BEFUND ohne --admin (Text): keine Änderung
+$ php occ mcp_connector:exclusion:check --json
+  {"checked":true,"passed":true,"mode":"none","assigned":0,"unprotected":0,"admin_checked":false,"reason":null,"error":null,"steps":[{"step":"admin_identity","name":"the named account is an administrato
+TABELLE oc_preferences vorher=43/7fc7091da9bd nachher=43/7fc7091da9bd gleich=ja
+TABELLE oc_storages vorher=4/6fde3700d0e0 nachher=4/6fde3700d0e0 gleich=ja
+TABELLE oc_mounts vorher=5/fb5052083ce0 nachher=5/fb5052083ce0 gleich=ja
+TABELLE oc_filecache vorher=515/c455ba40c1eb nachher=515/c455ba40c1eb gleich=ja
+TABELLE oc_authtoken vorher=83/e357daf7872a nachher=83/e357daf7872a gleich=ja
+BEFUND ohne --admin (--json): keine Änderung
+$ php occ mcp_connector:exclusion:check --admin=admin
+  checked the kein-ki exclusion tag of this instance, read only
+  passed       the named account is an administrator
+  passed       the tag listing of this instance can be read
+TABELLE oc_preferences vorher=43/7fc7091da9bd nachher=43/7fc7091da9bd gleich=ja
+TABELLE oc_storages vorher=4/6fde3700d0e0 nachher=4/6fde3700d0e0 gleich=ja
+TABELLE oc_mounts vorher=5/fb5052083ce0 nachher=5/fb5052083ce0 gleich=ja
+TABELLE oc_filecache vorher=515/c455ba40c1eb nachher=515/c455ba40c1eb gleich=ja
+TABELLE oc_authtoken vorher=83/e357daf7872a nachher=83/e357daf7872a gleich=ja
+BEFUND mit --admin=<admin>: keine Änderung
+CLEANUP konto <neu>: entfernt

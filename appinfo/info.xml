@@ -67,6 +67,7 @@
 - Connects MCP assistants (Claude, ChatGPT, n8n, your own agent) to Nextcloud; every request runs as the signed-in user (OAuth sign-in; a per-account switch pauses access, one click can disconnect an assistant)
 - Tools: files, calendar, notes, Deck, contacts, Tables, Talk, mail (read, plus drafts that are never sent) and one search across all of it
 - Nothing destructive: no delete, no move, no share; nothing in the background, no telemetry
+- Files and folders with the collaborative tag kein-ki stay invisible to every assistant; occ mcp_connector:exclusion:check shows whether the tag is set up correctly
 
 Together with [Findling](https://apps.nextcloud.com/apps/findling), search hits include the contents of your documents, scans included, with exactly the rights of the asking user.
 
@@ -84,6 +85,7 @@ Requirements:
 - Verbindet MCP-Assistenten (Claude, ChatGPT, n8n, eigene Agenten) mit Nextcloud; jede Anfrage läuft als der angemeldete Nutzer (OAuth-Anmeldung; ein Schalter je Konto pausiert den Zugriff, ein Klick kann einen Assistenten trennen)
 - Werkzeuge: Dateien, Kalender, Notizen, Deck, Kontakte, Tables, Talk, Mail (lesen, dazu Entwürfe, die nie gesendet werden) und eine Suche über alles
 - Nichts Destruktives: kein Löschen, kein Verschieben, kein Teilen; nichts im Hintergrund, keine Telemetrie
+- Dateien und Ordner mit dem kollaborativen Tag kein-ki bleiben für jeden Assistenten unsichtbar; occ mcp_connector:exclusion:check zeigt, ob das Tag richtig eingerichtet ist
 
 Zusammen mit [Findling](https://apps.nextcloud.com/apps/findling) enthalten Suchtreffer die Inhalte Ihrer Dokumente, auch aus Scans, mit genau den Rechten des fragenden Nutzers.
 
@@ -101,6 +103,7 @@ Anforderungen:
 - Connecte les assistants MCP (Claude, ChatGPT, n8n, vos propres agents) à Nextcloud ; chaque requête s'exécute comme l'utilisateur connecté (connexion OAuth ; un interrupteur par compte suspend l'accès, un clic peut déconnecter un assistant)
 - Outils : fichiers, calendrier, notes, Deck, contacts, Tables, Talk, mail (lecture, plus des brouillons jamais envoyés) et une recherche sur tout
 - Rien de destructif : pas de suppression, pas de déplacement, pas de partage ; rien en arrière-plan, pas de télémétrie
+- Les fichiers et dossiers portant l'étiquette collaborative kein-ki restent invisibles pour tout assistant ; occ mcp_connector:exclusion:check indique si l'étiquette est correctement configurée
 
 Avec [Findling](https://apps.nextcloud.com/apps/findling), les résultats de recherche incluent le contenu de vos documents, numérisations comprises, avec exactement les droits de l'utilisateur qui demande.
 
@@ -113,7 +116,7 @@ Prérequis :
 - Nextcloud 32 à 35 avec l'application AppAPI ; fonctionne comme External App
 - Ou sans AppAPI, depuis la 0.2.0 : exploité à côté de votre Nextcloud, le consentement étant confirmé par votre connexion OIDC ; guide : docs/standalone-oauth.md dans le code source
 - n8n parle MCP nativement depuis la 1.119.0 ; guide : docs/n8n-setup.md dans le code source]]></description>
-	<version>0.3.2</version>
+	<version>0.4.0</version>
 	<licence>agpl</licence>
 	<author mail="admin@infranode.dev">street1983nk</author>
 	<namespace>McpConnector</namespace>
@@ -265,6 +268,17 @@ Prérequis :
 		  - declaration to work, and the handler carries the same double check. It changes
 		  - nothing, opens no session and writes no audit row, which is why it has no
 		  - mandatory option. A test asserts that this path is declared in no url below.
+		  -
+		  - The eighth deliberately absent path is /exclusion-check, added in plan 29-05. It
+		  - is the handler of the occ command mcp_connector:exclusion:check, which reads the
+		  - tag names, access levels, delegation groups and assignment counts of the whole
+		  - instance while impersonating an account of the instance (an administrator only
+		  - when the admin option names one). A declaration would hand that
+		  - picture to anyone who can reach the PHP proxy, which attaches valid AppAPI headers
+		  - itself (T-02-20, T-29-12). AppAPI calls this path over PublicFunctions like the
+		  - seven above, so it needs no declaration to work, and the handler carries the same
+		  - double check. It changes nothing, which is why it has no mandatory option. A test
+		  - asserts that this path is declared in no url below.
 		  -
 		  - Order matters: the first route that matches path and verb wins, and its access
 		  - level decides alone.

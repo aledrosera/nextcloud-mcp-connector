@@ -9,6 +9,46 @@ All notable changes to this app are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.4.0] - 2026-10-01
+
+### Added
+
+- Files and folders that carry the collaborative system tag `kein-ki` (any casing, every variant
+  with the same name) no longer appear in any tool answer: not as a hit, content, snippet, digest
+  or file name. A tagged item answers exactly like a missing one. When the tag cannot be checked,
+  the affected answer fails closed with one `degraded` entry. This covers files, unified search
+  and fetch, notes, Talk, Tables, `prepare_context` and the Findling, Notes and comments hits.
+  Limits and evidence: docs/exclusion.md (EXCL-01..07).
+- `occ mcp_connector:exclusion:check [--admin <uid>] [--json]` reports in seven read-only steps
+  whether the exclusion tag is set up so the connector can enforce it. It never writes (OPS-01).
+- `files_read_as_markdown` reads DOCX, XLSX, PPTX and PDF files as Markdown, in slices with a
+  next offset like `files_read`. The parsers ship as the optional extra `documents`; the ExApp
+  image carries it. An Office file is checked against its own directory listing before anything
+  is inflated, with at most 50 MiB declared in total. A PDF above 500 pages and a workbook above
+  50 sheets are refused. A sheet or a Word table gives at most 256 columns and 10000 rows, and the
+  Markdown of one file stops at 8388608 characters with a note. A PDF with only an owner password
+  opens; a PDF that needs a user password is refused. Each conversion runs in its own worker
+  process with a 512 MiB address-space limit and a 30 second wall clock, at most two at once;
+  a PDF stream above 4 MiB decoded is refused before it is parsed. The tool asks the `kein-ki`
+  guard alongside the stat, as `files_read` does (TOOL-14).
+
+### Fixed
+
+- `occ mcp_connector:exchange:check` is registered again. Its description was 325 characters,
+  AppAPI stores a command description in a column of 255, and MariaDB refuses the row where
+  SQLite truncates it, so on a MariaDB instance the command never appeared in `occ list`. The
+  description now fits, and a test holds every command to that limit.
+
+### Changed
+
+- The "This link has expired" page now also says to open the link in the browser where you
+  are signed in to Nextcloud. The page answers every refused authorization decision, and the
+  most common one that is no expiry is an assistant app that shows the consent screen in its
+  own window while the sign-in happened in another browser
+  ([#11](https://github.com/street1983nk/nextcloud-mcp-connector/issues/11)).
+
 ## [0.3.2] - 2026-09-29
 
 ### Fixed
@@ -852,6 +892,8 @@ First release, submitted to the Nextcloud App Store.
   never sees more than that user sees in the web interface.
 - A privacy and data flow description, see [docs/privacy.md](docs/privacy.md).
 
+[Unreleased]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.2.1...v0.3.0

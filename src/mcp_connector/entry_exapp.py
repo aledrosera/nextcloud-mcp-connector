@@ -40,6 +40,7 @@ from .exapp.audit_read import audit_read_routes
 from .exapp.audit_verify import audit_verify_routes
 from .exapp.browser_identity import AppApiBrowserIdentitySource
 from .exapp.exchange_check import exchange_check_routes
+from .exapp.exclusion_check import exclusion_check_routes
 from .exapp.lifecycle import lifecycle_routes
 from .exapp.middleware import RequireAppApi
 from .exapp.purge import purge_routes
@@ -384,6 +385,7 @@ def build_exapp_app(env: Mapping[str, str] | None = None) -> Starlette:
         *audit_verify_routes(env, store_provider=audit_store),
         *audit_read_routes(env, store_provider=audit_store),
         *exchange_check_routes(env, config=exchange_config),
+        *exclusion_check_routes(env),
     ):
         app.router.routes.append(route)
     return app

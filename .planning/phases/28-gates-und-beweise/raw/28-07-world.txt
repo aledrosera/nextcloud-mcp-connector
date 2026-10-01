@@ -1,0 +1,90 @@
+
+# 28-07 world run 2026-09-28 14:26:46 +0200
+# nextcloud=35.0.0 container=nc35-nc head=0559123 user=alice user2=bob
+# stamm=kanarie28x2fe8f5a1 marker=mk135910b4f13e42f4954cc4a6c4eb569a kontroll-marker=ckc92c45b215f3415d9b5e540ffcb013be
+# pfade: getaggt=/kanarie28x2fe8f5a1/kanarie28x2fe8f5a1-mk135910b4f13e42f4954cc4a6c4eb569a.txt gesperrt=/kanarie28x2fe8f5a1/Gesperrt-2fe8f5a1 gesperrt-datei=/kanarie28x2fe8f5a1/Gesperrt-2fe8f5a1/inhalt-2fe8f5a1.txt kontrolle=/kanarie28x2fe8f5a1/kanarie28x2fe8f5a1-kontrolle-ckc92c45b215f3415d9b5e540ffcb013be.txt kategorie=/Notes/kanarie28x2fe8f5a1-kat
+WELT dateien: PROPFIND 207 root=22563 tagged_file=22564 locked_dir=22565 locked_file=22566 control_file=22567
+WELT notizen: 3 angelegt und gelistet {'note': '22568', 'category_note': '22570', 'control_note': '22571'}
+WELT talk: raum o4xqfjc8 gelistet, datei geteilt (typ 10)
+WELT datei-raum: bpn3eqt6 gelistet nach Freigabe an bob (typ 0)
+WELT tables-link: tabelle 11 rows/simple 200 roh: [["Verweis"],["{\"title\": \"kanarie28x2fe8f5a1-mk135910b4f13e42f4954cc4a6c4eb569a.txt\", \"value\": \"http:\/\/127.0.0.1:8082\/f\/22564\", \"providerId\": \"files\"}"],["{\"title\": \"kanarie28x2fe8f5a1-kontrolle-ckc92c45b215f3415d9b5e540ffcb013be.txt\", \"value\": \"http:\/\/127.0.0.1:8082\/f\/22567\", \"providerId\": \"files\"}"]]
+WELT kalender-attach: GET 200 ATTACH;FMTTYPE=text/plain;FILENAME=kanarie28x2fe8f5a1-mk135910b4f13e42f4954cc4a6c4eb569a.txt;X-NC-FILE-ID=22564:http://127.0.0.1:8082/f/22564
+WELT deck: board 18 stack 21 karte 31; share typ 12 an karte 31: 200 id 47
+WELT tags: REPORT 207 tag 133 (angelegt) getaggt ['22564', '22565', '22568', '22569'] kontrolle ungetaggt
+WELT deck-anhang: share typ 12 an karte 31: 200 id 47
+WELT argumente locked_dir ohne Marker: ja (/kanarie28x2fe8f5a1/Gesperrt-2fe8f5a1)
+WELT argumente locked_file ohne Marker: ja (/kanarie28x2fe8f5a1/Gesperrt-2fe8f5a1/inhalt-2fe8f5a1.txt)
+WELT argumente tagged_category ohne Marker: ja (kanarie28x2fe8f5a1-kat)
+WELT kontrolle Kontrolldatei per GET mit Kontroll-Marker: ja (200 kontrolle kanarie28x2fe8f5a1 ckc92c45b215f3415d9b5e540ffcb013be)
+WELT kontrolle Kontrollnotiz mit Kontroll-Marker: ja (note 22571 'kanarie28x2fe8f5a1-kontrolle')
+WELT tags getaggte fileids per REPORT: ja (REPORT 207 ziel ['22564', '22565', '22568', '22569'] fehlt [])
+WELT tags Kontrolldatei und Kontrollnotiz ungetaggt: ja (kontrolle ['22567', '22571'] getaggt [])
+WELT tables-link Zeile 1 roh mit dem Namen der getaggten Datei: ja (rows/simple 200)
+WELT kalender-attach Kalenderobjekt roh mit ATTACH auf die getaggte Datei: ja (GET 200 ATTACH;FMTTYPE=text/plain;FILENAME=kanarie28x2fe8f5a1-mk135910b4f13e42f4954cc4a6c4eb569a.txt;X-NC-FILE-ID=22564:http://127.0.0.1:8082/f/22564)
+WELT datei-raum Harness-Raum und Datei-Raum gelistet: ja (raum o4xqfjc8 datei-raum bpn3eqt6)
+WELT deck Board und Karte angelegt, Anhangversuch mit Rohstatus: ja (share typ 12 an karte 31: 200 id 47)
+WELT ledger: ['note note:22572', 'row 69', 'card card:18:21:32', 'event event:kanarie28x2fe8f5a1:kanarie28x2fe8f5a1-werkzeug-a4158886.ics', 'message message:o4xqfjc8:128']
+CLEANUP papierkorb kanarie28x2fe8f5a1: leer
+CLEANUP PROPFIND /kanarie28x2fe8f5a1: 404
+CLEANUP PROPFIND /Notes/kanarie28x2fe8f5a1-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28x2fe8f5a1: entfernt
+CLEANUP share raum 45: 404
+CLEANUP share user2 46: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 11: 404
+CLEANUP kalender kanarie28x2fe8f5a1: 404
+CLEANUP deck board 18: gelöscht
+CLEANUP share deck 47: 404
+CLEANUP tag kein-ki: entfernt
+CLEANUP tool note note:22572: 404
+CLEANUP tool row 69: 404
+CLEANUP tool card card:18:21:32: gelöscht
+CLEANUP tool event event:kanarie28x2fe8f5a1:kanarie28x2fe8f5a1-werkzeug-a4158886.ics: 404
+CLEANUP tool message message:o4xqfjc8:128: 404
+ZUSAMMENFASSUNG 28-07 cleanup: 18 Zeilen, 18 gelesen ok
+
+# 28-07 world run 2026-09-28 14:27:06 +0200
+# nextcloud=35.0.0 container=nc35-nc head=0559123 user=alice user2=bob
+# stamm=kanarie28xf0ea6953 marker=mk3bdfca7abd48484596601bfb28fcd03d kontroll-marker=ckf87a92ea3c464ba6a5765d4533c9cb81
+# pfade: getaggt=/kanarie28xf0ea6953/kanarie28xf0ea6953-mk3bdfca7abd48484596601bfb28fcd03d.txt gesperrt=/kanarie28xf0ea6953/Gesperrt-f0ea6953 gesperrt-datei=/kanarie28xf0ea6953/Gesperrt-f0ea6953/inhalt-f0ea6953.txt kontrolle=/kanarie28xf0ea6953/kanarie28xf0ea6953-kontrolle-ckf87a92ea3c464ba6a5765d4533c9cb81.txt kategorie=/Notes/kanarie28xf0ea6953-kat
+WELT dateien: PROPFIND 207 root=22573 tagged_file=22574 locked_dir=22575 locked_file=22576 control_file=22577
+WELT notizen: 3 angelegt und gelistet {'note': '22578', 'category_note': '22580', 'control_note': '22581'}
+WELT talk: raum dhcm5y5j gelistet, datei geteilt (typ 10)
+WELT datei-raum: d2es7yn4 gelistet nach Freigabe an bob (typ 0)
+WELT tables-link: tabelle 12 rows/simple 200 roh: [["Verweis"],["{\"title\": \"kanarie28xf0ea6953-mk3bdfca7abd48484596601bfb28fcd03d.txt\", \"value\": \"http:\/\/127.0.0.1:8082\/f\/22574\", \"providerId\": \"files\"}"],["{\"title\": \"kanarie28xf0ea6953-kontrolle-ckf87a92ea3c464ba6a5765d4533c9cb81.txt\", \"value\": \"http:\/\/127.0.0.1:8082\/f\/22577\", \"providerId\": \"files\"}"]]
+WELT kalender-attach: GET 200 ATTACH;FMTTYPE=text/plain;FILENAME=kanarie28xf0ea6953-mk3bdfca7abd48484596601bfb28fcd03d.txt;X-NC-FILE-ID=22574:http://127.0.0.1:8082/f/22574
+WELT deck: board 19 stack 22 karte 33; share typ 12 an karte 33: 200 id 50
+WELT tags: REPORT 207 tag 134 (angelegt) getaggt ['22574', '22575', '22578', '22579'] kontrolle ungetaggt
+WELT deck-anhang: share typ 12 an karte 33: 200 id 50
+WELT argumente locked_dir ohne Marker: ja (/kanarie28xf0ea6953/Gesperrt-f0ea6953)
+WELT argumente locked_file ohne Marker: ja (/kanarie28xf0ea6953/Gesperrt-f0ea6953/inhalt-f0ea6953.txt)
+WELT argumente tagged_category ohne Marker: ja (kanarie28xf0ea6953-kat)
+WELT kontrolle Kontrolldatei per GET mit Kontroll-Marker: ja (200 kontrolle kanarie28xf0ea6953 ckf87a92ea3c464ba6a5765d4533c9cb81)
+WELT kontrolle Kontrollnotiz mit Kontroll-Marker: ja (note 22581 'kanarie28xf0ea6953-kontrolle')
+WELT tags getaggte fileids per REPORT: ja (REPORT 207 ziel ['22574', '22575', '22578', '22579'] fehlt [])
+WELT tags Kontrolldatei und Kontrollnotiz ungetaggt: ja (kontrolle ['22577', '22581'] getaggt [])
+WELT tables-link Zeile 1 roh mit dem Namen der getaggten Datei: ja (rows/simple 200)
+WELT kalender-attach Kalenderobjekt roh mit ATTACH auf die getaggte Datei: ja (GET 200 ATTACH;FMTTYPE=text/plain;FILENAME=kanarie28xf0ea6953-mk3bdfca7abd48484596601bfb28fcd03d.txt;X-NC-FILE-ID=22574:http://127.0.0.1:8082/f/22574)
+WELT datei-raum Harness-Raum und Datei-Raum gelistet: ja (raum dhcm5y5j datei-raum d2es7yn4)
+WELT deck Board und Karte angelegt, Anhangversuch mit Rohstatus: ja (share typ 12 an karte 33: 200 id 50)
+WELT ledger: ['note note:22582', 'row 72', 'card card:19:22:34', 'event event:kanarie28xf0ea6953:kanarie28xf0ea6953-werkzeug-159fbe76.ics', 'message message:dhcm5y5j:135']
+CLEANUP papierkorb kanarie28xf0ea6953: leer
+CLEANUP PROPFIND /kanarie28xf0ea6953: 404
+CLEANUP PROPFIND /Notes/kanarie28xf0ea6953-kat: 404
+CLEANUP notes: leer
+CLEANUP talk raum kanarie28xf0ea6953: entfernt
+CLEANUP share raum 48: 404
+CLEANUP share user2 49: 404
+CLEANUP talk datei-raum: entfernt
+CLEANUP table 12: 404
+CLEANUP kalender kanarie28xf0ea6953: 404
+CLEANUP deck board 19: gelöscht
+CLEANUP share deck 50: 404
+CLEANUP tag kein-ki: entfernt
+CLEANUP tool note note:22582: 404
+CLEANUP tool row 72: 404
+CLEANUP tool card card:19:22:34: gelöscht
+CLEANUP tool event event:kanarie28xf0ea6953:kanarie28xf0ea6953-werkzeug-159fbe76.ics: 404
+CLEANUP tool message message:dhcm5y5j:135: 404
+ZUSAMMENFASSUNG 28-07 cleanup: 18 Zeilen, 18 gelesen ok

@@ -11,6 +11,7 @@ encodable as UTF-8.
 
 import base64
 
+import guard_routes
 import httpx
 import pytest
 import respx
@@ -28,6 +29,13 @@ FILES_ROOT = f"{BASE}/remote.php/dav/files/{USER}"
 TARGET = "/Docs/new-note.md"
 TARGET_URL = f"{FILES_ROOT}/Docs/new-note.md"
 CONTENT = "# Neue Notiz\nZeile zwei\n"
+
+
+@pytest.fixture(autouse=True)
+def _no_kein_ki_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests assert the behaviour without any kein-ki tag; the guard states are
+    tested in the *_exclusion test modules."""
+    guard_routes.patch_untagged(monkeypatch)
 
 
 @pytest.fixture

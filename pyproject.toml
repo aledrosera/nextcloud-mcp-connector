@@ -1,6 +1,6 @@
 [project]
 name = "nextcloud-mcp-connector"
-version = "0.3.2"
+version = "0.4.0"
 description = "Curated MCP server for Nextcloud: files, calendar, notes, deck and contacts as read-first tools"
 requires-python = ">=3.13"
 license = "AGPL-3.0-or-later"
@@ -22,6 +22,17 @@ dependencies = [
     "vobject>=0.9.9,<1",
     "pydantic>=2.12,<3",
     "tzdata>=2025.2",
+]
+
+[project.optional-dependencies]
+# Office and PDF to Markdown for files_read_as_markdown (TOOL-14). Optional for standalone
+# installs; the ExApp image always carries it. All four are MIT or BSD-3 licensed;
+# python-pptx pulls in Pillow and XlsxWriter.
+documents = [
+    "python-docx>=1.2,<2",
+    "openpyxl>=3.1,<4",
+    "python-pptx>=1.0,<2",
+    "pypdf>=6.19,<7",
 ]
 
 [project.scripts]
@@ -52,8 +63,12 @@ markers = [
 # The integration directory carries one module that is not a test file,
 # `topology.py`, and the importlib mode above does not put a test's own directory on
 # the import path. This entry does, and only for that directory: the files there import
-# `topology` and nothing else of each other.
-pythonpath = ["tests/integration"]
+# `topology` and nothing else of each other. tests/unit carries exactly one module that is
+# not a test file as well, `guard_routes.py`, the mock helpers of the kein-ki guard.
+# tests/integration also carries `canary_world.py`, the harness of phase 28, next to
+# `topology.py`. tests/contract carries the data modules `tool_classes.py` and
+# `result_shapes.py`, which the canary and the pair tests import.
+pythonpath = ["tests/integration", "tests/unit", "tests/contract"]
 
 [tool.ruff]
 line-length = 100
@@ -85,6 +100,9 @@ typeCheckingMode = "standard"
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
+# The same helper directories pytest puts on the import path (`pythonpath` above), so the
+# type checker resolves `result_shapes` from tests/contract in unit and integration tests too.
+extraPaths = ["tests/integration", "tests/unit", "tests/contract"]
 
 [tool.ruff.lint.isort]
 # Without this, `mcp_connector` is grouped with the third-party `mcp` package,
