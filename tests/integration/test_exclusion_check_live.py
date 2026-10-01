@@ -463,6 +463,8 @@ def test_d_invisible(env: cw.LiveEnv, admin: Admin) -> None:
         assert named.doc["passed"] is False, named.doc
         visible = step_outcome(named.doc, exclusion_audit.STEP_TAG_VISIBLE)
         assert visible == exclusion_audit.OUTCOME_FAILED, named.doc
+        # 29-REVIEW IN-02: an invisible tag still filters for administrators.
+        assert "are NOT excluded for users who are not administrators: 0" in named.text
         anonymous = checked("D", bad)
         assert anonymous.doc["admin_checked"] is False, anonymous.doc
         assert "invisible tags and delegation groups were not checked" in anonymous.text

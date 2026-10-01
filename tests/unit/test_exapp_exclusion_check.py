@@ -433,6 +433,9 @@ def test_an_invisible_exact_tag_is_misconfigured(router: respx.MockRouter) -> No
     assert payload["tags"][0]["access"] == "invisible"
     assert exclusion_check.INVISIBLE_SENTENCE in text
     assert "does not work for users" in text
+    # IN-02: it still filters for administrators, so the warning must not say "for nobody".
+    assert "Items tagged 'kein-ki' are NOT excluded for users who are not administrators: 1" in text
+    assert "Items tagged 'kein-ki' are NOT excluded: 1" not in text
 
 
 def test_only_a_variant_fails(router: respx.MockRouter) -> None:

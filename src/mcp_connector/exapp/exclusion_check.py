@@ -188,6 +188,11 @@ ONLY_VARIANT_SENTENCE = (
 COUNT_SENTENCE = "Items carrying kein-ki (assignments across the instance, trash bin included): {n}"
 COUNT_UNKNOWN_SENTENCE = "The number of items carrying kein-ki could not be read."
 VARIANT_WARNING = "Items tagged '{name}' are NOT excluded: {n}"
+#: An invisible exact tag still filters in administrator sessions (docs, limit-invisible-tag),
+#: so its warning names whom it fails for instead of claiming it filters for nobody (IN-02).
+INVISIBLE_WARNING = (
+    "Items tagged '{name}' are NOT excluded for users who are not administrators: {n}"
+)
 SIMILAR_SENTENCE = "A tag with a similar name is not the exclusion tag: '{name}'"
 NOT_CHECKED_SENTENCE = (
     "Without --admin: invisible tags and delegation groups were not checked; "
@@ -487,7 +492,8 @@ def _sentences(result: AuditResult) -> list[str]:
         )
     for tag in unprotected:
         count = "unknown" if tag.assigned is None else tag.assigned
-        sentences.append(VARIANT_WARNING.format(name=_shown(tag.name), n=count))
+        warning = INVISIBLE_WARNING if kind_of(tag.name) == KIND_EXACT else VARIANT_WARNING
+        sentences.append(warning.format(name=_shown(tag.name), n=count))
     for tag in result.tags:
         if kind_of(tag.name) == KIND_SIMILAR:
             sentences.append(SIMILAR_SENTENCE.format(name=_shown(tag.name)))
