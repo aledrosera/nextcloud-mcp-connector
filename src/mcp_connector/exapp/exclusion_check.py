@@ -163,6 +163,13 @@ NO_VISIBLE_TAG_SENTENCE = (
     f"if none exists, create it with: {CREATE_COMMAND}"
 )
 
+#: The same hint after ``--admin`` was given and not confirmed: no "Run again with --admin",
+#: which the administrator just did; ``UNCONFIRMED_SENTENCE`` says what to change (IN-04).
+NO_VISIBLE_TAG_UNCONFIRMED_SENTENCE = (
+    "Hint: no visible kein-ki tag exists; invisible tags were not checked, because the named "
+    f"administrator could not be confirmed. If none exists, create it with: {CREATE_COMMAND}"
+)
+
 MODE_SENTENCES: Final[dict[str, str]] = {
     MODE_SELF_SERVICE: (
         "Self service: every user who can see a file can set and remove kein-ki on it."
@@ -453,21 +460,23 @@ def _report(result: AuditResult, *, reason: str | None, unconfirmed: bool) -> st
     if not result.checked and unconfirmed:
         lines.append(UNCONFIRMED_STOPPED_SENTENCE)
     if result.checked:
-        lines.extend(_sentences(result))
+        lines.extend(_sentences(result, unconfirmed=unconfirmed))
         if not result.admin_checked:
             lines.append(UNCONFIRMED_SENTENCE if unconfirmed else NOT_CHECKED_SENTENCE)
     lines.append(LIMIT_SENTENCE)
     return "\n".join(lines) + "\n"
 
 
-def _sentences(result: AuditResult) -> list[str]:
+def _sentences(result: AuditResult, *, unconfirmed: bool = False) -> list[str]:
     """What a checked verdict means, in the order an administrator acts on it."""
     sentences: list[str] = []
     exists = next(s for s in result.steps if s.step == STEP_TAG_EXISTS)
     if exists.note == "no_tag":
         sentences.append(NO_TAG_SENTENCE)
     elif exists.note == "no_visible_tag":
-        sentences.append(NO_VISIBLE_TAG_SENTENCE)
+        sentences.append(
+            NO_VISIBLE_TAG_UNCONFIRMED_SENTENCE if unconfirmed else NO_VISIBLE_TAG_SENTENCE
+        )
 
     exact = [t for t in result.tags if kind_of(t.name) == KIND_EXACT]
     visible_exact = [t for t in exact if t.visible]

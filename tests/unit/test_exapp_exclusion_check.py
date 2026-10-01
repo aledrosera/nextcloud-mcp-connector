@@ -566,7 +566,9 @@ def test_no_tag_with_an_unconfirmable_administrator_stays_a_hint(router: respx.M
     assert NO_VISIBLE_TAG in text
     assert NO_TAG not in text
     assert CREATE_COMMAND in text
-    assert text.index(ALSO_INVISIBLE) < text.index(CREATE_COMMAND)
+    # IN-04: --admin was given, so no "Run again with --admin=<uid>" beside the hint.
+    assert ALSO_INVISIBLE not in text
+    assert exclusion_check.NO_VISIBLE_TAG_UNCONFIRMED_SENTENCE in text
     request = listed.calls.last.request
     assert user_of(request) == ADMIN_UID
     assert b"groups" not in request.content
