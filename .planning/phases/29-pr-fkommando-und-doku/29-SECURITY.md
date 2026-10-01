@@ -1,8 +1,8 @@
 ---
 phase: 29
 slug: pr-fkommando-und-doku
-status: open
-threats_open: 1
+status: verified
+threats_open: 0
 asvs_level: 1
 block_on: high
 register_authored_at_plan_time: true
@@ -41,7 +41,7 @@ audited_head: 2d4cf5d
 | T-29-01 | Tampering | Testinstanz-Zustand nach Messung | mitigate | `scripts/exclusion_evidence.py`: `preflight()` Z. 983-1008 (Tags, Gruppen, Config-Schlüssel, deaktiviertes Konto; IN-07), Abbruch `return 2` vor jeder Änderung Z. 1050-1053; `try/finally cleanup()` Z. 1057-1065; `cleanup()` Z. 928-975 mit Rückleseprobe und `CLEANUP`-Zeile je Objekt, `config:app:delete` + `config:app:get` | closed |
 | T-29-02 | Information Disclosure | APP_SECRET/Passwörter im Rohprotokoll | mitigate | `EXAPP_DAV_PROGRAM` Z. 97-125 druckt nur `status_code` und `text`, nie Header; curl-Zugangsdaten per `--config -` über stdin (Z. 315-343, IN-08), Protokoll zeigt `<passwort>`; Gegenprobe: kein Wert aus `.env.nc35` (PASSWORD/SECRET) und nicht `NEXTCLOUD_ADMIN_PASSWORD` aus compose.nc35.yml in `raw/*` oder `docs/exclusion*.md`; kein `AUTHORIZATION-APP-API` in `raw/*` | closed |
 | T-29-03 | Elevation of Privilege | Impersonation als admin im Messskript | accept | siehe Accepted Risks AR-29-01; Gegenprobe: alle `exapp(...)`-Aufrufe sind PROPFIND (Z. 483, 499) oder GET (Z. 531, 604) | closed |
-| T-29-04 | Denial of Service | Lokale Maschine mit wenig RAM | mitigate | Nur als Arbeitsanweisung in 29-01-PLAN.md Task 2 (Z. 127); kein Beleg in 29-01-SUMMARY.md oder raw/29-01-messungen.txt, dass die RAM-Prüfung vor den Läufen stattfand | open |
+| T-29-04 | Denial of Service | Lokale Maschine mit wenig RAM | mitigate (accepted) | siehe AR-29-03; nur als Arbeitsanweisung in 29-01-PLAN.md Task 2 (Z. 127); kein Beleg in 29-01-SUMMARY.md oder raw/29-01-messungen.txt, dass die RAM-Prüfung vor den Läufen stattfand | closed |
 | T-29-05 | Tampering | Grünes Fehlurteil bei unlesbarer Liste | mitigate | `exclusion_audit.py` Z. 286 (`if not listing_ok`), Z. 210 (`assigned is None` -> failed); Tests `test_unreadable_listing_is_never_no_tag` (Z. 264), `test_uncounted_exact_tag_fails` (Z. 308) | closed |
 | T-29-06 | Information Disclosure | Objekt-Ids/Pfade im Ergebnis | mitigate | `TagFacts` Z. 122-132 nur id (Tag-Id), Name, Flags, gids, Zahl; `test_tag_facts_have_no_field_for_an_object_id` (Z. 344) über `dataclasses.fields` | closed |
 | T-29-07 | Spoofing | Homoglyphen-Tag gilt nicht als Variante | accept | siehe AR-29-02; Modul-Docstring `exclusion_audit.py` Z. 21-22 benennt die Grenze | closed |
@@ -103,6 +103,7 @@ Informativ, mit Registerbezug: WR-02 (Delegations-Admin) -> T-29-11/T-29-13, beh
 |---------|------------|-----------|-------------|------|
 | AR-29-01 | T-29-03 | Impersonation als admin nur im Messskript gegen die lokale Wegwerf-Instanz nc35, unter Impersonation nur lesend (PROPFIND/GET, im Code geprüft); Schreiben über occ bzw. Basic-Auth der Testkonten | Plan 29-01 Bedrohungsmodell (Planzeit) | 2026-10-01 |
 | AR-29-02 | T-29-07 | Homoglyphen (z. B. kyrillisches i) überstehen NFKC; keine Confusables-Tabelle, bewusste Grenze (29-RESEARCH.md Frage 3, LOW), im Modul-Docstring benannt | Plan 29-02 Bedrohungsmodell (Planzeit) | 2026-10-01 |
+| AR-29-03 | T-29-04 | RAM-Prüfung vor den Messläufen 29-01/29-06 nicht belegt; reine Verfügbarkeit des Arbeitsplatzrechners, Läufe abgeschlossen, Docker gestoppt | Owner 2026-10-01 | 2026-10-01 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -113,6 +114,7 @@ Informativ, mit Registerbezug: WR-02 (Delegations-Admin) -> T-29-11/T-29-13, beh
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-10-01 | 31 | 30 | 1 (T-29-04, niedrig, nicht blockierend) | gsd-security-auditor |
+| 2026-10-01 | 31 | 31 | 0 (T-29-04 vom Owner als AR-29-03 akzeptiert) | Owner |
 
 Lokal ausgeführt (kein Docker, kein Live-Lauf): `pytest` über test_store_texts_frozen, test_exclusion_audit, test_systemtags_details, test_exapp_exclusion_check, test_docs_exclusion_truth, test_exapp_lifecycle, test_no_destructive_calls, alle grün.
 
@@ -122,7 +124,7 @@ Lokal ausgeführt (kein Docker, kein Live-Lauf): `pytest` über test_store_texts
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed
-- [ ] `status: verified` set in frontmatter
+- [x] `threats_open: 0` confirmed
+- [x] `status: verified` set in frontmatter
 
-**Approval:** pending (T-29-04 offen, W-29-01 vor dem Push klären)
+**Approval:** verified 2026-10-01 (T-29-04 als AR-29-03 akzeptiert; W-29-01 Doku-Nachtrag vor dem Push vom Owner durchsehen)
