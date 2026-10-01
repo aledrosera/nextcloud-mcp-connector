@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: verifying
-stopped_at: Completed 29-09-PLAN.md
-last_updated: "2026-10-01T10:23:35.122Z"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 29 was final phase)
+last_updated: 2026-10-01T12:24:11.131Z
 last_activity: 2026-10-01
 progress:
   total_phases: 5
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-26)
 
 **Core value:** Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
-**Current focus:** Phase 29 — prüfkommando und doku
+**Current focus:** Milestone complete
 
 ## Current Position
 
 Phase: 29
-Plan: 9 of 9 (29-01 bis 29-09 fertig)
-Status: Phase complete, ready for verification
+Plan: Not started
+Status: Milestone complete
 Last activity: 2026-10-01
 
 Progress: [██████████] 100%
@@ -36,7 +36,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 163
+- Total plans completed: 172
 - Average duration: 35 min
 - Total execution time: 15.2 hours
 
@@ -66,6 +66,7 @@ Progress: [██████████] 100%
 | 26 | 2 | - | - |
 | 27 | 10 | - | - |
 | 28 | 12 | - | - |
+| 29 | 9 | - | - |
 
 **Recent Trend:**
 
