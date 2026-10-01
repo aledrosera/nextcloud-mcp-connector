@@ -446,6 +446,55 @@ def test_an_exact_tag_beside_a_variant_passes_with_a_warning(router: respx.MockR
     assert "Items tagged 'keinki' are NOT excluded: 2" in text
 
 
+@pytest.mark.parametrize(
+    ("xml_name", "shown"),
+    [
+        ("kein&#13;-ki", "kein\\u000d-ki"),
+        ("kein\n-ki", "kein\\u000a-ki"),
+        ("kein-ki‮", "kein-ki\\u202e"),
+        ("kein\u0085-ki", "kein\\u0085-ki"),
+    ],
+)
+def test_a_variant_name_with_control_characters_is_escaped_in_the_text(
+    router: respx.MockRouter, xml_name: str, shown: str
+) -> None:
+    """WR-03: CR, LF, C1 and bidi characters of a user made name never reach the console raw."""
+    admin_proof(router, ADMIN_YES)
+    tag_listing(router, listing(tag("195", "kein-ki", groups=""), tag("202", xml_name, groups="")))
+    tag_count(router, "195", 1)
+    tag_count(router, "202", 1)
+
+    text = call(admin=ADMIN_UID).text
+    payload = call(admin=ADMIN_UID, as_json=True).json()
+
+    assert f"Items tagged '{shown}' are NOT excluded: 1" in text
+    assert not any(ch in text for ch in "\r\x1b‮\u0085")
+    assert len(text.splitlines()) == text.count("\n")
+    assert payload["unprotected"] == 1
+
+
+def test_a_similar_name_and_a_group_with_control_characters_are_escaped(
+    router: respx.MockRouter,
+) -> None:
+    """WR-03: the 8-bit CSI (U+009B) starts an ANSI sequence on many terminals."""
+    admin_proof(router, ADMIN_YES)
+    tag_listing(
+        router,
+        listing(
+            tag("194", "kein-ki", assignable=False, groups="ki&#13;grp"),
+            tag("203", "keinki\u009bF", groups=""),
+        ),
+    )
+    tag_count(router, "194", 1)
+
+    text = call(admin=ADMIN_UID).text
+
+    assert "A tag with a similar name is not the exclusion tag: 'keinki\\u009bF'" in text
+    assert "only members of ki\\u000dgrp and administrators" in text
+    assert "\u009b" not in text
+    assert "\r" not in text
+
+
 def test_other_and_similar_tags_are_never_counted(router: respx.MockRouter) -> None:
     admin_proof(router, ADMIN_YES)
     tag_listing(

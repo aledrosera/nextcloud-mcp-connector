@@ -467,10 +467,10 @@ def _sentences(result: AuditResult) -> list[str]:
         )
     for tag in unprotected:
         count = "unknown" if tag.assigned is None else tag.assigned
-        sentences.append(VARIANT_WARNING.format(name=tag.name, n=count))
+        sentences.append(VARIANT_WARNING.format(name=_shown(tag.name), n=count))
     for tag in result.tags:
         if kind_of(tag.name) == KIND_SIMILAR:
-            sentences.append(SIMILAR_SENTENCE.format(name=tag.name))
+            sentences.append(SIMILAR_SENTENCE.format(name=_shown(tag.name)))
     return sentences
 
 
@@ -485,7 +485,22 @@ def _mode_sentence(visible_exact: Sequence[TagFacts]) -> str | None:
     groups = sorted({gid for t in visible_exact for gid in t.groups or ()})
     if not groups:
         return ADMINS_ONLY_SENTENCE
-    return MODE_SENTENCES[MODE_ORGANISATION].format(groups=", ".join(groups))
+    return MODE_SENTENCES[MODE_ORGANISATION].format(groups=", ".join(_shown(g) for g in groups))
+
+
+def _shown(name: str) -> str:
+    """A name from Nextcloud made safe for a terminal: every category C character escaped.
+
+    Without ``restrict_creation_to_admin`` any account may create a tag, and the text answer
+    goes straight to the console of an administrator. A carriage return, a line feed, an ESC
+    starting an ANSI sequence, any other C0 or C1 control and the format characters (bidi
+    overrides, zero width) would let such a name overwrite or reorder the lines around it
+    (29-REVIEW WR-03). They are written as ``\\uXXXX`` instead, visible and inert, whatever
+    Nextcloud itself accepts; the JSON answer needs nothing, ``json.dumps`` escapes there.
+    """
+    return "".join(
+        f"\\u{ord(ch):04x}" if unicodedata.category(ch).startswith("C") else ch for ch in name
+    )
 
 
 def _line(step: AuditStep) -> str:
