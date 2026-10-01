@@ -140,7 +140,8 @@ Its output names counts, tag names and delegation groups, never a file, a path o
 
 It checks seven steps in this order:
 
-1. `admin_identity`: the account named with `--admin` is an administrator.
+1. `admin_identity`: the account named with `--admin` is an administrator (`not_checked` with
+   `admin_unconfirmed` when it could not be confirmed, for example a mistyped uid).
 2. `tag_listing_readable`: the tag listing of the instance can be read.
 3. `tag_exists`: a tag named exactly `kein-ki` exists (case ignored, as the connector filters).
 4. `tag_visible`: that tag is visible to users.

@@ -146,7 +146,8 @@ fichier, un chemin ou un compte.
 
 Elle vérifie sept étapes dans cet ordre :
 
-1. `admin_identity` : le compte nommé avec `--admin` est administrateur.
+1. `admin_identity` : le compte nommé avec `--admin` est administrateur (`not_checked` avec
+   `admin_unconfirmed` s'il n'a pas pu être confirmé, par exemple un uid mal saisi).
 2. `tag_listing_readable` : la liste des étiquettes de l'instance est lisible.
 3. `tag_exists` : une étiquette nommée exactement `kein-ki` existe (casse ignorée, comme le
    filtre du connecteur).

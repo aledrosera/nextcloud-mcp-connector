@@ -142,7 +142,8 @@ ein Konto.
 
 Es prüft sieben Schritte in dieser Reihenfolge:
 
-1. `admin_identity`: Das mit `--admin` genannte Konto ist Administrator.
+1. `admin_identity`: Das mit `--admin` genannte Konto ist Administrator (`not_checked` mit
+   `admin_unconfirmed`, wenn es sich nicht bestätigen ließ, etwa bei einer vertippten uid).
 2. `tag_listing_readable`: Die Tag-Liste der Instanz ist lesbar.
 3. `tag_exists`: Ein Tag namens genau `kein-ki` existiert (Groß/Klein egal, wie der Connector
    filtert).

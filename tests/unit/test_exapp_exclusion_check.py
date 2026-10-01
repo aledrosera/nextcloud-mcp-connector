@@ -503,6 +503,53 @@ def test_no_tag_with_an_unconfirmable_administrator_stays_a_hint(router: respx.M
     assert b"groups" not in request.content
 
 
+def test_a_mistyped_admin_is_named_as_unconfirmed_and_not_as_absent(
+    router: respx.MockRouter,
+) -> None:
+    """WR-01: an unknown uid gives 401 twice; the answer must not read "no --admin given"."""
+    admin_proof(router, None).mock(return_value=httpx.Response(401, text=""))
+    tag_listing(router, b"").mock(return_value=httpx.Response(401))
+
+    text = call(admin=ADMIN_UID).text
+    payload = call(admin=ADMIN_UID, as_json=True).json()
+
+    identity = payload["steps"][0]
+    assert identity["step"] == exclusion_audit.STEP_ADMIN_IDENTITY
+    assert identity["outcome"] == exclusion_audit.OUTCOME_NOT_CHECKED
+    assert identity["note"] == exclusion_audit.NOTE_ADMIN_UNCONFIRMED
+    assert payload["passed"] is False
+    assert "(admin_unconfirmed)" in text
+    assert "admin_not_named" not in text
+    assert exclusion_check.UNCONFIRMED_STOPPED_SENTENCE in text
+    assert ADMIN_UID not in text
+
+
+def test_an_unconfirmed_admin_in_a_checked_run_carries_the_same_note(
+    router: respx.MockRouter,
+) -> None:
+    admin_proof(router, None).mock(return_value=httpx.Response(500, text="oops"))
+    tag_listing(router, listing(tag("195", "kein-ki")))
+    tag_count(router, "195", 1)
+
+    payload = call(admin=ADMIN_UID, as_json=True).json()
+    text = call(admin=ADMIN_UID).text
+
+    assert payload["checked"] is True
+    assert payload["steps"][0]["note"] == exclusion_audit.NOTE_ADMIN_UNCONFIRMED
+    assert UNCONFIRMED in text
+    assert exclusion_check.UNCONFIRMED_STOPPED_SENTENCE not in text
+
+
+def test_without_admin_the_identity_note_stays_not_named(router: respx.MockRouter) -> None:
+    router.get(USERS).mock(return_value=httpx.Response(200, json=users_answer(READER_UID)))
+    tag_listing(router, listing(tag("195", "kein-ki")))
+    tag_count(router, "195", 1)
+
+    payload = call(as_json=True).json()
+
+    assert payload["steps"][0]["note"] == exclusion_audit.NOTE_ADMIN_NOT_NAMED
+
+
 def test_a_timeout_of_the_admin_proof_is_the_same_way(router: respx.MockRouter) -> None:
     admin_proof(router, None).mock(side_effect=httpx.ReadTimeout("slow"))
     tag_listing(router, listing())

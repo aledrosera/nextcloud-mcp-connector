@@ -223,6 +223,17 @@ def test_without_admin_visibility_is_not_checked_and_can_be_green() -> None:
     assert result.mode == ea.MODE_SELF_SERVICE
 
 
+def test_a_named_but_unproven_admin_is_not_read_as_no_option() -> None:
+    """WR-01: ``--admin`` set and not proven is its own state, checked or stopped."""
+    checked = outcomes(ea.audit([PUBLIC], admin_checked=False, admin_named=True))
+    stopped = outcomes(ea.audit([], admin_checked=False, listing_ok=False, admin_named=True))
+
+    expected = (ea.OUTCOME_NOT_CHECKED, ea.NOTE_ADMIN_UNCONFIRMED)
+    assert checked[ea.STEP_ADMIN_IDENTITY] == expected
+    assert stopped[ea.STEP_ADMIN_IDENTITY] == expected
+    assert ea.NOTE_ADMIN_UNCONFIRMED != ea.NOTE_ADMIN_NOT_NAMED == "admin_not_named"
+
+
 def test_without_admin_groups_are_not_checked() -> None:
     restricted = tag("kein-ki", assignable=False, groups=None, assigned=1)
     result = ea.audit([restricted], admin_checked=False)

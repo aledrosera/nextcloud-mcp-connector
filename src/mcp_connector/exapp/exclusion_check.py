@@ -194,6 +194,11 @@ UNCONFIRMED_SENTENCE = (
     "The named administrator could not be confirmed; invisible tags and delegation groups "
     "were not checked; run again with --admin=<uid> of an administrator."
 )
+UNCONFIRMED_STOPPED_SENTENCE = (
+    "The account named with --admin could not be confirmed as an administrator, and the "
+    "listing read as that account failed: check the uid; an unknown or mistyped uid answers "
+    "this way."
+)
 NOT_ADMIN_SENTENCE = (
     "the account named with --admin is not an administrator of this instance; nothing was checked."
 )
@@ -313,7 +318,9 @@ async def _run(
         unconfirmed = not admin_checked
         listing, why = await _read_listing(client, reader, with_groups=admin_checked)
         if listing is None:
-            result = audit((), admin_checked=admin_checked, listing_ok=False)
+            result = audit(
+                (), admin_checked=admin_checked, listing_ok=False, admin_named=unconfirmed
+            )
             reason = LISTING_FAILED_SENTENCE.format(why=why)
             return _finish(result, reason=reason, unconfirmed=unconfirmed)
     else:
@@ -326,7 +333,7 @@ async def _run(
 
     details = [t for t in listing.tags if admin_checked or t.visible]
     facts = [await _facts(client, reader, detail) for detail in details]
-    result = audit(facts, admin_checked=admin_checked)
+    result = audit(facts, admin_checked=admin_checked, admin_named=unconfirmed)
     return _finish(result, reason=None, unconfirmed=unconfirmed)
 
 
@@ -418,6 +425,8 @@ def _report(result: AuditResult, *, reason: str | None, unconfirmed: bool) -> st
     lines.extend(_line(step) for step in result.steps)
     if reason is not None:
         lines.append(reason)
+    if not result.checked and unconfirmed:
+        lines.append(UNCONFIRMED_STOPPED_SENTENCE)
     if result.checked:
         lines.extend(_sentences(result))
         if not result.admin_checked:

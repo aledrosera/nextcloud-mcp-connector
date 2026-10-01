@@ -51,6 +51,8 @@ __all__ = [
     "MODE_NONE",
     "MODE_ORGANISATION",
     "MODE_SELF_SERVICE",
+    "NOTE_ADMIN_NOT_NAMED",
+    "NOTE_ADMIN_UNCONFIRMED",
     "OUTCOME_FAILED",
     "OUTCOME_NOTE",
     "OUTCOME_NOT_CHECKED",
@@ -89,6 +91,10 @@ MODE_MISCONFIGURED: Final[str] = "misconfigured"
 
 #: A finding that does not tip the verdict, with its reason in ``AuditStep.note``.
 OUTCOME_NOTE: Final[str] = "note"
+
+#: Why ``admin_identity`` was not checked: no ``--admin`` at all, or one that was not proven.
+NOTE_ADMIN_NOT_NAMED: Final[str] = "admin_not_named"
+NOTE_ADMIN_UNCONFIRMED: Final[str] = "admin_unconfirmed"
 
 STEP_ADMIN_IDENTITY: Final[str] = "admin_identity"
 STEP_TAG_LISTING_READABLE: Final[str] = "tag_listing_readable"
@@ -207,14 +213,14 @@ def _sum(tags: Sequence[TagFacts]) -> int | None:
     return total
 
 
-def _stopped(at: str, *, admin_checked: bool) -> AuditResult:
+def _stopped(at: str, *, admin_checked: bool, admin_named: bool = False) -> AuditResult:
     """A run that fell at ``at``: every step before it held, every step after it skipped."""
     steps: list[AuditStep] = []
     for step in STEPS:
         if step == at:
             steps.append(AuditStep(step, OUTCOME_FAILED))
         elif len(steps) < STEPS.index(at):
-            steps.append(_identity_step(admin_checked=admin_checked))
+            steps.append(_identity_step(admin_checked=admin_checked, admin_named=admin_named))
         else:
             steps.append(AuditStep(step, OUTCOME_SKIPPED))
     return AuditResult(
@@ -229,10 +235,17 @@ def _stopped(at: str, *, admin_checked: bool) -> AuditResult:
     )
 
 
-def _identity_step(*, admin_checked: bool) -> AuditStep:
+def _identity_step(*, admin_checked: bool, admin_named: bool = False) -> AuditStep:
+    """Passed for a proven administrator; otherwise why not: none named, or named unproven.
+
+    ``admin_unconfirmed`` keeps a mistyped or unknown uid apart from a run without
+    ``--admin`` (29-REVIEW WR-01), so neither the console nor a script reads "no option set"
+    where an option was set and could not be proven.
+    """
     if admin_checked:
         return AuditStep(STEP_ADMIN_IDENTITY, OUTCOME_PASSED)
-    return AuditStep(STEP_ADMIN_IDENTITY, OUTCOME_NOT_CHECKED, "admin_not_named")
+    note = NOTE_ADMIN_UNCONFIRMED if admin_named else NOTE_ADMIN_NOT_NAMED
+    return AuditStep(STEP_ADMIN_IDENTITY, OUTCOME_NOT_CHECKED, note)
 
 
 def _mode_step(visible_exact: Sequence[TagFacts]) -> tuple[str, AuditStep]:
@@ -260,6 +273,7 @@ def audit(
     admin_checked: bool,
     admin_failed: bool = False,
     listing_ok: bool = True,
+    admin_named: bool = False,
 ) -> AuditResult:
     """Judge the tags of one instance. Always seven steps; ``passed`` false on any failure.
 
@@ -270,7 +284,9 @@ def audit(
     if admin_failed:
         return _stopped(STEP_ADMIN_IDENTITY, admin_checked=admin_checked)
     if not listing_ok:
-        return _stopped(STEP_TAG_LISTING_READABLE, admin_checked=admin_checked)
+        return _stopped(
+            STEP_TAG_LISTING_READABLE, admin_checked=admin_checked, admin_named=admin_named
+        )
 
     seen = [t for t in tags if admin_checked or t.visible]
     kinds = {id(t): kind_of(t.name) for t in seen}
@@ -282,7 +298,7 @@ def audit(
     invisible_exact = [t for t in exact if not t.visible]
 
     steps = [
-        _identity_step(admin_checked=admin_checked),
+        _identity_step(admin_checked=admin_checked, admin_named=admin_named),
         AuditStep(STEP_TAG_LISTING_READABLE, OUTCOME_PASSED),
     ]
     visibility_unchecked = AuditStep(
