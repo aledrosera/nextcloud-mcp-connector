@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
 status: executing
-stopped_at: Completed 29-01-PLAN.md
-last_updated: "2026-10-01T05:30:39.047Z"
+stopped_at: Completed 29-03-PLAN.md
+last_updated: "2026-10-01T05:52:46.660Z"
 last_activity: 2026-10-01
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 38
-  completed_plans: 31
+  completed_plans: 32
   percent: 80
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-09-26)
 ## Current Position
 
 Phase: 29
-Plan: 3 of 9 (29-01 fertig)
+Plan: 4 of 9 (29-01 bis 29-03 fertig)
 Status: Ready to execute
 Last activity: 2026-10-01
 
-Progress: [████████░░] 82%
+Progress: [████████░░] 84%
 
 ## Performance Metrics
 
@@ -214,6 +214,7 @@ Progress: [████████░░] 82%
 | Phase 22 P02 | 35 | 3 tasks | 11 files |
 | Phase 22 P03 | 21 min | 2 tasks | 9 files |
 | Phase 29 P01 | 25min | 2 tasks | 2 files |
+| Phase 29 P03 | 25min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -766,6 +767,7 @@ Recent decisions affecting current work:
 - [Phase 22]: Im Aus-Zustand haengt an der MCP-Route gar kein Drossel-Wrapper, nicht einer, der alles durchlaesst: ein solcher waere heute nicht unterscheidbar und morgen ein anderer Codepfad; im bewaffneten Fall sitzt er aussen um die Transportgrenze, weil die gezaehlte Ablehnung der 401 dieser Grenze ist (22-03)
 - [Phase 29]: 29-01: Admin-Nachweis über cloud/groups/admin/users (200/403); oc:groups als Nicht-Admin kippt ganze PROPFIND auf 403
 - [Phase 29]: 29-01: Zählung über innere nc:object-ids mit nc:type=files (nc:id ist Index); ohne --admin erstes AppAPI-Konto mit 207, nur user-visible
+- [Phase 29]: 29-03: confirm_admin nur Kandidat b (200+OCS 200 True, 403+OCS 403 False, sonst None); Zählung über innere nc:object-ids per sum(), ObjectCount ohne Id-Feld
 
 ### Pending Todos
 
@@ -821,9 +823,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T05:30:39.028Z
-Stopped at: Completed 29-01-PLAN.md
-Nächster Schritt: 29-02 ff. (execute-phase 29), nc35 vor 29-06 neu starten
+Last session: 2026-10-01T05:52:35.225Z
+Stopped at: Completed 29-03-PLAN.md
+Nächster Schritt: 29-04 ff. (execute-phase 29; 29-04 leert den vulture-Abschnitt von 29-03), nc35 vor 29-06 neu starten
 Resume file: None
 
 ## Operator Next Steps

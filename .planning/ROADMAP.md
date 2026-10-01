@@ -301,7 +301,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 29-03-PLAN.md , Client: list_tag_details, count_tag_objects, confirm_admin nach Messung
+- [x] 29-03-PLAN.md , Client: list_tag_details, count_tag_objects, confirm_admin nach Messung
 
 **Wave 3**
 
@@ -359,7 +359,7 @@ Plans:
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
 | 28. Gates und Beweise | v1.7 | 12/12 | Complete    | 2026-10-01 |
-| 29. Prüfkommando und Doku | v1.7 | 2/9 | In Progress|  |
+| 29. Prüfkommando und Doku | v1.7 | 3/9 | In Progress|  |
 
 ## Coverage v1.7
 
