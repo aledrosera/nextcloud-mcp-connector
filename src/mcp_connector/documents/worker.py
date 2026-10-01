@@ -33,7 +33,7 @@ MAX_MEMORY_BYTES = 512 * 1024 * 1024
 
 def apply_memory_limit(limit: int = MAX_MEMORY_BYTES) -> bool:
     """Cap this process's address space. ``False`` when the platform cannot."""
-    if resource is None:
+    if resource is None or sys.platform == "win32":
         return False
     try:
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
