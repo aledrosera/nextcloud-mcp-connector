@@ -1,7 +1,7 @@
 ---
 phase: 29-pr-fkommando-und-doku
 verified: 2026-10-01T12:05:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
 overrides_applied: 0
 human_verification:
@@ -98,3 +98,7 @@ Keine Lücken. Alle vier Erfolgskriterien und OPS-01/DOC-03 sind im Code und in 
 
 _Verified: 2026-10-01_
 _Verifier: Claude (gsd-verifier)_
+
+## Nachtrag 2026-10-01
+
+Offener Punkt erledigt: CI-Lauf 36861555478 auf 5a89219 (Push nach Owner-Freigabe), Schritt `exclusion:check live (OPS-01)` success, alle 5 Jobs gruen inkl. canary-nc35. Status human_needed -> passed.
