@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
 status: executing
-stopped_at: Completed 29-05-PLAN.md
-last_updated: "2026-10-01T06:38:04.891Z"
+stopped_at: Completed 29-07-PLAN.md
+last_updated: "2026-10-01T07:17:00.961Z"
 last_activity: 2026-10-01
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
   percent: 80
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-09-26)
 ## Current Position
 
 Phase: 29
-Plan: 7 of 9 (29-01 bis 29-06 fertig)
+Plan: 8 of 9 (29-01 bis 29-07 fertig)
 Status: Ready to execute
 Last activity: 2026-10-01
 
-Progress: [█████████░] 92%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -770,6 +770,8 @@ Recent decisions affecting current work:
 - [Phase 29]: 29-01: Zählung über innere nc:object-ids mit nc:type=files (nc:id ist Index); ohne --admin erstes AppAPI-Konto mit 207, nur user-visible
 - [Phase 29]: 29-03: confirm_admin nur Kandidat b (200+OCS 200 True, 403+OCS 403 False, sonst None); Zählung über innere nc:object-ids per sum(), ObjectCount ohne Id-Feld
 - [Phase 29]: 29-04: Handler /exclusion-check; JSON mode null bei checked=false (Ausfall nie als kein Tag lesbar), reason-Schlüssel, confirm_admin None liest als genanntes Konto ohne oc:groups
+- [Phase 29]: 29-07: Hinweis ohne --admin in der Doku aus NO_VISIBLE_TAG_SENTENCE (f016f8f) zitiert, nicht aus dem 29-06-Livetext; M4-Zählgrenze (instanzweit, Papierkorb) im Abschnitt check-command
+- [Phase 29]: 29-07: Doku-Wahrheitstest prüft Link-Auflösung ohne die Schwester-Sprachseiten (eigener Test plus Existenztest), damit EN/DE vor FR grün sind
 
 ### Pending Todos
 
@@ -825,9 +827,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T06:38:04.872Z
-Stopped at: Completed 29-05-PLAN.md
-Nächster Schritt: 29-06 (Live-Beweis exclusion:check), nc35 vorher neu starten
+Last session: 2026-10-01T07:17:00.942Z
+Stopped at: Completed 29-07-PLAN.md
+Nächster Schritt: 29-08 (exclusion.fr.md und drei README-Abschnitte); Wahrheitstest bis dahin in 16 Fällen planmäßig rot (lang_fr, readme_*)
 Resume file: None
 
 ## Operator Next Steps
