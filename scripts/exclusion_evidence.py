@@ -312,10 +312,27 @@ def basic(
     return Dav(response.status_code, response.text)
 
 
-def curl(cfg: Settings, shown: str, argv: Sequence[str]) -> Dav:
-    """The real curl program, recorded verbatim with the password replaced."""
+def curl_credentials(user: str, password: str) -> str:
+    """A curl config with the ``user`` option, for ``--config -`` over stdin.
+
+    Backslash and double quote are escaped the way the curl config syntax wants inside quotes.
+    """
+    pair = f"{user}:{password}".replace("\\", "\\\\").replace('"', '\\"')
+    return f'user = "{pair}"\n'
+
+
+def curl(cfg: Settings, shown: str, argv: Sequence[str], *, user: str, password: str) -> Dav:
+    """The real curl program, recorded verbatim with the password replaced.
+
+    The credentials reach curl over stdin as a config (``--config -``), never as an argv
+    element, so no process list shows the password while curl runs (29-REVIEW IN-08).
+    """
+    del cfg
     record(f"$ {shown}")
-    code, output = run(["curl", "-s", "-w", "\n%{http_code}", *argv])
+    code, output = run(
+        ["curl", "-s", "--config", "-", "-w", "\n%{http_code}", *argv],
+        stdin=curl_credentials(user, password),
+    )
     body, _, status = output.rstrip().rpartition("\n")
     record(f"  status {status.strip()} [curl exit {code}]")
     for line in body.strip().splitlines():
@@ -735,8 +752,6 @@ def m8(cfg: Settings, ledger: Ledger) -> None:
         cfg,
         shown,
         [
-            "-u",
-            f"{cfg.admin}:{pw}",
             "-X",
             "PROPPATCH",
             url,
@@ -745,6 +760,8 @@ def m8(cfg: Settings, ledger: Ledger) -> None:
             "--data",
             patch,
         ],
+        user=cfg.admin,
+        password=pw,
     )
     steps.append(f"PROPPATCH={answer.status}")
 
@@ -761,8 +778,6 @@ def m8(cfg: Settings, ledger: Ledger) -> None:
         cfg,
         shown,
         [
-            "-u",
-            f"{cfg.admin}:{pw}",
             "-X",
             "POST",
             url,
@@ -771,6 +786,8 @@ def m8(cfg: Settings, ledger: Ledger) -> None:
             "-d",
             payload,
         ],
+        user=cfg.admin,
+        password=pw,
     )
     steps.append(f"POST={answer.status}")
     post_id = tag_list(cfg).get(TAG_M8_POST)

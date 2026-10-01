@@ -8,6 +8,7 @@ of a maintained instance or put a password into a process list is pinned down
 
 import importlib.util
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
 
@@ -96,3 +97,39 @@ def test_a_disabled_second_account_stops_the_run(
     fake_instance(monkeypatch, config_set=False, user2_enabled=False)
 
     assert evidence.preflight(settings(tmp_path)) == ["konto bob nicht aktiv"]
+
+
+# --- IN-08: the admin password never stands in an argv ------------------------------------
+
+
+def test_curl_gets_the_password_over_stdin_and_never_in_argv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen: list[tuple[list[str], str | None]] = []
+
+    def run(argv: Sequence[str], *, stdin: str | None = None) -> tuple[int, str]:
+        seen.append((list(argv), stdin))
+        return 0, "<ok/>\n207"
+
+    monkeypatch.setattr(evidence, "run", run)
+    monkeypatch.setattr(evidence, "_RAW", [tmp_path / "raw.txt"])
+
+    answer = evidence.curl(
+        settings(tmp_path),
+        "curl -u admin:<passwort> -X PROPPATCH ...",
+        ["-X", "PROPPATCH", "http://127.0.0.1:8082/remote.php/dav/systemtags/7"],
+        user="admin",
+        password=PASSWORD,
+    )
+
+    assert answer.status == 207
+    ((argv, stdin),) = seen
+    assert all(PASSWORD not in arg for arg in argv)
+    assert "-u" not in argv
+    assert argv[argv.index("--config") + 1] == "-"
+    assert stdin == f'user = "admin:{PASSWORD}"\n'
+    assert PASSWORD not in (tmp_path / "raw.txt").read_text(encoding="utf-8")
+
+
+def test_the_curl_config_escapes_quote_and_backslash() -> None:
+    assert evidence.curl_credentials("admin", 'a"b\\c') == 'user = "admin:a\\"b\\\\c"\n'
