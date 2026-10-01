@@ -177,6 +177,28 @@ Auf einer Wegwerf-Topologie ist das harmlos. Auf einer gepflegten Instanz änder
 **Issue:** Der Beleg schreibt das Passwort korrekt als `<passwort>` auf, der echte `curl -u admin:<pw>` steht aber für die Laufzeit in der Prozessliste. Das betrifft nur die Testtopologie.
 **Fix:** `curl --netrc-file` oder `-u` per `--config -` über stdin.
 
+## Fix-Status (2026-10-01)
+
+Alle 13 Befunde behoben, je ein Commit mit Regressionstest (rot ohne den Fix geprüft). Live gegen nc35 (35.0.0), Rohbelege `raw/29-REVIEW-FIX-live.txt` (WR-02, WR-03, WR-04) und `raw/29-REVIEW-FIX-live-beweis.txt` (WR-05). Alte Rohdateien unverändert.
+
+| Befund | Status | Commit | Kurz |
+|---|---|---|---|
+| WR-01 | behoben | ef5dab1 | eigene Note `admin_unconfirmed` in Text und JSON, eigener Satz im Abbruchpfad; 401 nicht als eigener Zustand "Konto unbekannt" (401 ist nicht eindeutig), der Satz nennt die uid als Ursache |
+| WR-02 | behoben, live gemessen | 5da76f3 | Gemessen: Delegations-Admin (Users-Einstellung, nicht in admin) bekam 200, `passed` für admin_identity und sah unsichtbare Tags nicht, also grüner Hinweis "no kein-ki tag exists" trotz unsichtbarem kein-ki (schlimmer als im Befund angenommen, kein 403). Fix: True nur, wenn die uid selbst in `data.users` steht (ohne Groß/Klein); sonst False. Nachher live: failed, passed=false |
+| WR-03 | behoben, live gemessen | 96f4fc1 | Textausgabe maskiert jedes Zeichen der Kategorie C als `\uXXXX` (Tag- und Gruppennamen). Gemessen: NC 35 entfernt beim Anlegen per WebDAV CR, LF, TAB, ESC, DEL, C1 (U+0085, U+009B), U+202E und U+200B aus dem Namen (201, Name ohne das Zeichen); der Fix bleibt Schutz für Altdaten, Direktschreibungen und andere Versionen |
+| WR-04 | behoben, live gemessen | a462aeb | Live-Test vergleicht zusätzlich `preferences`, `storages`, `mounts`, `filecache`; 160 Vergleiche gleich. Eigene Messung mit frisch angelegtem, nie angemeldetem Konto als erstem Leser: alle Tabellen (plus `authtoken`) gleich. Doku nennt die Kontotabellen. Hinweis: `occ user:add` legt bereits Home-Zeilen in `filecache` an, ein Konto ganz ohne Dateisystem war so nicht herstellbar |
+| WR-05 | behoben | 5726e08 | Live-Test erneut: 7 passed, neue Rohdatei, Doku verlinkt sie, Unit-Test pinnt die zitierten Zeilen auf diesen Lauf; Nachtrag in 29-06-SUMMARY.md |
+| IN-01 | behoben | 12feb29 | alle JSON-Pfade mit denselben Schlüsseln, neu `error` (sonst `null`), Abweisung mit sieben übersprungenen Schritten |
+| IN-02 | behoben | d87a3f2 | eigener Satz "NOT excluded for users who are not administrators" für unsichtbares exaktes Tag |
+| IN-03 | behoben | 4aaee84 | Doku (EN/DE/FR) und info.xml-Kommentar korrigiert; Store-Texte unberührt (SHA-Pin grün) |
+| IN-04 | behoben | 6e12b5f | bei unbestätigtem `--admin` Hinweis ohne "Run again with --admin" |
+| IN-05 | behoben | 20b1821 | Doku-Test pinnt Schritt-IDs, Schrittnamen, LIMIT_SENTENCE und TAG_BUDGET |
+| IN-06 | behoben | 5498a7d | Test ohne respx, zählt Requests am MockTransport, schließt den Client |
+| IN-07 | behoben | dfc1691 | Messskript bricht ab, wenn der Config-Schlüssel schon gesetzt oder das zweite Konto deaktiviert ist (konservative Variante statt Zurückschreiben) |
+| IN-08 | behoben | 6ba1f99 | curl bekommt die Zugangsdaten per `--config -` über stdin |
+
+Owner-Hinweise: WR-02 ändert sichtbares Verhalten (Delegations-Admins und Sub-Admins von admin gelten nicht mehr als Admin, Ergebnis "not an administrator"); WR-01/IN-01/IN-02/IN-04 ändern Wortlaut bzw. JSON-Schema (neuer Schlüssel `error`, Note `admin_unconfirmed`). Der CI-Schritt "exclusion:check live" läuft mit den erweiterten Tabellen erst beim nächsten Push.
+
 ---
 
 _Reviewed: 2026-10-01T10:31:48Z_
