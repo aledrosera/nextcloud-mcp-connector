@@ -321,7 +321,7 @@ Plans:
 
 **Wave 7**
 
-- [ ] 29-08-PLAN.md , docs/exclusion.fr.md und drei README-Abschnitte
+- [x] 29-08-PLAN.md , docs/exclusion.fr.md und drei README-Abschnitte
 
 **Wave 8**
 
@@ -359,7 +359,7 @@ Plans:
 | 26. Guard-Kern | v1.7 | 2/2 | Complete    | 2026-09-27 |
 | 27. Familien-Anschluss und Sandbox-Parität | v1.7 | 10/10 | Complete    | 2026-09-28 |
 | 28. Gates und Beweise | v1.7 | 12/12 | Complete    | 2026-10-01 |
-| 29. Prüfkommando und Doku | v1.7 | 7/9 | In Progress|  |
+| 29. Prüfkommando und Doku | v1.7 | 8/9 | In Progress|  |
 
 ## Coverage v1.7
 
