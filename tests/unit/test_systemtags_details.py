@@ -18,6 +18,7 @@ from mcp_connector.nextcloud.credentials import Credentials
 
 BASE = "http://nc.test"
 TAGS = f"{BASE}/remote.php/dav/systemtags/"
+ADMIN_USERS = f"{BASE}/ocs/v2.php/cloud/groups/admin/users"
 XML_HEADERS = {"Content-Type": "application/xml; charset=utf-8"}
 
 # --- measured bodies (29-01, run 2) ------------------------------------------------------
@@ -78,6 +79,17 @@ M3_ADMIN = (
     b"<nc:type>files</nc:type></nc:object-ids></nc:object-ids></d:prop>"
     b"<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>"
 )
+
+
+#: M2b, GET cloud/groups/admin/users as the impersonated admin: status 200.
+M2B_ADMIN = (
+    b'{"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":{"users":["admin"]}}}'
+)
+
+#: M2b, the same GET as alice: status 403.
+M2B_ALICE = b'{"ocs":{"meta":{"status":"failure","statuscode":403,"message":""},"data":[]}}'
+
+JSON_HEADERS = {"Content-Type": "application/json; charset=utf-8"}
 
 
 @pytest.fixture
@@ -420,3 +432,86 @@ async def test_details_and_count_only_ever_send_propfind(
 
     assert catch_all.call_count == 3
     assert {call.request.method for call in catch_all.calls} == {"PROPFIND"}
+
+
+# --- confirm_admin (ENTSCHEID admin-nachweis=b of 29-01) ---------------------------------
+
+
+@pytest.mark.anyio
+async def test_the_measured_admin_answer_confirms_an_admin(
+    client: httpx.AsyncClient, creds: Credentials
+) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        route = mock.route(method="GET", url=ADMIN_USERS).mock(
+            return_value=httpx.Response(200, content=M2B_ADMIN, headers=JSON_HEADERS)
+        )
+        result = await systemtags.confirm_admin(client, creds)
+
+    assert result is True
+    request = route.calls[0].request
+    assert request.headers["OCS-APIRequest"] == "true"
+    assert request.headers["Accept"] == "application/json"
+    assert request.headers["Authorization"].startswith("Basic ")
+
+
+@pytest.mark.anyio
+async def test_the_measured_non_admin_answer_denies(
+    client: httpx.AsyncClient, creds: Credentials
+) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="GET", url=ADMIN_USERS).mock(
+            return_value=httpx.Response(403, content=M2B_ALICE, headers=JSON_HEADERS)
+        )
+        result = await systemtags.confirm_admin(client, creds)
+
+    assert result is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("status", "content"),
+    [
+        (401, b""),
+        (500, b""),
+        (503, M2B_ALICE),
+        (200, b"<html>login</html>"),
+        (200, M2B_ALICE),
+        (403, M2B_ADMIN),
+        (403, b"{}"),
+        (200, b"[]"),
+    ],
+)
+async def test_anything_else_is_undecidable(
+    client: httpx.AsyncClient, creds: Credentials, status: int, content: bytes
+) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="GET", url=ADMIN_USERS).mock(
+            return_value=httpx.Response(status, content=content, headers=JSON_HEADERS)
+        )
+        result = await systemtags.confirm_admin(client, creds)
+
+    assert result is None
+
+
+@pytest.mark.anyio
+async def test_a_timeout_is_undecidable(client: httpx.AsyncClient, creds: Credentials) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        mock.route(method="GET", url=ADMIN_USERS).mock(side_effect=httpx.ReadTimeout("slow"))
+        result = await systemtags.confirm_admin(client, creds)
+
+    assert result is None
+
+
+@pytest.mark.anyio
+async def test_the_admin_proof_sends_one_get_and_nothing_else(
+    client: httpx.AsyncClient, creds: Credentials
+) -> None:
+    with respx.mock(assert_all_mocked=True) as mock:
+        catch_all = mock.route().mock(
+            return_value=httpx.Response(200, content=M2B_ADMIN, headers=JSON_HEADERS)
+        )
+        await systemtags.confirm_admin(client, creds)
+
+    assert catch_all.call_count == 1
+    assert catch_all.calls[0].request.method == "GET"
+    assert str(catch_all.calls[0].request.url) == ADMIN_USERS
