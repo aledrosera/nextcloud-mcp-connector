@@ -9,7 +9,7 @@
 - **v1.4 Pflege und 0.1.10**: Phasen 14-15 (shipped 2026-08-28, Release 0.1.10 live im Store; gekürzter Enterprise-Text und Kontaktwechsel zu admin@infranode.dev, Doku-Reste aus v1.3 abgeräumt)
 - **v1.5 Vorlauf openDesk**: Phasen 16-19 (shipped 2026-08-31, Abschluss nachgetragen 2026-09-18; Release 0.1.11, openDesk-Spike, Audit-Log als erster Enterprise-Baustein)
 - **v1.6 F13 Token Exchange Identity Mapper**: Phasen 20-24 (shipped 2026-09-26; ein zweiter, ab Werk ausgeschalteter Prüfpfad nimmt ein nach RFC 8693 getauschtes Keycloak-Token an und handelt unter dem gemappten Nextcloud-Konto; die vier F13-Entscheidungen bleiben extern getaktet)
-- **v1.7 Ausschluss-Tag kein-ki**: Phasen 25-29 (in Arbeit seit 2026-09-26; eine Datei oder ein Ordner mit dem System-Tag `kein-ki` erscheint in keiner Tool-Antwort mehr, fail-closed, ein Roundtrip je Antwort)
+- **v1.7 Ausschluss-Tag kein-ki**: Phasen 25-29 (shipped 2026-10-01; eine Datei oder ein Ordner mit dem System-Tag `kein-ki` erscheint in keiner Tool-Antwort mehr, fail-closed, ein REPORT je Antwort; noch nicht released, reist mit 0.4.0)
 
 ## Phases
 
@@ -100,232 +100,20 @@ Kein Milestone-Audit (wie v1.5): Aussagen aus den fünf Phase-Verifikationen, de
 
 </details>
 
-### v1.7 Ausschluss-Tag kein-ki (Phasen 25-29), IN ARBEIT
-
-- [x] **Phase 25: Mess-Spike Tag-Abfrage** - Die unbelegten Annahmen der Recherche werden gemessen, bevor eine Designentscheidung fällt (BL-16-Kostennotiz)
- (completed 2026-09-27)
-
-- [x] **Phase 26: Guard-Kern** - Eine request-gebundene Prüfschicht mit drei Zuständen, einem Roundtrip je Antwort und Subtree-Präfixregel, ohne dass ein Werkzeug angefasst wird (completed 2026-09-27)
-- [x] **Phase 27: Familien-Anschluss und Sandbox-Parität** - Jede dateitragende Antwort läuft durch den Guard; Findling-fileIds und Notes laufen zusätzlich durch die Sandbox
- (completed 2026-09-28)
-
-- [x] **Phase 28: Gates und Beweise** - Klassifikations-Freeze, Kanarientest, byte-gleiche Paartests und die Destruktiv-Nadel auf die Tag-Schreibpfade machen die Grenze zu einem Gate (completed 2026-09-28)
-- [x] **Phase 29: Prüfkommando und Doku** - `occ mcp_connector:exclusion:check` meldet wirkungslose Konfigurationen, die dreisprachige Doku sagt das Gemessene samt ehrlicher Grenzen (completed 2026-10-01)
-
-## Phase Details
-
-### Phase 25: Mess-Spike Tag-Abfrage
-
-**Goal**: Jede Annahme, auf der die Architektur des Filters ruht, ist gegen echte Nextcloud-Instanzen gemessen statt aus dem Quelltext gelesen; das Messprotokoll entscheidet Batch-Strategie, Notes-Anschluss und Fail-closed-Auslöser
-**Depends on**: Nothing (erste Phase des Milestones; baut auf v1.6 auf)
-**Requirements**: keine eigenen; die Phase liefert die Messvorbedingungen für EXCL-02, EXCL-04 und die benannte Messbedingung von EXCL-05
-**Success Criteria** (what must be TRUE):
-
-  1. Auf NC 32, 33 und 34 (35 als Bestätigung der vorhandenen Messung) ist gemessen und mit Statuscode und Trefferliste protokolliert, was REPORT oc:filter-files mit oc:systemtag bei ausgeschalteter systemtags-App liefert und ob nur Capability und Suchprovider verschwinden
-  2. REPORT unter AppAPI-Impersonation in der ExApp-Topologie liefert für dasselbe Konto dieselbe Menge an fileids wie mit App-Passwort; die Abweichung ist, falls vorhanden, als Befund mit Rohantwort benannt
-  3. Die Kosten des REPORT stehen als Zahlen im Protokoll: Wanduhr und Antwortgröße bei 1, 100 und 5000 getaggten Knoten, dazu die Referenz-Wanduhr von prepare_context, sodass die Batch-Entscheidung auf einer Messung steht
-  4. Ob die Notiz-Id der fileid entspricht, ist mit Beleg aus einer echten Notiz beantwortet (ja oder nein), und das Ergebnis entscheidet ausdrücklich über den Notes-Weg in Phase 27
-  5. Das Verhalten bei 412 nach gelöschter und neu angelegter Tag-Id, bei unsichtbarem Tag, bei gleichnamigen Varianten, beim REPORT-Zielpfad (Unterordner gegen Home-Wurzel) und bei geteiltem Unterordner mit getaggtem Vorfahr beim Eigentümer ist je als gemessener Einzelbefund festgehalten
-
-**Plans**: 5 plans
-
-Plans:
-**Wave 1**
-
-- [x] 25-01-PLAN.md , Messwerkzeug (compose.spike-tags.yml, scripts/tag_spike.py) und nc35-Einzelbefunde: Notes, Impersonation, 412, unsichtbar, Varianten, Zielpfad, Freigabe, App-aus 35, prepare_context-Baseline
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 25-02-PLAN.md , Kostenmessung REPORT bei 1/100/5000 plus 10k-Ordner und Ballast, Schwelle D-25-04, prepare_context mit Daten, Rückbau
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 25-03-PLAN.md , Matrix NC 32 -> 33 -> 34 sequenziell: App-aus, 412, REPORT-Grundform und Zielpfad
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 25-04-PLAN.md , Messbericht und Owner-Checkpoint D-25-05 (Notes-Weg, Fail-closed-Auslöser, Batch-Strategie)
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 25-05-PLAN.md , PostgreSQL-Gegenmessung (Stufen 1/100/5000, Ballast-Stufen, Vorfahren-PROPFIND, Varianten) plus SQLite-Kontrolle, Nachtrag Messbericht, Owner-Checkpoint E3 (EXCL-02)
-
-**Research flag**: ja (Live-Zugriff auf NC 32 bis 35, präparierte Testdaten mit großen Ordnern, vielen Tag-Zuordnungen und geteilten Unterordnern)
-
-### Phase 26: Guard-Kern
-
-**Goal**: Eine policy-freie Tag-Abfrage und ein request-gebundener Guard stehen unabhängig testbar bereit, beantworten je Tool-Aufruf mit genau einem Roundtrip, ob ein Pfad oder eine fileid ausgeschlossen ist, und unterscheiden "nichts getaggt" hart von "nicht prüfbar"
-**Depends on**: Phase 25
-**Requirements**: EXCL-02, EXCL-04
-**Success Criteria** (what must be TRUE):
-
-  1. Die drei Zustände sind je mit Test belegt: kein `kein-ki`-Tag vorhanden ergibt keinen Filter und eine Antwort byte-gleich zum Stand vor v1.7; ermittelte Menge ergibt aktiven Filter; REPORT-Fehler, Timeout und ein zweiter 412 ergeben den Zustand "nicht prüfbar"; die Capability systemtags.enabled wird dabei nicht befragt (Test: Capability false, REPORT erfolgreich, Filter aktiv)
-  2. Je Tool-Aufruf geht genau ein REPORT hinaus, auch bei parallelen Teilaufrufen (per respx call_count gemessen, Single-Flight nach dem Muster von oauth/jwks.py); ein zweiter Tool-Aufruf holt die Menge neu, nur die Auflösung Name zu Tag-Id bleibt prozessweit gecacht (Muster capabilities.py), und ein 412 löst genau einmal neu auf
-  3. Die Subtree-Prüfung nutzt die bestehende Segmentregel: ein getaggter Ordner `/A/kein` deckt `/A/kein/x`, aber nicht `/A/keine`; ein getaggter Vorfahr oberhalb von NC_MCP_FILES_ROOT wirkt, weil die getaggte Menge nicht durch die Sandbox gefiltert wird
-  4. Alle gleichnamigen Varianten von `kein-ki` werden ohne Rücksicht auf Groß- und Kleinschreibung vereinigt ausgewertet (Test mit drei Varianten unterschiedlicher Sichtbarkeit und Schreibweise)
-
-**Plans**: 2 plans
-
-Plans:
-**Wave 1**
-
-- [x] 26-01-PLAN.md , Policy-freie Tag-Abfrage: dav.within (eine Segmentregel), dav.home_entries (ohne Sandbox-Drop), clients/systemtags.py (Tag-Liste, REPORT mit genau einer Regel auf die Home-Wurzel)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 26-02-PLAN.md , Guard: exclusion.py (TagScope mit drei Zuständen, Name-zu-Id-Cache, D-25-05-Automat mit einer 412-Neuauflösung, ExclusionGuard mit Single-Flight), Gate-Anpassungen, deferred-items
-
-**Offene Punkte für die discuss-phase (nicht entschieden)**:
-
-  - Ist das Tag auf einem Ordner zugleich die freie Ordner-Ausschlussliste, oder braucht es eine zweite, konfigurierbare Liste (Recherche-Empfehlung: keine zweite Liste, zweite Fail-open-Stelle)?
-  - Admin-Schalter für den Filter ja oder nein (Recherche-Empfehlung: nein, klare Meldung statt Schalter)?
-
-### Phase 27: Familien-Anschluss und Sandbox-Parität
-
-**Goal**: Was `kein-ki` trägt oder unter einem getaggten Ordner liegt, erscheint in keiner Antwort eines dateitragenden Werkzeugs mehr, weder als Treffer noch als Inhalt, Ausschnitt, Digest oder eingesetzter Dateiname; Findling-Treffer ohne Pfad und Notes laufen durch dieselbe Sandbox- und Ausschlussprüfung wie Pfad-Treffer
-**Depends on**: Phase 26
-**Requirements**: EXCL-01, EXCL-03, EXCL-05, EXCL-06, SBX-01, SBX-02
-**Success Criteria** (what must be TRUE):
-
-  1. Gegen eine echte Nextcloud gemessen: eine getaggte Datei und eine Datei unter einem getaggten Ordner fehlen in files_list, files_search, files_read und files_download, und ein Upload auf einen ausgeschlossenen Pfad lässt nicht erkennen, ob dort etwas existiert
-  2. unified_search, search/fetch (alle Id-Arten, auch eine vor dem Taggen bekannte fileid) und prepare_context liefern keinen getaggten Treffer, keinen Ausschnitt und keinen Digest; der systemtags-Suchprovider verrät die getaggte Menge nicht; die Wanduhr von prepare_context liegt gemessen im Rahmen der Phase-25-Referenz
-  3. Ein Findling-Treffer, der nur eine fileId trägt, und eine Notiz außerhalb von NC_MCP_FILES_ROOT verschwinden aus den Antworten wie ein Pfad-Treffer außerhalb der Sandbox; eine getaggte Notiz verschwindet, sofern Phase 25 den Weg Notiz-Id zu fileid belegt hat, andernfalls ist der Notes-Ausschluss dokumentiert vertagt und die Lücke benannt
-  4. talk_browse setzt den Dateinamen einer getaggten Datei nicht mehr in den Nachrichtentext ein (gemessen an einer Nachricht mit geteilter getaggter Datei)
-  5. Ist die Prüfung nicht beantwortbar, hält jede betroffene Familie ihre dateitragenden Einträge zurück und benennt die Degradation in einem degraded-Eintrag; im Erfolgsfall trägt keine Antwort einen Zähler oder Hinweis auf zurückgehaltene Einträge
-
-**Plans**: 9 plans
-
-Plans:
-**Wave 1**
-
-- [x] 27-01-PLAN.md , Fundament: IN-01/02/03, Fehlerfabriken not_found/parent_missing, paths_of_fileids, NcClients.exclusion ohne Importzyklus, TagScope.has_folders, tools/withhold.py (D-27-05), guard_routes-Testhelfer und autouse-Fixture, Vulture-Parkabschnitt
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 27-02-PLAN.md , Datei-Familie: files_read/download/list/search orakelfrei, Upload-Orakel geschlossen (D-27-01/02)
-- [x] 27-03-PLAN.md , Such-Familie: Live-Probe talk-message/comments, unified_search mit Sandbox für pfadlose Treffer (SBX-01) und lautlosem Tag-Filter, fetch(file) mit alter fileid
-- [x] 27-04-PLAN.md , Notes: notes_search/read/create mit Guard und Sandbox (EXCL-05, SBX-02), ein Not-found-Satz
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 27-05-PLAN.md , Talk: {file} bleibt roh (D-27-06), Datei-Konversationen gefiltert, fetch(message), Vulture-Räumung
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 27-06-PLAN.md , prepare_context: Guard als erstes gather-Mitglied (Merker (c)), ein REPORT je Bündel, ein degraded-Eintrag
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 27-07-PLAN.md , Live-Beweis nc35 für die Erfolgskriterien 1 bis 5 (ohne Wanduhr), A1-Latenz
-
-**Wave 6** *(blocked on Wave 5 completion)*
-
-- [x] 27-08-PLAN.md , Wanduhr prepare_context gegen Schwelle 0,88/0,97 s, Request-Kosten, Findling-CI-Test, 27-LIVE-BEWEIS.md, Owner-Checkpoint
-
-**Wave 7** *(Lückenplan, blocked on Wave 6 completion)*
-
-- [x] 27-09-PLAN.md , Lücke Wanduhr B full: eine fileid-SEARCH je Bündel für die Ausschnitte, Lesen ohne zweiten PROPFIND, byte-gleiche Antworten, Neumessung, Owner-Abnahme
-
-**Wave 8** *(zweiter Lückenplan, blocked on Wave 7 completion)*
-
-- [x] 27-10-PLAN.md , Restlücke Wanduhr B full: Pfadprüfung der Notiz-Ausschnitte in derselben Sammel-SEARCH, byte-gleiche Antworten, Neumessung, Owner-Abnahme
-
-**Research flag**: Notes-Teil hängt vollständig an Phase 25; fällt "Notiz-Id = fileid" durch, braucht der Teil eine kurze eigene Recherche zur Notes-REST-API
-**Offene Punkte für die discuss-phase (nicht entschieden)**:
-
-  - Upload-Orakel: Verhalten von files_upload auf einen ausgeschlossenen Pfad im Detail (ConflictError verrät heute Existenz; verbieten oder erlauben, und mit welchem Wortlaut)
-  - Zählen oder Schweigen im Detail je Tool-Familie (eigener Schlüssel statt skipped, oder ganz schweigen); D-v1.7-02 steht, die Ausgestaltung je Familie ist offen
-
-### Phase 28: Gates und Beweise
-
-**Goal**: Die Aussage "keine Tool-Antwort zeigt Getaggtes" ist ein roter oder grüner Test statt eines Versprechens: jedes Werkzeug der aktiven Registry ist klassifiziert, ein Kanarienwort taucht nirgends auf, getaggt und nicht existent sind byte-gleich, und der Connector kann den Tag konstruktionsbedingt nie setzen oder entfernen
-**Depends on**: Phase 27
-**Requirements**: GATE-01, GATE-02, GATE-03, EXCL-07
-**Success Criteria** (what must be TRUE):
-
-  1. Der Klassifikations-Freeze über die aktive Registry trägt jedes Werkzeug als betroffen oder nicht betroffen ein; ein hinzugefügtes Probe-Werkzeug ohne Eintrag macht das Gate rot (Gegenprobe im Test, deckt auch ein künftiges files_update)
-  2. Der Kanarien-Integrationstest legt eine getaggte Datei mit eindeutigem Marker in Name und Inhalt an und ruft jedes Werkzeug der aktiven Registry auf; der Marker kommt in null Antworten und null Fehlertexten vor, und die Zahl der geprüften Werkzeuge steht in der Testausgabe
-  3. Für jeden Einzelzugriff ist die Antwort auf eine getaggte Id byte-gleich zur Antwort auf eine nicht existente Id, im Normalbetrieb und im Ausfallfall der Prüfung
-  4. Das AST-Gate gegen destruktive Aufrufe trägt Nadeln für die systemtags-relations- und systemtags-Schreibpfade, jede mit Gegenprobe, die ohne die Nadel rot würde
-
-**Plans**: 12 plans
-
-Plans:
-**Wave 1**
-
-- [x] 28-01-PLAN.md: Live-Fragen A1, A3/B5, A4/B6 gegen nc35 messen, Harness-Basis, Owner-Entscheid D-28-18..20 (Wave 1)
-- [x] 28-02-PLAN.md: GATE-01 Klassifikations-Freeze 12/3/7 mit Probe files_update, Paarliste, Vergleichsbausteine (Wave 1)
-- [x] 28-03-PLAN.md: EXCL-07 Nadeln und AST-Methodenprüfung auf die Tag-Schreibpfade (Wave 1)
-- [x] 28-04-PLAN.md: Fixes D-28-15 (Talk im Ausfall) und D-28-17 (Reihenfolge fetch(file)/notes_read), Guard-Ausfallformen (Wave 1)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 28-05-PLAN.md: Fix D-28-14 Tables-Link-Zellen in tables_browse und fetch(table) (Wave 2)
-- [x] 28-06-PLAN.md: B5/B6 nach Owner-Entscheid D-28-19/20 (Wave 2)
-- [x] 28-07-PLAN.md: Kanarien-Welt mit Aufbau- und Aufräumbeweis (Wave 2)
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 28-08-PLAN.md: GATE-03 Unit-Paare Familie files (Wave 3)
-- [x] 28-09-PLAN.md: GATE-03 Unit-Paare Familie apps inkl. Pin notes_create (Wave 3)
-- [x] 28-10-PLAN.md: GATE-02 Kanarie über alle 22 Werkzeuge in vier Modi gegen nc35 (Wave 3)
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 28-11-PLAN.md: GATE-03 Live-Paare gegen nc35 und CI-Schritt im Job exapp (Wave 4)
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 28-12-PLAN.md: Gate-Lauf, Regression Phase 27, 28-LIVE-BEWEIS.md, Owner-Abnahme (Wave 5)
-
-### Phase 29: Prüfkommando und Doku
-
-**Goal**: Eine Administration erkennt ohne Live-Sitzung, ob ihr `kein-ki`-Tag wirkt, und die Doku in drei Sprachen beschreibt Einrichtung, Betriebsarten und ehrliche Grenzen ausschließlich aus den gemessenen Befunden
-**Depends on**: Phase 28
-**Requirements**: OPS-01, DOC-03
-**Success Criteria** (what must be TRUE):
-
-  1. `occ mcp_connector:exclusion:check` benennt je Prüfschritt das Ergebnis (Tag existiert, ist sichtbar, gleichnamige Varianten) gegen eine echte Instanz, auch für die Fehlkonfigurationen unsichtbares Tag und Tippfehler im Namen
-  2. Das Kommando läuft ohne Sitzung und ändert nichts an der Nextcloud: ein Vorher-nachher-Vergleich der Tag- und Zuordnungstabellen ist leer (Muster exchange:check)
-  3. Die Doku unter docs/ und die README-Erwähnung liegen in allen drei Sprachen vor und nennen Freigabe-Grenze, unsichtbares Tag, App-aus-Verhalten und die Betriebsarten Selbstbedienung (kollaborativ) und Organisationsmodus (eingeschränktes Tag per Gruppen-Delegation); jede Grenzaussage verweist auf ihren Befund aus Phase 25
-  4. Die Store-Beschreibungen sind unverändert (EXCL-F02 reist mit dem nächsten Release), belegt durch einen leeren Diff der drei Store-Texte
-
-**Plans**: 9 plans
-**Offene Punkte für die discuss-phase**: beantwortet durch D-26-01/D-26-02 (29-CONTEXT.md)
-
-Plans:
-**Wave 1**
-
-- [x] 29-01-PLAN.md , Live-Messungen M1 bis M9 gegen nc35 (Impersonation, Admin-Nachweis, Zählung, Anleitungsbefehle) vor jedem Code
-- [x] 29-02-PLAN.md , TDD: reine Urteilslogik exclusion_audit (exakt/Variante/ähnlich, Betriebsart, Urteil)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 29-03-PLAN.md , Client: list_tag_details, count_tag_objects, confirm_admin nach Messung
-
-**Wave 3**
-
-- [x] 29-04-PLAN.md , Handler exapp/exclusion_check.py (Text/--json, --admin, immer 200, nur lesend)
-
-**Wave 4**
-
-- [x] 29-05-PLAN.md , Verdrahtung: fünftes occ-Kommando, Route, info.xml-Kommentar
-
-**Wave 5**
-
-- [x] 29-06-PLAN.md , Live-Beweis nc35 Fälle A bis H mit Tabellen-Diff, CI-Schritt in canary-nc35
-
-**Wave 6**
-
-- [x] 29-07-PLAN.md , Doku-Wahrheitstest, docs/exclusion.md und docs/exclusion.de.md
-
-**Wave 7**
-
-- [x] 29-08-PLAN.md , docs/exclusion.fr.md und drei README-Abschnitte
-
-**Wave 8**
-
-- [x] 29-09-PLAN.md , Store-Texte-Pin mit leerem Diff, alle Gates, Owner-Abnahme des Wortlauts
+<details>
+<summary>v1.7 Ausschluss-Tag kein-ki (Phasen 25-29), SHIPPED 2026-10-01</summary>
+
+- [x] Phase 25: Mess-Spike Tag-Abfrage (5/5 Pläne), completed 2026-09-27
+- [x] Phase 26: Guard-Kern (2/2 Pläne), completed 2026-09-27
+- [x] Phase 27: Familien-Anschluss und Sandbox-Parität (10/10 Pläne inkl. zwei Lückenplänen), completed 2026-09-28, SBX-01 per CI 2026-10-01
+- [x] Phase 28: Gates und Beweise (12/12 Pläne), gebaut 2026-09-28, completed 2026-10-01
+- [x] Phase 29: Prüfkommando und Doku (9/9 Pläne), completed 2026-10-01
+
+Volle Phasendetails: [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md)
+Phasenordner bleiben unter .planning/phases/ (Doku und Tests verlinken die Befunde dorthin).
+Kein Milestone-Audit (wie v1.5 und v1.6): Aussagen aus den fünf Phase-Verifikationen (alle passed), den Code-Reviews und den fünf secure-phase-Läufen (alle threats_open 0); siehe MILESTONES.md.
+
+</details>
 
 ## Progress
 
@@ -361,26 +149,9 @@ Plans:
 | 28. Gates und Beweise | v1.7 | 12/12 | Complete    | 2026-10-01 |
 | 29. Prüfkommando und Doku | v1.7 | 9/9 | Complete    | 2026-10-01 |
 
-## Coverage v1.7
+## Next
 
-| Requirement | Phase |
-|-------------|-------|
-| EXCL-01 | Phase 27 |
-| EXCL-02 | Phase 26 |
-| EXCL-03 | Phase 27 |
-| EXCL-04 | Phase 26 |
-| EXCL-05 | Phase 27 (Messbedingung aus Phase 25) |
-| EXCL-06 | Phase 27 |
-| EXCL-07 | Phase 28 |
-| SBX-01 | Phase 27 |
-| SBX-02 | Phase 27 |
-| GATE-01 | Phase 28 |
-| GATE-02 | Phase 28 |
-| GATE-03 | Phase 28 |
-| OPS-01 | Phase 29 |
-| DOC-03 | Phase 29 |
-
-Zugeordnet: 14/14, keine Waisen, keine Doppelungen. Phase 25 trägt bewusst kein eigenes Requirement: sie liefert die Messvorbedingungen, auf denen EXCL-02, EXCL-04 und EXCL-05 stehen.
+Kein aktiver Milestone. Der nächste Zyklus startet mit `/gsd:new-milestone`, sobald das Owner-Thema feststeht. Geplant ist zuerst Release 0.4.0 (nach dem Merge von PR #14, andrewyager, files_read_as_markdown): es bündelt den kein-ki-Filter aus v1.7 und die Store-Text-Erwähnung des Tags (EXCL-F02). files_update bleibt extern getaktet (Community-PR nach Design-Issue #9), die F13-Spur ruht bis zu den vier Antworten (milestones/v1.6-REQUIREMENTS.md).
 
 ---
-*Roadmap created: 2026-08-14 (granularity: coarse, mode: mvp); v1.0 abgeschlossen: 2026-08-20; v1.1 abgeschlossen: 2026-08-20 (Phase 7 deferred); v1.2 abgeschlossen: 2026-08-25 (Release 0.1.8 live); v1.3 abgeschlossen: 2026-08-26 (Release 0.1.9 live); v1.4 abgeschlossen: 2026-08-28 (Release 0.1.10 live); v1.5 abgeschlossen: 2026-08-31 (Release 0.1.11, openDesk-Spike, Audit-Log; Abschluss nachgetragen 2026-09-18); v1.6 aufgesetzt: 2026-09-18 (Phasen 20-24, 15 Requirements, granularity coarse); v1.6 abgeschlossen: 2026-09-26 (Token-Exchange-Pfad komplett, 15/15 Requirements, kein Release); v1.7 aufgesetzt: 2026-09-26 (Phasen 25-29, 14 Requirements, granularity coarse)*
+*Roadmap created: 2026-08-14 (granularity: coarse, mode: mvp); v1.0 abgeschlossen: 2026-08-20; v1.1 abgeschlossen: 2026-08-20 (Phase 7 deferred); v1.2 abgeschlossen: 2026-08-25 (Release 0.1.8 live); v1.3 abgeschlossen: 2026-08-26 (Release 0.1.9 live); v1.4 abgeschlossen: 2026-08-28 (Release 0.1.10 live); v1.5 abgeschlossen: 2026-08-31 (Release 0.1.11, openDesk-Spike, Audit-Log; Abschluss nachgetragen 2026-09-18); v1.6 aufgesetzt: 2026-09-18 (Phasen 20-24, 15 Requirements, granularity coarse); v1.6 abgeschlossen: 2026-09-26 (Token-Exchange-Pfad komplett, 15/15 Requirements, kein Release); v1.7 aufgesetzt: 2026-09-26 (Phasen 25-29, 14 Requirements, granularity coarse); v1.7 abgeschlossen: 2026-10-01 (kein-ki-Filter komplett, 14/14 Requirements, kein Release; Release 0.4.0 nach PR #14)*

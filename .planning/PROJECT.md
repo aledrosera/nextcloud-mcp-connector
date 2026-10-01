@@ -6,26 +6,15 @@ Ein schlankes MCP-only-ExApp für Nextcloud: Nutzer installieren es per Klick au
 
 ## Core Value
 
-Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
+Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer. Seit v1.7 auf Wunsch weniger: was das System-Tag `kein-ki` trägt, sieht er gar nicht.
 
-## Current Milestone: v1.7 Ausschluss-Tag kein-ki
+## Current Milestone
 
-**Goal:** Eine Datei oder ein Ordner mit dem kollaborativen System-Tag `kein-ki` erscheint in keiner Tool-Antwort des Connectors mehr, fail-closed und ohne das Latenzbudget zu reissen.
-
-**Target features:**
-- System-Tag `kein-ki`: getaggte Dateien tauchen nicht in unified_search, Datei-Listings, fetch/Inhalten und prepare_context auf
-- Subtree-Semantik: ein Tag auf einem Ordner deckt alles darunter
-- Fail-closed: ist die Tag-Abfrage nicht beantwortbar (systemtags aus, OCS-Fehler, Timeout), werden die betroffenen Einträge zurückgehalten und die Degradation in der Antwort benannt, nach dem Muster der anderen Familien
-- Gebatchte Tag-Abfrage: ein Roundtrip je Antwort, nicht je Datei; vor der Designentscheidung gemessen (BL-16-Kostennotiz)
-- Doku dreisprachig; die Store-Text-Erwähnung reist erst mit dem nächsten Release
-
-**Key context:** BL-16, Owner-Freigabe 26.09.2026. Dossier-Regel: Sicherheitsgrenzen sind nie bezahlt; Connector Enterprise bekommt später die Governance obendrauf (zentrale Policies, Allow-Mode, Audit-Beweis, Vier-Augen). Offene Designfrage für die discuss-phase: ist das Tag auf einem Ordner zugleich die freie Ordner-Ausschlussliste (Owner 04.09.: "nützlich")? Parallel läuft extern: files_update als Community-PR (Design-Issue #9, Daniel/simul8), die Flächen überschneiden sich nicht.
+Keiner aktiv. v1.7 wurde am 2026-10-01 abgeschlossen; der nächste Zyklus startet mit `/gsd:new-milestone`, sobald das Owner-Thema feststeht. Vorher geplant: Release 0.4.0 nach dem Merge von PR #14 (andrewyager, files_read_as_markdown), nur mit Owner-Freigabe.
 
 ## Current State
 
-**v1.7 in Arbeit, Phase 26 complete 2026-09-27** (Guard-Kern, 2/2 Plaene, VERIFICATION passed 8/8, Review 0C/4W/4I mit allen 4 Warnings gefixt, secure-phase 25 SECURED 26/26): Die policy-freie Tag-Abfrage (clients/systemtags.py) und der request-gebundene ExclusionGuard (exclusion.py) stehen unabhaengig testbar bereit: drei Zustaende hart getrennt (untagged/active/unverifiable, excludes wirft bei unverifiable), ein REPORT je Schreibweise in EINEM Single-Flight je Tool-Aufruf (UND-Schnittmengen-Befund aus dem NC-Quelltext), Name-zu-Id-Cache je (base_url, user) nur fuer Treffer, 412 loest genau einmal neu auf, Capability wird nie befragt, Subtree ueber die zentrale Segmentregel dav.within, getaggte Vorfahren oberhalb der Sandbox wirken (dav.home_entries). Entscheide D-26-01 (nur das Tag als Ausschlussliste) und D-26-02 (kein Admin-Schalter, fail-closed). Nichts ist an Werkzeuge gehaengt, das ist Phase 27. Offen: secure-phase 26, 4 Review-Infos dokumentiert, Merker in deferred-items.md (Obergrenze/SQLite-Grenze fuer Phase 29, NcClients-Feld fuer Phase 27).
-
-**v1.7 Phase 25 complete 2026-09-27** (Mess-Spike Tag-Abfrage, 5/5 Pläne inkl. Zusatzplan 25-05, VERIFICATION passed 5/5): Alle Architektur-Annahmen des kein-ki-Filters sind gegen echte Instanzen gemessen (NC 32.0.15/33.0.9/34.0.4/35, SQLite und PostgreSQL 17). Owner-Entscheide dokumentiert in 25-MESSBERICHT.md: EXCL-05 wird in Phase 27 gebaut (Notiz-Id = fileid belegt), Fail-closed hängt am REPORT-Ausgang statt an der Capability (App-aus lässt REPORT auf allen Versionen unverändert antworten), EXCL-02 bleibt bei "ein REPORT je Antwort" (PostgreSQL 0,182 s bei 5000 Treffern; SQLite-Grenze ~240 s bei 140k Zuordnungen als Phase-29-Merker). secure-phase 25 SECURED 26/26 (27.09.). Offen: Review-Warnings WR-01..07 am Messwerkzeug (advisory, vor Wiederverwendung fixen).
+**v1.7 shipped 2026-10-01** (kein separates Milestone-Audit, wie v1.5 und v1.6; 14/14 Requirements, alle fünf Phasen goal-backward verifiziert, fünf secure-phase-Läufe mit threats_open 0, 5312 Unit- und Contract-Tests, CI-Lauf 36861555478 auf 5a89219 grün inkl. canary-nc35 und SBX-01 gegen echten Findling): Eine Datei oder ein Ordner mit dem kollaborativen System-Tag `kein-ki` (Groß-/Kleinschreibung egal, alle gleichnamigen Varianten, Subtree über die Segmentregel) erscheint in keiner Tool-Antwort mehr, weder als Treffer noch als Inhalt, Ausschnitt, Digest oder eingesetzter Dateiname. Getaggt antwortet byte-gleich wie nicht existent; ist die Prüfung nicht beantwortbar, hält jede Familie ihre dateitragenden Einträge zurück und meldet genau einen degraded-Eintrag, im Erfolgsfall ohne Zähler. Ein REPORT je Antwort (Single-Flight), Fail-closed hängt am REPORT-Ausgang, nicht an der Capability. Pfadlose Findling-, Notes- und comments-Treffer laufen durch dieselbe Sandbox. Die Grenze ist ein Gate: Klassifikations-Freeze 12/3/7, Kanarie über alle 22 Werkzeuge in vier Modi, 14 byte-gleiche Live-Paare, AST-Nadeln gegen jeden Tag-Schreibpfad. `occ mcp_connector:exclusion:check` prüft Existenz, Sichtbarkeit und Varianten nur lesend; docs/exclusion.md (EN/DE/FR) nennt 17 ehrliche Grenzen mit Befundlinks. NICHT released: der Filter reist mit 0.4.0 (geplant nach PR #14), die Store-Texte sind per SHA-256-Pin unverändert. Nebenläufig im Milestone-Zeitraum: Releases 0.3.0 (26.09., Exchange-Pfad und PR-#8-Features), 0.3.1 und 0.3.2 (Hotfixes zu Issues #10, #11, #12), PR #13 gemergt.
 
 **v1.6 shipped 2026-09-26** (kein separates Milestone-Audit, wie v1.5; 15/15 Requirements, jede Phase goal-backward verifiziert, secure-phase 24 mit 38/38 Threats, 4428 Tests): Der Connector nimmt einen nach RFC 8693 getauschten Keycloak-Token (F13-Orchestrator) an und handelt unter dem gemappten Nextcloud-Konto, ohne die Rechtegrenze aufzuweichen. Der Pfad ist ab Werk aus, im Aus-Zustand byte-gleich zu vorher, vor-authentisch gedrosselt, hash-verkettet auditiert (actor-Spalte, Abweisungskette x:exchange), per `occ mcp_connector:exchange:check` ohne Live-Zugriff verprobbar und in docs/token-exchange.md mit ehrlich markierten Grenzen dokumentiert. Zwei-Konten-Negativbeweis gemessen (docs/exchange-evidence.md). Die vier F13-Entscheidungen bleiben Konfiguration mit dokumentierten Defaults; die Rolle von `occ oauth2:add-client` ist als offene F13-Antwort markiert (Owner 24.09.). Akzeptiert: T-24-32 (mitfahrende Nextcloud-Anmeldung entscheidet vor dem Token; gemessen, dokumentiert, keine Rechteausweitung; R-24-05, Owner 26.09.). NICHT released: der Exchange-Pfad reist erst mit 0.3.0 (nur mit Owner-Freigabe). Nebenläufig im Milestone-Zeitraum: Community-PR #8 (piAreSquare) gemergt (files_download, Chunk-Upload, NC_MCP_FILES_ROOT-Sandbox), main darauf rebased.
 
@@ -48,13 +37,13 @@ BL-12 MUCGPT-Verprobung wartet auf it@M-Antwort).
 
 ## Next Milestone Goals
 
-Kandidaten nach v1.6 (Stand 2026-09-26):
-- **files_update / Schreibzugriff mit harten Schienen (Kandidat Nr. 1):** Owner-Entscheid 25.09.: Daniel (DaniW42/simul8) baut als Community-PR, Prozess über ein Design-Issue (Entwurf: Desktop/design-issue-files-update-ENTWURF.md), Massnahmenkatalog verbindlich; WARTET auf Daniels Antwort. Linie: sicheres Editieren frei (B), Freigabe-Governance bezahlt (D), Scope-Fence gegen den Audit-Log-Präzedenzfall
-- **Release 0.3.0** (nur mit Owner-Freigabe): bündelt Exchange-Pfad (v1.6), PR-#8-Features (files_download, Chunk-Upload, Sandbox), Store-Text-Fixes (RAG raus, Findling-Satz) und Public-URL-Ableitung
-- **F13-Wiederaufnahme**, sobald Denny Mattern antwortet: EXCH-F01 (Golden-Fixture aus echtem Token), EXCH-F02 (vier verprobte Konfigurationswerte), CLIENT-02 (Live-Verprobung)
-- Enterprise-/ISV-Spur: Fabrice-Call nachholen (Wiedervorlage war 25.09.), Approved-Write-Suite (D) erst danach öffentlich; Fake-Door-Auswertung ab Oktober, Findling-Pro-Entscheid vertagt auf 03.11.
-- openDesk in der Breite (v2.0) und Mail-Entwürfe/Talk-Threads: unverändert spätere Kandidaten
-- MUCGPT/BaerGPT live verproben, sobald externer Zugang besteht (deferred CLIENT-01/03)
+Kandidaten nach v1.7 (Stand 2026-10-01):
+- **Release 0.4.0 (geplant, nur mit Owner-Freigabe):** nach dem Merge von PR #14 (andrewyager, files_read_as_markdown); bündelt den kein-ki-Filter aus v1.7, die Store-Text-Erwähnung des Tags in drei Sprachen (EXCL-F02) und den Inhalt von PR #14
+- **files_update / Schreibzugriff mit harten Schienen:** Community-PR nach Design-Issue #9, extern getaktet; der Klassifikations-Freeze aus Phase 28 macht ein neues Werkzeug ohne Eintrag rot
+- **Enterprise-Governance auf dem Tag (EXCL-F01):** instanzweite Policies, Allow-Mode, Blocked-Access-Beweis im Audit-Log, Vier-Augen; bezahlte Schicht, erst nach dem Fabrice-Call
+- **F13-Wiederaufnahme**, sobald Denny Mattern antwortet: EXCH-F01, EXCH-F02, CLIENT-02
+- Enterprise-/ISV-Spur: Fake-Door-Auswertung ab Oktober, Findling-Pro-Entscheid vertagt auf 03.11.
+- openDesk in der Breite (v2.0), Mail-Entwürfe/Talk-Threads, MUCGPT/BaerGPT-Verprobung (CLIENT-01/03): unverändert spätere Kandidaten
 
 ## Requirements
 
@@ -92,10 +81,15 @@ Kandidaten nach v1.6 (Stand 2026-09-26):
 - ✓ Exchange-Pfad als Kette hinter unveränderter Transportgrenze: eigener Namensraum ab Werk aus, formbasierte Weiche, vor-authentische Drossel, Aus-Zustand byte-gleich , v1.6 (CONF-01, EXCH-04, EXCH-05)
 - ✓ Konto-Mapping ohne stille Kontoanlage (zwei Profile, kanonischer Principal), AppAPI-Impersonation fail-closed, Standalone-Bindung mit Enrollment und sofortigem Widerruf , v1.6 (MAP-01, MAP-02, CRED-01, CRED-02)
 - ✓ Audit-Anschluss (actor-Spalte, gebremste Abweisungskette), Trockenlauf-Kommando, Zwei-Konten-Negativbeweis gemessen, Einrichtungsdoku mit ehrlichen F13-Grenzen , v1.6 (AUDIT-07, EXCH-06, EXCH-07, EXCH-08)
+- ✓ Ausschluss-Tag `kein-ki` in allen dateitragenden Familien: Subtree, ein REPORT je Antwort, fail-closed mit drei Zuständen, getaggt byte-gleich zu nicht existent, Talk setzt keine getaggten Dateinamen ein , v1.7 (EXCL-01 bis EXCL-06)
+- ✓ Sandbox-Parität für pfadlose Findling-Treffer und Notes , v1.7 (SBX-01, SBX-02; SBX-01 im CI gegen echten Findling)
+- ✓ Die Grenze als Gate: Klassifikations-Freeze, Kanarie über alle Werkzeuge, byte-gleiche Paare auch im Ausfall, AST-Nadeln gegen Tag-Schreibpfade , v1.7 (GATE-01 bis GATE-03, EXCL-07)
+- ✓ Prüfkommando `occ mcp_connector:exclusion:check` und dreisprachige Betreiberdoku mit ehrlichen Grenzen , v1.7 (OPS-01, DOC-03)
 
 ### Active
 
-- [ ] Ausschluss-Tag kein-ki: getaggte Dateien und Ordner (Subtree) erscheinen in keiner Tool-Antwort, fail-closed, gebatchte Abfrage (v1.7, BL-16)
+- [ ] Store-Text-Erwähnung des Tags `kein-ki` in drei Sprachen (EXCL-F02, reist mit Release 0.4.0)
+- [ ] Enterprise-Governance auf dem Tag (EXCL-F01, bezahlte Schicht, nach dem Fabrice-Call)
 
 (Weiter extern getaktet: MUCGPT/F13/BaerGPT-Verprobungen, files_update via Community-PR nach Design-Issue #9.)
 
@@ -105,6 +99,9 @@ Kandidaten nach v1.6 (Stand 2026-09-26):
 - Tool-Flut (100+ Tools) - bewusste Gegenposition zum Platzhirsch; Client-Tool-Limits (z.B. Cursor 80) machen Flut zum Nachteil
 - Destruktive Operationen (Löschen, Überschreiben, Teilen/Freigaben ändern) - Sicherheitsversprechen der v1: "kann konstruktionsbedingt nichts zerstören"
 - Eigener LLM/RAG-Index - der MCP liefert Daten, das Modell sitzt beim Client; semantische Suche hat der Platzhirsch (Qdrant+Ollama), wir differenzieren über Zugänglichkeit und Auth
+- Konfigurierbarer Tag-Name oder Aliase für den Ausschluss - jede Konfigurationsstelle wäre eine Fail-open-Stelle (D-v1.7-01)
+- "n Einträge zurückgehalten"-Zähler in Antworten - Existenz-Orakel (D-v1.7-02); nur der degraded-Eintrag bei gescheiterter Prüfung
+- Schließung der Freigabe-Grenze beim Ausschluss-Tag - plattformseitig, als Grenze dokumentiert (docs/exclusion.md)
 - Konkurrenz zum Nextcloud Assistant/context_agent als Agent-Plattform - wir sind bewusst MCP-only (genau die in context_agent#203 gewünschte, unerfüllte Nische)
 
 ## Context
@@ -157,6 +154,11 @@ Kandidaten nach v1.6 (Stand 2026-09-26):
 | Nur entscheidungsunabhängige Teile bauen, F13-Abhängiges als Konfiguration mit Defaults (Milestone-Prämisse 18.09.) | Kein Warten auf externe Antworten; Spec-Note-Zusage einhalten | ✓ Good , 15/15 Requirements ohne eine einzige F13-Antwort geliefert, Andockpunkte dokumentiert |
 | Rolle von occ oauth2:add-client als OFFENE F13-Antwort markiert statt geraten (Owner, 24.09., Checkpoint 24-09) | Eine geratene Empfehlung in einer Einrichtungsdoku baut falsche Instanzen | , Pending (Frage liegt bei F13, ein Test hält die Markierung) |
 | T-24-32 akzeptiert statt Code-Mitigation (Owner, 26.09., R-24-05) | Gemessen, dokumentiert, keine Rechteausweitung; vorgesehener Betrieb ist Server-zu-Server ohne zweite Anmeldung | ✓ Good , Härtung in middleware.py bleibt als Option benannt |
+| D-v1.7-01/02: fester Tag-Name `kein-ki` ohne Konfiguration, kein Zurückgehalten-Zähler (Owner, 26.09.) | Konfigurationsstellen sind Fail-open-Stellen, ein Zähler ist ein Existenz-Orakel | ✓ Good , Paartests belegen Byte-Gleichheit getaggt gegen nicht existent, auch im Ausfall |
+| D-25-05: Fail-closed hängt am REPORT-Ausgang, nicht an der systemtags-Capability; Notes werden gebaut; ein REPORT je Antwort (Owner, 27.09., nach Messung) | Mess-Spike: App-aus lässt REPORT auf NC 32 bis 35 unverändert, Notiz-Id gleich fileid, PostgreSQL 0,182 s bei 5000 Treffern | ✓ Good , die Architektur stand vor dem ersten Code auf Messungen; SQLite-Grenze als ehrliche Doku-Grenze |
+| D-26-01/02: nur das Tag als Ausschlussliste, kein Admin-Schalter (Owner, 27.09.) | Eine zweite Liste oder ein Schalter wäre eine zweite Fail-open-Stelle | ✓ Good , ein Weg, ein Prüfkommando statt Schalter |
+| Wanduhr prepare_context mit Begründung abgenommen statt weiter optimiert (Owner, 28.09.) | Code nach 27-10 gegen die abwechselnde Kontrolle nicht messbar langsamer; Rauschen größer als die Reserve | , Pending (Schwellen unverändert dokumentiert, Request-Seite belegt; nach 0.4.0 erneut messen) |
+| D-28-21: Talk-Datei-Räume im Suchprovider talk-conversations filtern (Owner, nach Kanarie-Fund) | Die Kanarie fand einen echten Abfluss des getaggten Dateinamens | ✓ Good , Kanarie danach in allen vier Modi 22/22 grün |
 | PR #8 nach 4 Tagen Funkstille selbst fertiggestellt und gemergt (25.09.) | Sollte den Beitrag nicht verfallen lassen; verstiess aber gegen die Owner-Ansage "erst handeln, wenn er antwortet" | ⚠ Revisit , Regel seitdem: fremde PRs nie ohne Antwort des Beitragenden oder fallbezogene Owner-Freigabe fertigstellen |
 
 ## Evolution
@@ -177,4 +179,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-27 nach Abschluss von Phase 26*
+*Last updated: 2026-10-01 nach Abschluss von Milestone v1.7*

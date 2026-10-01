@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Ausschluss-Tag kein-ki
-status: milestone_complete
-stopped_at: Milestone complete (Phase 29 was final phase)
-last_updated: 2026-10-01T12:24:11.131Z
-last_activity: 2026-10-01
+status: Awaiting next milestone
+stopped_at: Milestone v1.7 complete (Phasenordner 25-29 bleiben in .planning/phases/, weil docs/exclusion*.md, Tests und src/ darauf verlinken)
+last_updated: "2026-10-01T12:37:43.330Z"
+last_activity: 2026-10-01, Milestone v1.7 abgeschlossen und archiviert; vorher Push 5a89219 mit CI-Lauf 36861555478 grün (SBX-01, canary-nc35), secure-phase 29 (31/31)
 progress:
   total_phases: 5
   completed_phases: 5
@@ -18,19 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-26)
+See: .planning/PROJECT.md (updated 2026-10-01)
 
 **Core value:** Die zugänglichste und sauberste MCP-Anbindung für Nextcloud: per Klick installierbar, spec-konformes OAuth statt App-Passwort-Gebastel, und der Assistent sieht niemals mehr als der angemeldete Nutzer.
-**Current focus:** Milestone complete
+**Current focus:** Kein aktiver Milestone. Geplant: Release 0.4.0 nach dem Merge von PR #14 (andrewyager, files_read_as_markdown), nur mit Owner-Freigabe; danach /gsd:new-milestone.
 
 ## Current Position
 
-Phase: 29
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-10-01
-
-Progress: [██████████] 100%
+Phase: Milestone v1.7 complete (Phasen 25-29)
+Plan: keiner
+Status: Awaiting next milestone
+Last activity: 2026-10-01, Milestone v1.7 abgeschlossen und archiviert
 
 ## Performance Metrics
 
@@ -811,11 +809,12 @@ Recent decisions affecting current work:
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
+Items acknowledged and deferred at milestone close on 2026-10-01 (v1.7):
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| *(none)* | | | |
+| quick_task | 260926-ktw-24-review-infos-in-01-bis-in-07-abraeume | missing (Fehlalarm: SUMMARY vorhanden, Arbeit erledigt, Commits in Quick-Tasks-Tabelle) | v1.7-Abschluss |
+| quick_task | 260930-ty7-ci-kanarie-auf-nc-35 | missing (Fehlalarm: SUMMARY mit status complete, CI-Job canary-nc35 im Lauf 36861555478 grün) | v1.7-Abschluss |
 
 ## Quick Tasks Completed
 
@@ -832,11 +831,12 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-10-01T10:23:22.167Z
-Stopped at: Completed 29-09-PLAN.md
-Nächster Schritt: code-review 29, verify 29, secure-phase 29, Push-Entscheid durch den Owner (Doku-Wortlaut am 2026-10-01 freigegeben)
+Stopped at: Milestone v1.7 abgeschlossen (2026-10-01)
+Nächster Schritt: Release 0.4.0 nach Merge von PR #14 (Owner-Freigabe), danach /gsd:new-milestone
 Resume file: None
 
 ## Operator Next Steps
 
-- /gsd:execute-phase 28
-- Push-Entscheid (Owner): danach SBX-01-CI-Schritt prüfen
+- Release 0.4.0 (nur mit ausdrücklicher Owner-Freigabe, Tag `v*` löst release.yml aus): geplant nach dem Merge von PR #14 (andrewyager, files_read_as_markdown); bündelt den kein-ki-Filter aus v1.7 und die Store-Text-Erwähnung des Tags (EXCL-F02)
+- Lokaler Stand: die Abschluss-Commits von v1.7 sind noch nicht gepusht (Push nur nach Owner-Entscheid)
+- Danach den nächsten Milestone mit /gsd:new-milestone starten (Kandidaten in PROJECT.md, Next Milestone Goals)

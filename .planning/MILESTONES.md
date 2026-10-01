@@ -1,5 +1,32 @@
 # Milestones
 
+## v1.7 Ausschluss-Tag kein-ki (Shipped: 2026-10-01)
+
+**Phases completed:** 5 phases (25 bis 29), 38 plans, 92 tasks
+**Umfang:** 343 Commits, 264 Dateien, +57.263/-1.733 Zeilen, 2026-09-26 bis 2026-10-01 (6 Tage)
+**Endstand:** 5312 Unit- und Contract-Tests grün (33 skipped); jede Phase goal-backward verifiziert (alle passed); fünf secure-phase-Läufe mit threats_open 0; CI-Lauf 36861555478 auf 5a89219 mit allen fünf Jobs grün, darunter canary-nc35 (GATE-02/03, OPS-01) und der SBX-01-Schritt gegen einen echten Findling
+
+**Key accomplishments:**
+
+- Eine Datei oder ein Ordner mit dem kollaborativen System-Tag `kein-ki` (Groß-/Kleinschreibung egal, alle gleichnamigen Varianten) erscheint in keiner Tool-Antwort mehr: weder als Treffer noch als Inhalt, Ausschnitt, Digest oder eingesetzter Dateiname; getaggt antwortet byte-gleich wie nicht existent, fail-closed mit genau einem degraded-Eintrag, ohne Zähler.
+- Phase 25: Mess-Spike gegen NC 32, 33, 34 und 35 (SQLite und PostgreSQL 17): Notiz-Id gleich fileid, REPORT unter AppAPI-Impersonation identisch, App-aus lässt REPORT unverändert (Fail-closed hängt am REPORT, nicht an der Capability), ein REPORT je Antwort (PostgreSQL 0,182 s bei 5000 Treffern).
+- Phase 26: policy-freier System-Tag-Client und request-gebundener ExclusionGuard mit drei harten Zuständen, Single-Flight, Name-zu-Id-Cache nur für Treffer, genau einer Neuauflösung nach 412 und Subtree über die zentrale Segmentregel `dav.within`.
+- Phase 27: alle dateitragenden Familien am Guard (Dateien inkl. orakelfreiem Upload, unified_search/fetch, Notes, Talk, prepare_context mit einem REPORT je Bündel); pfadlose Findling-, Notes- und comments-Treffer laufen durch dieselbe Sandbox (SBX-01/02); Wanduhr von prepare_context nach zwei Lückenplänen vom Owner mit Begründung abgenommen.
+- Phase 28: Klassifikations-Freeze 12/3/7 mit Probe-Werkzeug, Kanarie über alle 22 Werkzeuge in vier Modi (fand und schloss einen echten Abfluss über `talk-conversations`), 14 byte-gleiche Live-Paare auch im Ausfall, AST-Nadeln gegen jeden Tag-Schreibpfad, dazu Fixes für Tables-Link-Zellen und Talk im Guard-Ausfall.
+- Phase 29: fünftes occ-Kommando `mcp_connector:exclusion:check` (sieben Prüfschritte, nur lesend, live Fälle A bis H mit 80 leeren Tabellenvergleichen, CI-Schritt), dreisprachige Betreiberdoku docs/exclusion*.md mit 17 Grenzen und Befundlinks unter einem Wahrheitstest, Store-Texte per SHA-256-Pin unverändert.
+
+**Nicht released:** Der Filter reist mit Release 0.4.0, geplant nach dem Merge von PR #14 (andrewyager, files_read_as_markdown); dann auch die Store-Text-Erwähnung des Tags (EXCL-F02). Nebenläufig im Milestone-Zeitraum, außerhalb des Milestones: Hotfix-Releases 0.3.1 und 0.3.2 (Issues #10, #11, #12) und PR #13 (occ-Beschreibungen in der AppAPI-Spalte).
+
+**Akzeptierte Risiken:** je Phase im Accepted-Risks-Log der SECURITY.md (u. a. Zeitunterschied getaggt gegen fehlend T-27-15, Upload-Grenzfall T-27-16, Homoglyphen-Tag T-29-07, Arbeitsplatz-RAM T-29-04 als AR-29-03 per Owner-Entscheid 01.10.); ehrliche Produktgrenzen (Freigabe-Grenze, unsichtbares Tag, Drittanbieter-Suchprovider, Tables-Freitext mit `/f/<id>`, Talk-Datei-Raum bei ausfallender Pfadsuche) stehen in docs/exclusion.md.
+
+**Known deferred items at close:** 2 (siehe STATE.md Deferred Items; beide Fehlalarme des Artefakt-Audits, die Quick-Tasks sind erledigt).
+
+**Hinweis Audit:** Ein separates Milestone-Audit wurde wie bei v1.5 und v1.6 nicht gefahren; die Aussagen stammen aus den fünf Phase-Verifikationen, den Code-Reviews, den secure-phase-Läufen und dem CI-Lauf auf dem gepushten Stand.
+
+**Hinweis Archiv:** Anders als bei v1.6 bleiben die Phasenordner 25 bis 29 unter .planning/phases/: docs/exclusion*.md verlinken ihre Befunde dorthin (116 Verweise in docs/, src/, tests/ und scripts/, gehalten vom Doku-Wahrheitstest). Ein Umzug nach milestones/v1.7-phases/ bräuchte eine eigene Änderung an Doku und Tests.
+
+---
+
 ## v1.6 F13 Token Exchange Identity Mapper (Shipped: 2026-09-26)
 
 **Phases completed:** 5 phases (20 bis 24), 22 plans, 59 tasks
