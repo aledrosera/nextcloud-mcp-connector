@@ -157,8 +157,8 @@ that names the items under the other spelling as not excluded.
 **Exit code.** Over AppAPI the exit code of the command is always 0, whatever the verdict.
 A script or monitoring reads the key `passed` of the `--json` answer, never the exit code.
 
-**Without `--admin`.** The command then reads like an ordinary account and sees only visible
-tags. It cannot check invisible tags or delegation groups this way, and the output says so.
+**Without `--admin`.** The command then reads as the first account of the user list of the
+instance (sorted), on many instances an administrator, and evaluates only visible tags. It cannot check invisible tags or delegation groups this way, and the output says so.
 Run it with `--admin=<uid>` for the full check.
 
 **Counts.** The number counts assignments across the whole instance, including files in the

@@ -115,6 +115,14 @@ SETUP_STRINGS = (
     "restrict_creation_to_admin",
 )
 
+#: Who the command reads as without ``--admin``: the first account of the user list, and
+#: the wording it replaced, which claimed an ordinary account (29-REVIEW IN-03).
+READER_WORDS = {
+    "lang_en": ("first account of the user list", "like an ordinary account"),
+    "lang_de": ("erste Konto der Nutzerliste", "gewöhnliches Konto"),
+    "lang_fr": ("premier compte de la liste des utilisateurs", "compte ordinaire"),
+}
+
 #: The three READMEs: the file, the link target of its language, the share keyword.
 READMES: dict[str, tuple[Path, str, str]] = {
     "readme_en": (ROOT / "README.md", "docs/exclusion.md", "share"),
@@ -264,6 +272,24 @@ def test_the_page_names_what_an_operator_types(lang: str) -> None:
     missing = [needle for needle in expected if needle not in text]
 
     assert missing == [], f"{PAGES[lang].name} does not name {missing}"
+
+
+@page_params
+def test_the_page_names_whom_the_command_reads_as_without_admin(lang: str) -> None:
+    """IN-03: without ``--admin`` the reader is the first sorted account, often an admin."""
+    text = " ".join(read(PAGES[lang]).split())
+    right, wrong = READER_WORDS[lang]
+
+    assert right in text, f"{PAGES[lang].name} does not say {right!r}"
+    assert wrong not in text, f"{PAGES[lang].name} still says {wrong!r}"
+
+
+def test_the_manifest_comment_does_not_claim_the_check_always_reads_as_an_admin() -> None:
+    """IN-03: the comment on /exclusion-check in info.xml said "impersonating an administrator"."""
+    manifest = " ".join((ROOT / "appinfo" / "info.xml").read_text(encoding="utf-8").split())
+
+    assert "while impersonating an administrator" not in manifest
+    assert "impersonating an account of the instance" in manifest
 
 
 @page_params

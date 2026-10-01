@@ -260,7 +260,8 @@ Prérequis :
 		  - The eighth deliberately absent path is /exclusion-check, added in plan 29-05. It
 		  - is the handler of the occ command mcp_connector:exclusion:check, which reads the
 		  - tag names, access levels, delegation groups and assignment counts of the whole
-		  - instance while impersonating an administrator. A declaration would hand that
+		  - instance while impersonating an account of the instance (an administrator only
+		  - when the admin option names one). A declaration would hand that
 		  - picture to anyone who can reach the PHP proxy, which attaches valid AppAPI headers
 		  - itself (T-02-20, T-29-12). AppAPI calls this path over PublicFunctions like the
 		  - seven above, so it needs no declaration to work, and the handler carries the same

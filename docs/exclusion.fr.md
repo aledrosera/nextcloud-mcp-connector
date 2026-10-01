@@ -167,7 +167,8 @@ graphie comme non exclus.
 le verdict. Un script ou une supervision lit la clé `passed` de la réponse `--json`, jamais le
 code de sortie.
 
-**Sans `--admin`.** La commande lit alors comme un compte ordinaire et ne voit que les étiquettes
+**Sans `--admin`.** La commande lit alors en tant que premier compte de la liste des utilisateurs
+de l'instance (triée), sur beaucoup d'instances un administrateur, et n'évalue que les étiquettes
 visibles. Elle ne peut pas vérifier ainsi les étiquettes invisibles ni les groupes de délégation,
 et la sortie le dit. Pour la vérification complète, la lancer avec `--admin=<uid>`.
 

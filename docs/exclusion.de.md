@@ -163,8 +163,8 @@ Schreibweise als nicht ausgeschlossen nennt.
 ausfällt. Ein Skript oder Monitoring liest den Schlüssel `passed` der `--json`-Antwort, nie den
 Exit-Code.
 
-**Ohne `--admin`.** Das Kommando liest dann wie ein gewöhnliches Konto und sieht nur sichtbare
-Tags. Unsichtbare Tags und Delegationsgruppen kann es so nicht prüfen, und die Ausgabe sagt das.
+**Ohne `--admin`.** Das Kommando liest dann als das erste Konto der Nutzerliste der Instanz
+(sortiert), auf vielen Instanzen ein Administrator, und wertet nur sichtbare Tags aus. Unsichtbare Tags und Delegationsgruppen kann es so nicht prüfen, und die Ausgabe sagt das.
 Für die vollständige Prüfung mit `--admin=<uid>` aufrufen.
 
 **Anzahlen.** Die Zahl zählt Zuordnungen über die ganze Instanz, auch von Dateien im
