@@ -415,12 +415,12 @@ count = sum(
 | A7 | UI-Ort "Collaborative tags" in den Admin-Einstellungen | Frage 5 | gering: M9 |
 | A8 | `group:add`/`group:adduser` Syntax | Frage 5 | gering: M8 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **O1 Identität:** Option `--admin=<uid>` (Empfehlung) gegenüber automatischer Admin-Suche. Was wir wissen: occ ruft ohne Nutzer, leerer Nutzer sieht keine unsichtbaren Tags. Empfehlung: Option, Owner bestätigt beim Planen.
-2. **O2 Variante neben exaktem Tag:** `passed=false` (Empfehlung) oder Hinweis. Owner bestätigt.
-3. **O3 Zusatzgrenzen:** die neun D-29-05-Punkte plus die H-4-Liste (SQLite, Upload-Restorakel, Tables/Talk ohne Sandbox, Fremdtext, Staging, D-28-21, Einheitswortlaut, Admin-Sicht unsichtbar, MariaDB). Empfehlung: alle aufnehmen, weil "alle Grenzen einzeln" und das Phase-29-Audit sie verlangt.
-4. **O4 `restrict_creation_to_admin` im Prüfkommando melden?** Lesbar nur als Admin über OCS-Provisioning; Nutzen: warnt, dass Nutzer Varianten anlegen können. Empfehlung: nur Doku, nicht im Kommando (Scope schlank).
+1. **O1 Identität:** **(RESOLVED: D-29-09, Option --admin=<uid>, Handler prüft Admin selbst; ohne Option nur sichtbare Tags mit ausdrücklichem Satz)** Option `--admin=<uid>` (Empfehlung) gegenüber automatischer Admin-Suche. Was wir wissen: occ ruft ohne Nutzer, leerer Nutzer sieht keine unsichtbaren Tags. Empfehlung: Option, Owner bestätigt beim Planen.
+2. **O2 Variante neben exaktem Tag:** **(RESOLVED: D-29-10, exakt plus Variante = passed=true mit Warnung; nur Variante = passed=false)** `passed=false` (Empfehlung) oder Hinweis. Owner bestätigt.
+3. **O3 Zusatzgrenzen:** **(RESOLVED: D-29-11, eigener Abschnitt "Weitere technische Grenzen" mit den H-4-Punkten)** die neun D-29-05-Punkte plus die H-4-Liste (SQLite, Upload-Restorakel, Tables/Talk ohne Sandbox, Fremdtext, Staging, D-28-21, Einheitswortlaut, Admin-Sicht unsichtbar, MariaDB). Empfehlung: alle aufnehmen, weil "alle Grenzen einzeln" und das Phase-29-Audit sie verlangt.
+4. **O4 `restrict_creation_to_admin` im Prüfkommando melden?** **(RESOLVED: nur Doku, nicht im Kommando)** Lesbar nur als Admin über OCS-Provisioning; Nutzen: warnt, dass Nutzer Varianten anlegen können. Empfehlung: nur Doku, nicht im Kommando (Scope schlank).
 
 ## Environment Availability
 
