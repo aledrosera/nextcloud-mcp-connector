@@ -99,3 +99,10 @@ Keine.
 
 - tests/integration/test_exclusion_check_live.py, raw/29-06-live-beweis.txt vorhanden, ci.yml enthält den Schritt
 - Commits 2a3529b, 849ed3f vorhanden
+
+## Nachtrag 2026-10-01: Wiederholungslauf nach dem Code-Review (29-REVIEW WR-05)
+
+- Anlass: raw/29-06-live-beweis.txt stammt von 2a3529b; f016f8f änderte danach NO_VISIBLE_TAG_SENTENCE und fügte eine Reihenfolge-Assertion hinzu, die nie live lief.
+- Lauf: dieselbe Testdatei, ExApp aus dem Arbeitsbaum neu gebaut (Image sha256:08e87ea2..., Stand 5da76f3 inklusive WR-01 bis WR-03 und IN-01 bis IN-04), Live-Test um die Kontotabellen preferences, storages, mounts, filecache erweitert (WR-04, Commit a462aeb).
+- Ergebnis: **7 passed**, 160 Tabellenvergleiche gleich=ja, 0 gleich=nein, alle CLEANUP-Zeilen ok; die neue Reihenfolge-Assertion aus f016f8f und die neue IN-02-Assertion (Fall D) liefen grün.
+- Rohbeleg: raw/29-REVIEW-FIX-live-beweis.txt (neue Datei, raw/29-06-live-beweis.txt unverändert). Alle in docs/exclusion*.md zitierten Ausgabezeilen stehen wörtlich darin (Unit-Test test_the_quoted_output_stands_verbatim_in_the_latest_live_run).

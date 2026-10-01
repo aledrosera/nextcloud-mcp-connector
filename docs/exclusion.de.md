@@ -13,7 +13,8 @@ Diese Seite beschreibt die zwei Betriebsarten, die Einrichtung mit occ, das Prü
 jede gemessene oder entschiedene Grenze. Jeder Befehl unten lief am 2026-10-01 gegen
 Nextcloud 35.0.0 und steht mit seiner Ausgabe im Rohbeleg
 ([raw/29-01-messungen.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-01-messungen.txt),
-[raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt)).
+[raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt),
+[raw/29-REVIEW-FIX-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live-beweis.txt), Wiederholungslauf mit dem aktuellen Code).
 
 <a id="operating-modes"></a>
 ## Betriebsarten

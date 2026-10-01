@@ -14,7 +14,8 @@ Cette page décrit les deux modes de fonctionnement de l'étiquette, la mise en 
 commande de vérification et chaque limite mesurée ou décidée. Chaque commande ci-dessous a été
 exécutée contre Nextcloud 35.0.0 le 2026-10-01 et figure avec sa sortie dans les preuves brutes
 ([raw/29-01-messungen.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-01-messungen.txt),
-[raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt)).
+[raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt),
+[raw/29-REVIEW-FIX-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live-beweis.txt), reprise avec le code actuel).
 
 <a id="operating-modes"></a>
 ## Modes de fonctionnement

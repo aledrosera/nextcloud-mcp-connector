@@ -334,6 +334,37 @@ def test_the_change_nothing_claim_names_the_account_tables_the_proof_compares(la
         assert f"'{table}'" in proof, f"the live proof does not dump {table}"
 
 
+#: The newest live run of the check against nc35, after the wording changes of f016f8f and
+#: the review fixes (29-REVIEW WR-05). The quoted output has to stand in it verbatim.
+LATEST_LIVE_RAW = (
+    ROOT
+    / ".planning"
+    / "phases"
+    / "29-pr-fkommando-und-doku"
+    / "raw"
+    / "29-REVIEW-FIX-live-beweis.txt"
+)
+
+
+@page_params
+def test_the_quoted_output_stands_verbatim_in_the_latest_live_run(lang: str) -> None:
+    """WR-05: no quoted line of the command may be older than the code that prints it."""
+    text = read(PAGES[lang])
+    raw = LATEST_LIVE_RAW.read_text(encoding="utf-8")
+    quoted = [
+        line
+        for block in FENCE.findall(text)
+        if "$ php occ mcp_connector:exclusion:check" in block
+        for line in block.splitlines()
+        if line.startswith("  ")
+    ]
+
+    assert quoted, f"{PAGES[lang].name} quotes no output of the check"
+    assert LATEST_LIVE_RAW.name in text, f"{PAGES[lang].name} does not link the latest run"
+    missing = [line for line in quoted if line not in raw]
+    assert missing == [], f"{PAGES[lang].name} quotes lines the latest run did not print"
+
+
 @page_params
 def test_the_page_says_the_exit_code_is_zero(lang: str) -> None:
     """D-29-04: over AppAPI the exit code is always 0; monitoring reads ``passed``."""

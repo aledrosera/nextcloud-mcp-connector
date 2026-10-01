@@ -13,7 +13,8 @@ This page describes the two ways to run the tag, the setup with occ, the check c
 every limit that was measured or decided. Each command below ran against Nextcloud 35.0.0 on
 2026-10-01 and stands with its output in the raw evidence
 ([raw/29-01-messungen.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-01-messungen.txt),
-[raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt)).
+[raw/29-06-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-06-live-beweis.txt),
+[raw/29-REVIEW-FIX-live-beweis.txt](../.planning/phases/29-pr-fkommando-und-doku/raw/29-REVIEW-FIX-live-beweis.txt), repeat run with the current code).
 
 <a id="operating-modes"></a>
 ## Operating modes
