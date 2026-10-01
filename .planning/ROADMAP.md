@@ -290,10 +290,42 @@ Plans:
   3. Die Doku unter docs/ und die README-Erwähnung liegen in allen drei Sprachen vor und nennen Freigabe-Grenze, unsichtbares Tag, App-aus-Verhalten und die Betriebsarten Selbstbedienung (kollaborativ) und Organisationsmodus (eingeschränktes Tag per Gruppen-Delegation); jede Grenzaussage verweist auf ihren Befund aus Phase 25
   4. Die Store-Beschreibungen sind unverändert (EXCL-F02 reist mit dem nächsten Release), belegt durch einen leeren Diff der drei Store-Texte
 
-**Plans**: TBD
-**Offene Punkte für die discuss-phase (nicht entschieden)**:
+**Plans**: 9 plans
+**Offene Punkte für die discuss-phase**: beantwortet durch D-26-01/D-26-02 (29-CONTEXT.md)
 
-  - Was das Prüfkommando meldet, hängt an den Entscheiden aus Phase 26 (Admin-Schalter, Ordner-Tag als Ausschlussliste)
+Plans:
+**Wave 1**
+
+- [ ] 29-01-PLAN.md , Live-Messungen M1 bis M9 gegen nc35 (Impersonation, Admin-Nachweis, Zählung, Anleitungsbefehle) vor jedem Code
+- [ ] 29-02-PLAN.md , TDD: reine Urteilslogik exclusion_audit (exakt/Variante/ähnlich, Betriebsart, Urteil)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 29-03-PLAN.md , Client: list_tag_details, count_tag_objects, confirm_admin nach Messung
+
+**Wave 3**
+
+- [ ] 29-04-PLAN.md , Handler exapp/exclusion_check.py (Text/--json, --admin, immer 200, nur lesend)
+
+**Wave 4**
+
+- [ ] 29-05-PLAN.md , Verdrahtung: fünftes occ-Kommando, Route, info.xml-Kommentar
+
+**Wave 5**
+
+- [ ] 29-06-PLAN.md , Live-Beweis nc35 Fälle A bis H mit Tabellen-Diff, CI-Schritt in canary-nc35
+
+**Wave 6**
+
+- [ ] 29-07-PLAN.md , Doku-Wahrheitstest, docs/exclusion.md und docs/exclusion.de.md
+
+**Wave 7**
+
+- [ ] 29-08-PLAN.md , docs/exclusion.fr.md und drei README-Abschnitte
+
+**Wave 8**
+
+- [ ] 29-09-PLAN.md , Store-Texte-Pin mit leerem Diff, alle Gates, Owner-Abnahme des Wortlauts
 
 ## Progress
 
